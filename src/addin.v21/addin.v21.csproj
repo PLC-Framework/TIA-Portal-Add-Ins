@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Main properties -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>addin</RootNamespace>
+    <AssemblyName>PLC-Framework.v21</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Siemens properties -->
+  <PropertyGroup>
+  <SiemensPublicApi Condition="'$(SiemensPublicApi)' == ''">$(MSBuildThisFileDirectory)..\..\..\.lib\Siemens\PublicAPI</SiemensPublicApi>
+  <TiaAddInApi>$(SiemensPublicApi)\V21\net48</TiaAddInApi>
+  <!-- The V21 Publisher sits in V21\, NOT in V21\net48\ next to the assemblies -->
+  <TiaPublisher>$(SiemensPublicApi)\V21\Siemens.Engineering.AddIn.Publisher.exe</TiaPublisher>
+</PropertyGroup>
+
+  <!-- External references -->
+  <ItemGroup>
+  <Reference Include="Siemens.Engineering.AddIn.Base">
+    <HintPath>$(TiaAddInApi)\Siemens.Engineering.AddIn.Base.dll</HintPath>
+    <Private>False</Private>
+  </Reference>
+  <Reference Include="Siemens.Engineering.Base">
+    <HintPath>$(TiaAddInApi)\Siemens.Engineering.Base.dll</HintPath>
+    <Private>False</Private>
+  </Reference>
+  <Reference Include="Siemens.Engineering.AddIn.Permissions">
+    <HintPath>$(TiaAddInApi)\Siemens.Engineering.AddIn.Permissions.dll</HintPath>
+    <Private>False</Private>
+  </Reference>
+  <Reference Include="Siemens.Engineering.AddIn.Utilities">
+    <HintPath>$(TiaAddInApi)\Siemens.Engineering.AddIn.Utilities.dll</HintPath>
+    <Private>False</Private>
+  </Reference>
+</ItemGroup>
+
+  <!-- Packages the built DLL into a .addin file TIA Portal can load, using the
+       Siemens-provided publisher tool and Config.xml.
+
+       The Publisher resolves the config's <Assembly> path relative to the config
+       file's own location, not to the working directory. Config.xml is therefore
+       copied next to the built DLL and the Publisher is pointed at that copy, so
+       the plain file name in <Assembly> resolves.
+
+       The Condition keeps a clone without the Siemens DLLs from breaking the
+       build: the .dll still compiles and only packaging is skipped. -->
+  <Target Name="PublishTiaAddIn" AfterTargets="Build" Condition="Exists('$(TiaPublisher)')">
+
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Config.xml" DestinationFolder="$(TargetDir)" />
+    <Exec Command="&quot;$(TiaPublisher)&quot; --configuration &quot;$(TargetDir)Config.xml&quot; --outfile &quot;$(TargetDir)$(TargetName).addin&quot; --console" />
+  </Target>
+
+  <Target Name="WarnIfPublisherMissing" AfterTargets="Build" Condition="!Exists('$(TiaPublisher)')">
+    <Warning Text="Publisher was not found in '$(TiaPublisher)'. File .dll was compiled, but file .addin was not generated." />
+  </Target>
+
+</Project>
