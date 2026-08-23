@@ -1,1 +1,3 @@
-<Solution />
+<Solution>
+  <Project Path="src/addin.v20/addin.v20.csproj" />
+</Solution>
