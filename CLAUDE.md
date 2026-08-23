@@ -9,7 +9,9 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 
 ## Rules not to break
 
-- **Never add `Siemens.Engineering.dll`** to a project that already references `Siemens.Engineering.AddIn.dll`. The latter already carries the full object model (2269 types, including `HW.*` and `SW.Blocks.*`). Referencing both makes `IEngineeringObject` ambiguous and forces `extern alias`. Only reconsider if a specific type actually fails to compile.
+- **V20 — never add `Siemens.Engineering.dll`** to a project that already references `Siemens.Engineering.AddIn.dll`. The latter already carries the full object model (2269 types, including `HW.*` and `SW.Blocks.*`). Referencing both makes `IEngineeringObject` ambiguous and forces `extern alias`. Only reconsider if a specific type actually fails to compile.
+- **V21 — the model is inverted**: `Siemens.Engineering.AddIn.Base.dll` holds only 71 infrastructure types, so `Siemens.Engineering.Base.dll` **must** also be referenced for `TiaPortal`, `Project`, `IEngineeringObject` and `NotificationIcon`. Nothing is duplicated there, so no `extern alias` is ever needed. `PlcBlock` lives in `Siemens.Engineering.Step7.dll`; there is no `Siemens.Engineering.Hmi.dll`.
+- **The V21 Publisher is in `V21\`, not `V21\net48\`** — it cannot be derived from the assembly path the way it can in V20.
 - **`PlatformTarget` = `x64`** in every project TIA loads into its process.
 - **`<Private>False</Private>`** on every reference to a Siemens assembly.
 - **Siemens DLL paths parameterized** through `$(SiemensPublicApi)`, never hardcoded in each `HintPath`.
@@ -18,7 +20,7 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 
 ## Naming convention (settled)
 
-Project `addin.v20` · `AssemblyName` `PLC-Framework.v20` · `RootNamespace` `addin`.
+Projects `addin.v20` / `addin.v21` · `AssemblyName` `PLC-Framework.v20` / `PLC-Framework.v21` · `RootNamespace` `addin` in both.
 
 Lowercase, and the version is not repeated in the namespace because the project name already carries it. **Do not propose PascalCase**: this was a deliberate decision by the user, not an oversight.
 
@@ -36,23 +38,26 @@ Do not relitigate without new information:
 
 ### Sharing code between `addin.v20` and `addin.v21`
 
-V21 rules out a single binary. Options, best to worst:
+V21 rules out a single binary. Right now the two projects are **near-duplicates**: `AddInProvider.cs` is byte-identical and `AddInController.cs` differs in one line (the message box). So this is already a live problem, not a hypothetical one.
 
-1. **An interface in `Core` plus two independent implementations** — no build tricks, no `#if`. ← start here
-2. **Shared Project (`.shproj`) or linked files** — move here if the second adapter turns out to be a 90% copy of the first.
+Options, best to worst:
+
+1. **An interface in `Core` plus two thin implementations** — no build tricks, no `#if`. ← start here
+2. **Shared Project (`.shproj`) or linked files** for whatever stays genuinely identical.
 3. **`#if V20 / #if V21`** — avoid: it degrades fast and makes menu code unreadable.
 
 ## Status (2026-08-23)
 
-- [x] `addin.v20` created and **validated end to end**: builds → produces the `.addin` → loads correctly in TIA Portal V20 on the VM. It is a hello world with one context-menu entry.
-- [x] Added to the `.slnx`
-- [ ] `addin.v21`, `Core`, `IPC`, satellites
+- [x] `addin.v20` and `addin.v21` created, both in the `.slnx`, both **validated end to end**: build → produce the `.addin` → load correctly in TIA Portal V20 / V21 on the VM. Each is a hello world with one context-menu entry.
+- [ ] `Core`, `IPC`, satellites
+
+### Known V20/V21 divergence
+
+The menu and provider API is identical across versions, but the two are **not source-compatible**. Found so far: the message box. V20 uses `tiaPortal.GetMessageBox()` returning `MessageBox`; V21 removed that extension and uses `tiaPortal.GetService<MessageBoxProvider>()`. Expect more divergences as real actions get written — each one is an argument for pushing the difference behind a `Core` interface.
 
 ### Pending
 
-- [ ] Create `Core` and extract into it the first interface isolating the TIA API
-- [ ] Create `addin.v21` implementing that interface against `V21\net48` — this is what proves whether the abstraction holds
-- [ ] `Config.xml` for V21 with its own `.../Publisher/V21` `xmlns`
+- [ ] Create `Core` and extract into it the first interface isolating the TIA API. The message-box divergence is the natural first candidate (`INotifier.Info(caption, message)` or similar)
 - [ ] **Decide**: migrate the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
 - [ ] Automate deployment of the `.addin` to the VM (currently a manual copy)
 - [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to shorten the test cycle

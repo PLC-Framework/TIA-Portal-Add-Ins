@@ -5,7 +5,7 @@ A **TIA Portal Add-In** (Siemens Openness) plus the **satellite apps** with UI t
 - Solution: `tia-portal-addins.slnx` — the new XML format, not the classic `.sln`
 - Target framework: **.NET Framework 4.8** for everything touching TIA Portal / Openness, WPF included
 
-The current Add-In (`addin.v20`) is a hello world already validated in TIA Portal V20: a context-menu entry on the project root node that shows a notification. It serves as validated scaffolding to build on.
+Two Add-In projects exist today, `addin.v20` and `addin.v21`, both validated on the VM against their respective TIA Portal versions. Each is a hello world: a context-menu entry on the project root node that shows a notification. They serve as validated scaffolding to build on.
 
 ## Working environment: two machines
 
@@ -32,15 +32,17 @@ tia-portal-addins.slnx
 └── src/
     ├── Core/                  (net48) — models and interfaces, NO Siemens references
     ├── addin.v20/             (net48) — references PublicAPI\V20.addIn (valid V17–V20)   ← EXISTS
-    ├── addin.v21/             (net48) — references PublicAPI\V21\net48
+    ├── addin.v21/             (net48) — references PublicAPI\V21\net48                   ← EXISTS
     ├── IPC/                   (net48) — Add-In ↔ satellite contract (named pipes)
     ├── Satellite.Shared/      (net48, WPF) — shared styles and controls
     └── Satellite.<Name>/      (net48, WPF) — one project per satellite app
 ```
 
+Both Add-In projects have the same four files:
+
 ```
-src/addin.v20/
-├── addin.v20.csproj      SDK-style net48 x64, Siemens references + Publisher target
+src/addin.vXX/
+├── addin.vXX.csproj      SDK-style net48 x64, Siemens references + Publisher target
 ├── AddInProvider.cs      ProjectTreeAddInProvider — entry point
 ├── AddInController.cs    ContextMenuAddIn — menu and action
 └── Config.xml            PackageConfiguration for the Publisher
@@ -48,15 +50,15 @@ src/addin.v20/
 
 ### Naming convention
 
-| Item | Value in `addin.v20` | Rationale |
-|---|---|---|
-| Project / folder | `addin.v20` | lowercase |
-| `AssemblyName` | `PLC-Framework.v20` | the output is part of PLC-Framework; hyphens are legal in an assembly name |
-| `RootNamespace` | `addin` | repeating the version inside `addin.v20` is redundant |
+| Item | `addin.v20` | `addin.v21` | Rationale |
+|---|---|---|---|
+| Project / folder | `addin.v20` | `addin.v21` | lowercase |
+| `AssemblyName` | `PLC-Framework.v20` | `PLC-Framework.v21` | the output is part of PLC-Framework; hyphens are legal in an assembly name |
+| `RootNamespace` | `addin` | `addin` | repeating the version inside `addin.vXX` is redundant |
 
-There is no collision once `addin.v21` exists with the same `addin` namespace: they are separate assemblies that nothing references together — TIA loads one or the other depending on its version.
+Both projects sharing the `addin` namespace causes no collision: they are separate assemblies that nothing references together — TIA loads one or the other depending on its version.
 
-The `AssemblyName` **must match** the `<Assembly>` element in `Config.xml` (`PLC-Framework.v20.dll`). What TIA displays in the menu does not depend on it: that comes from the `string` passed to the `ContextMenuAddIn` constructor and from `<Product><Name>` in `Config.xml`.
+The `AssemblyName` **must match** the `<Assembly>` element in `Config.xml` (`PLC-Framework.v20.dll` / `PLC-Framework.v21.dll`). What TIA displays in the menu does not depend on it: that comes from the `string` passed to the `ContextMenuAddIn` constructor and from `<Product><Name>` in `Config.xml`.
 
 ## Siemens dependencies
 
@@ -104,19 +106,34 @@ Output lands in `bin\Debug\net48\`:
 
 ### References
 
-Only four, all with `<Private>False</Private>` because TIA resolves them from its own installation at runtime — copying them next to the Add-In breaks loading:
+All references carry `<Private>False</Private>` because TIA resolves them from its own installation at runtime — copying them next to the Add-In breaks loading. **`PlatformTarget` must be `x64`**: TIA Portal is 64-bit only and the Add-In loads inside its process.
 
-`Siemens.Engineering.AddIn` · `.AddIn.Permissions` · `.AddIn.Utilities` · `Siemens.Engineering.Hmi`
+**The reference model is inverted between V20 and V21.** This is the single most disorienting difference between the two projects:
 
-**`PlatformTarget` must be `x64`**: TIA Portal V20 is 64-bit only and the Add-In loads inside its process.
+| | V20 | V21 |
+|---|---|---|
+| Add-In assembly | `Siemens.Engineering.AddIn.dll` — **2269 types**, carries the object model embedded | `Siemens.Engineering.AddIn.Base.dll` — **71 types**, Add-In infrastructure only |
+| Object model (`TiaPortal`, `Project`, `IEngineeringObject`, `NotificationIcon`, `HW.*`) | inside the Add-In assembly | `Siemens.Engineering.Base.dll` — 1382 types |
+| `SW.Blocks.PlcBlock` | inside the Add-In assembly | `Siemens.Engineering.Step7.dll` |
+| HMI types | `Siemens.Engineering.Hmi.dll` | no such assembly — `WinCC.dll` / `WinCCUnified.dll` |
+| References needed | **only** the Add-In assembly | **both** `AddIn.Base` and `Base` |
+| `extern alias` | needed if `Siemens.Engineering.dll` is added | never needed |
 
-#### `Siemens.Engineering.dll` is not needed
+`addin.v20` references: `Siemens.Engineering.AddIn` · `.AddIn.Permissions` · `.AddIn.Utilities` · `Siemens.Engineering.Hmi`
 
-`Siemens.Engineering.AddIn.dll` (V20) exposes **2269 public types** and carries the full engineering object model embedded: `TiaPortal`, `Project`, `IEngineeringObject`, and also `Siemens.Engineering.HW.DeviceItem` and `Siemens.Engineering.SW.Blocks.PlcBlock`.
+`addin.v21` references: `Siemens.Engineering.AddIn.Base` · `Siemens.Engineering.Base` · `.AddIn.Permissions` · `.AddIn.Utilities`
 
-This matters because referencing **both** assemblies does break the build: they define distinct, incompatible copies of `Siemens.Engineering.IEngineeringObject`, which becomes ambiguous, forcing `extern alias TiaAddIn;` plus `using AddInEngineering = TiaAddIn::Siemens.Engineering;` with every menu generic typed over `AddInEngineering.IEngineeringObject`.
+#### V20: do not add `Siemens.Engineering.dll`
+
+Since `Siemens.Engineering.AddIn.dll` already carries the whole object model, referencing **both** assemblies breaks the build: they define distinct, incompatible copies of `Siemens.Engineering.IEngineeringObject`, which becomes ambiguous, forcing `extern alias TiaAddIn;` plus `using AddInEngineering = TiaAddIn::Siemens.Engineering;` with every menu generic typed over `AddInEngineering.IEngineeringObject`.
 
 **All of that is avoidable**: do not add `Siemens.Engineering.dll` until a specific type actually fails to compile.
+
+#### V21: the split is clean
+
+`IEngineeringObject` exists exactly once, in `Siemens.Engineering.Base.dll`. Nothing is duplicated, so referencing both assemblies is not only safe but required, and the `extern alias` problem simply does not arise.
+
+> Watch out: `Siemens.Engineering.AddIn.Base.dll` declares a dependency on `Siemens.Engineering.Contract`, and that DLL is **not present** in the local `V21\net48\` copy. It has not blocked anything so far, but a *"is defined in an assembly that is not referenced"* error would mean it needs copying from a TIA V21 installation.
 
 ## Packaging and deployment
 
@@ -162,19 +179,26 @@ Request only the permissions actually used: every extra one is friction when sig
 
 ### 3. Installing into TIA Portal
 
-Copy the `.addin` to:
+Copy the `.addin` to the `UserAddIns` folder of the matching TIA version, on the machine where TIA runs (here, the VM):
 
 ```
-%AppData%\Siemens\Automation\Portal VXX\UserAddIns
+C:\Users\<user-name>\AppData\Roaming\Siemens\Automation\Portal V20\UserAddIns\
+C:\Users\<user-name>\AppData\Roaming\Siemens\Automation\Portal V21\UserAddIns\
 ```
 
-It is **`UserAddIns`**, not `AddIns`. The folder does not exist until created by hand. The `.addin` already contains the DLL; nothing else needs copying.
+Three things that bite:
+
+- It is **`UserAddIns`**, not `AddIns`.
+- It is under **`AppData\Roaming`** (what `%AppData%` expands to), not `AppData\Local`.
+- The folder does not exist until created by hand.
+
+Each TIA version only looks at its own folder, so both Add-Ins coexist without interfering. The `.addin` already contains the DLL; nothing else needs copying.
 
 Unsigned, TIA loads it but it must be enabled manually. Optionally sign it with `Company_Trusted_Add-In_Certification_Tool.exe` to mark it trusted — TIA distinguishes three levels: trusted, unsigned/invalid, and revoked/tampered.
 
 ## The Add-In API
 
-Verified by reflection over `V20.addIn\Siemens.Engineering.AddIn.dll`:
+Verified by reflection over `V20.addIn\Siemens.Engineering.AddIn.dll` and `V21\net48\Siemens.Engineering.AddIn.Base.dll`. **These signatures are identical in both versions** — only the assembly they live in changes:
 
 | Member | Actual signature |
 |---|---|
@@ -201,6 +225,29 @@ Verified by reflection over `V20.addIn\Siemens.Engineering.AddIn.dll`:
 - The generic type argument of `AddActionItem<T>` decides **which tree node the entry appears on**: `Project` = root node, `DeviceItem` = a PLC, `PlcBlock` = a block.
 
 > Sample code using `AddInBase` / `SessionInitialize` that circulates online **is not the real API**. The entry points are concrete providers: `ProjectTreeAddInProvider`, `ProjectLibraryTreeAddInProvider`.
+
+### Known V20 / V21 divergences
+
+Despite the identical menu and provider surface, the two versions are not source-compatible. Divergences found so far:
+
+**Message box.** V21 removed the `GetMessageBox()` extension on `TiaPortal` and renamed the type:
+
+| | V20 | V21 |
+|---|---|---|
+| Type | `Siemens.Engineering.AddIn.MessageBox` | `Siemens.Engineering.AddIn.MessageBoxProvider` |
+| How to obtain | `tiaPortal.GetMessageBox()` | `tiaPortal.GetService<MessageBoxProvider>()` |
+
+```csharp
+// V21
+_tiaPortal.GetService<MessageBoxProvider>()
+          .ShowNotification(NotificationIcon.Information, caption, message);
+```
+
+`TiaPortal` implements `IEngineeringServiceProvider`, which exposes `T GetService<T>() where T : IEngineeringService`; `MessageBoxProvider` implements `IEngineeringService`. Both `ShowNotification(NotificationIcon, string, string)` and a four-argument overload taking a `detailedMessage` are available, plus `ShowConfirmation(...)` with `ConfirmationIcon` / `ConfirmationChoices` / `ConfirmationResult`.
+
+`GetService<T>()` returns `null` when the service is unavailable — worth guarding in real actions.
+
+This is precisely the kind of difference that justifies putting an interface in `Core` (something like `INotifier.Info(caption, message)`) implemented once per version, so the rest of the code never learns that the difference exists.
 
 ## Prior reference project
 

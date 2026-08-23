@@ -1,6 +1,7 @@
 ﻿using System.Linq;
 
 using Siemens.Engineering;
+using Siemens.Engineering.AddIn;
 using Siemens.Engineering.AddIn.Menu;
 
 namespace addin
@@ -24,7 +25,9 @@ namespace addin
                     Project project = menuSelectionProvider?.GetSelection<Project>().FirstOrDefault();
                     string projectName = project?.Name ?? "No project";
 
-                    _tiaPortal.GetMessageBox().ShowNotification(NotificationIcon.Information, Title, $"Hello world! {projectName}");
+                    _tiaPortal.GetService<MessageBoxProvider>()
+                        .ShowNotification(NotificationIcon.Information, Title, $"Hello world! {projectName}");
+
                 });
         }
     }
