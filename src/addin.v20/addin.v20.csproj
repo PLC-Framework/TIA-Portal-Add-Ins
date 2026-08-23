@@ -15,6 +15,8 @@
   <PropertyGroup>
     <SiemensPublicApi Condition="'$(SiemensPublicApi)' == ''">$(MSBuildThisFileDirectory)..\..\..\.lib\Siemens\PublicAPI</SiemensPublicApi>
     <TiaAddInApi>$(SiemensPublicApi)\V20.addIn</TiaAddInApi>
+    <!-- App used to compile and generate .addin file -->
+    <TiaPublisher>$(TiaAddInApi)\Siemens.Engineering.AddIn.Publisher.exe</TiaPublisher>
   </PropertyGroup>
 
   <!-- External references -->
@@ -36,5 +38,20 @@
       <Private>False</Private>
     </Reference>
   </ItemGroup>
+
+  <!-- Packages the built DLL into a .addin file TIA Portal can load, using the
+      Siemens-provided publisher tool and Config.xml. The Publisher
+      resolves the config's <Assembly> path relative to the config file itself, so
+      a copy with an absolute path is generated in obj/ instead of copying the
+      template into bin/. -->
+  <Target Name="PublishTiaAddIn" AfterTargets="Build" Condition="Exists('$(TiaPublisher)')">
+    
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\Config.xml" DestinationFolder="$(TargetDir)" />
+    <Exec Command="&quot;$(TiaPublisher)&quot; --configuration &quot;$(TargetDir)Config.xml&quot; --outfile &quot;$(TargetDir)$(TargetName).addin&quot; --console" />
+  </Target>
+
+  <Target Name="WarnIfPublisherMissing" AfterTargets="Build" Condition="!Exists('$(TiaPublisher)')">
+    <Warning Text="Publisher was not found in '$(TiaPublisher)'. File .dll was compiled, but file .addin was not generated." />
+  </Target>
 
 </Project>
