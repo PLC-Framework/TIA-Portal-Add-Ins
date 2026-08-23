@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="src/addin.v20/addin.v20.csproj" />
   <Project Path="src/addin.v21/addin.v21.csproj" Id="2df26466-bf86-49f0-9739-22f866dbaeaa" />
+  <Project Path="src/core/core.csproj" Id="79efcd26-b240-41de-95b8-4a553c1e2358" />
 </Solution>
