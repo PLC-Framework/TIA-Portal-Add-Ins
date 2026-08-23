@@ -40,12 +40,17 @@
   </ItemGroup>
 
   <!-- Packages the built DLL into a .addin file TIA Portal can load, using the
-      Siemens-provided publisher tool and Config.xml. The Publisher
-      resolves the config's <Assembly> path relative to the config file itself, so
-      a copy with an absolute path is generated in obj/ instead of copying the
-      template into bin/. -->
+       Siemens-provided publisher tool and Config.xml.
+
+       The Publisher resolves the config's <Assembly> path relative to the config
+       file's own location, not to the working directory. Config.xml is therefore
+       copied next to the built DLL and the Publisher is pointed at that copy, so
+       the plain file name in <Assembly> resolves.
+
+       The Condition keeps a clone without the Siemens DLLs from breaking the
+       build: the .dll still compiles and only packaging is skipped. -->
   <Target Name="PublishTiaAddIn" AfterTargets="Build" Condition="Exists('$(TiaPublisher)')">
-    
+
     <Copy SourceFiles="$(MSBuildProjectDirectory)\Config.xml" DestinationFolder="$(TargetDir)" />
     <Exec Command="&quot;$(TiaPublisher)&quot; --configuration &quot;$(TargetDir)Config.xml&quot; --outfile &quot;$(TargetDir)$(TargetName).addin&quot; --console" />
   </Target>
