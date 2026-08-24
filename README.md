@@ -5,7 +5,7 @@ A **TIA Portal Add-In** (Siemens Openness) plus the **satellite apps** with UI t
 - Solution: `tia-portal-addins.slnx` — the new XML format, not the classic `.sln`
 - Target framework: **.NET Framework 4.8** for everything touching TIA Portal / Openness, WPF included
 
-Two Add-In projects exist today, `addin.v20` and `addin.v21`, both validated on the VM against their respective TIA Portal versions. Each is a hello world: a context-menu entry on the project root node that shows a notification. They serve as validated scaffolding to build on.
+Three projects exist today: `core`, plus the two Add-Ins `addin.v20` and `addin.v21`. Both Add-Ins are validated on the VM against their respective TIA Portal versions, each a hello world that shows a notification from a context-menu entry on the project root node. They serve as validated scaffolding to build on.
 
 ## Working environment: two machines
 
@@ -30,33 +30,66 @@ The **VM** does require TIA Portal and the user to belong to the local **"Siemen
 ```
 tia-portal-addins.slnx
 └── src/
-    ├── Core/                  (net48) — models and interfaces, NO Siemens references
-    ├── addin.v20/             (net48) — references PublicAPI\V20.addIn (valid V17–V20)   ← EXISTS
-    ├── addin.v21/             (net48) — references PublicAPI\V21\net48                   ← EXISTS
+    ├── core/                  (net48, AnyCPU) — models and interfaces, NO Siemens references  ← EXISTS
+    ├── addin.v20/             (net48, x64) — references PublicAPI\V20.addIn (valid V17–V20)  ← EXISTS
+    ├── addin.v21/             (net48, x64) — references PublicAPI\V21\net48                  ← EXISTS
     ├── IPC/                   (net48) — Add-In ↔ satellite contract (named pipes)
     ├── Satellite.Shared/      (net48, WPF) — shared styles and controls
     └── Satellite.<Name>/      (net48, WPF) — one project per satellite app
 ```
 
-Both Add-In projects have the same four files:
+Both Add-In projects have the same shape:
 
 ```
 src/addin.vXX/
-├── addin.vXX.csproj      SDK-style net48 x64, Siemens references + Publisher target
-├── AddInProvider.cs      ProjectTreeAddInProvider — entry point
-├── AddInController.cs    ContextMenuAddIn — menu and action
-└── Config.xml            PackageConfiguration for the Publisher
+├── addin.vXX.csproj          SDK-style net48 x64, Siemens references + Publisher target
+├── AddInProvider.cs          ProjectTreeAddInProvider — entry point
+├── AddInController.cs        ContextMenuAddIn — menu wiring
+├── adapters/
+│   └── TiaNotifier.cs        INotifier implemented against this version's TIA API
+└── Config.xml                PackageConfiguration for the Publisher
+```
+
+```
+src/core/
+├── core.csproj               SDK-style net48, AnyCPU, zero references
+├── INotifier.cs              port: showing messages to the user
+└── HelloWorldAction.cs       version-agnostic action logic
 ```
 
 ### Naming convention
 
-| Item | `addin.v20` | `addin.v21` | Rationale |
-|---|---|---|---|
-| Project / folder | `addin.v20` | `addin.v21` | lowercase |
-| `AssemblyName` | `PLC-Framework.v20` | `PLC-Framework.v21` | the output is part of PLC-Framework; hyphens are legal in an assembly name |
-| `RootNamespace` | `addin` | `addin` | repeating the version inside `addin.vXX` is redundant |
+| Item | `core` | `addin.v20` | `addin.v21` | Rationale |
+|---|---|---|---|---|
+| Project / folder | `core` | `addin.v20` | `addin.v21` | lowercase |
+| `AssemblyName` | `PLC-Framework.core` | `PLC-Framework.v20` | `PLC-Framework.v21` | the output is part of PLC-Framework; hyphens are legal in an assembly name |
+| `RootNamespace` | `core` | `addin` | `addin` | repeating the version inside `addin.vXX` is redundant |
 
-Both projects sharing the `addin` namespace causes no collision: they are separate assemblies that nothing references together — TIA loads one or the other depending on its version.
+Both Add-Ins sharing the `addin` namespace causes no collision: they are separate assemblies that nothing references together — TIA loads one or the other depending on its version.
+
+> **Do not create a namespace called `addin.core`.** Inside `namespace addin`, the identifier `core` would then resolve to `addin.core` before the global `core` namespace, so `core.SomeType` stops compiling and the failure reads as a missing type. Adapters live in `addin.adapters`, named for their role rather than their folder.
+
+## Architecture: core and adapters
+
+```
+core  ←  addin.v20 / addin.v21  ←  TIA Portal
+ │              │
+ │              └── adapters/  implement core's ports against a specific TIA version
+ └── ports (interfaces) + version-agnostic logic, no Siemens types
+```
+
+`core` **references nothing from Siemens**, and that is the whole point. It stays `AnyCPU` because the `x64` constraint belongs to the host process, not to a library — and because the satellite apps will reference `core` too.
+
+The rule that keeps the boundary honest: **the adapter converts Siemens types into primitives or its own DTOs before crossing into `core`**. `Project` stays in the Add-In; `core` only ever sees a `string`:
+
+```csharp
+Project project = menuSelectionProvider?.GetSelection<Project>().FirstOrDefault();
+HelloWorldAction.Execute(_notifier, project?.Name);
+```
+
+The payoff is measurable: the two `TiaNotifier.cs` files differ in exactly one line — the one documented under *Known V20 / V21 divergences* — and every other file is either identical or lives in `core`. When a new divergence appears, it belongs behind a new port in `core` rather than scattered through menu code.
+
+Adapters can be `internal sealed`: TIA only instantiates `AddInProvider` and `AddInController` by reflection, so only those two need to be `public`.
 
 The `AssemblyName` **must match** the `<Assembly>` element in `Config.xml` (`PLC-Framework.v20.dll` / `PLC-Framework.v21.dll`). What TIA displays in the menu does not depend on it: that comes from the `string` passed to the `ContextMenuAddIn` constructor and from `<Product><Name>` in `Config.xml`.
 
@@ -101,7 +134,8 @@ dotnet build src\addin.v20\addin.v20.csproj
 Output lands in `bin\Debug\net48\`:
 
 - `PLC-Framework.v20.dll` — the compiled Add-In
-- `PLC-Framework.v20.addin` — the package TIA Portal actually loads, generated automatically
+- `PLC-Framework.core.dll` — copied in by the `ProjectReference` (Siemens references are `Private=False`; project references are not — this one *must* be copied)
+- `PLC-Framework.v20.addin` — the package TIA Portal actually loads, generated automatically, containing **both** DLLs
 - `Config.xml` — the copy the Publisher consumes (see below)
 
 ### References
@@ -176,6 +210,31 @@ Every Add-In needs its own, validated against `Siemens.Engineering.AddIn.Publish
 - `SecurityPermissions` is a **closed list of 22 specific elements**; inventing one makes the Publisher reject the file.
 
 Request only the permissions actually used: every extra one is friction when signing the Add-In as trusted. Launching the satellite apps via `Process.Start` requires declaring `<Siemens.Engineering.AddIn.Permissions.ProcessStartPermission/>`.
+
+#### Shipping `core` inside the `.addin`
+
+The package contains **only what `Config.xml` declares**. A project reference is not enough — `core` must be listed explicitly:
+
+```xml
+<AdditionalAssemblies>
+  <AssemblyInfo>
+    <Assembly>PLC-Framework.core.dll</Assembly>
+  </AssemblyInfo>
+</AdditionalAssemblies>
+```
+
+`AdditionalAssemblies` accepts any number of `AssemblyInfo` entries, each with an `Assembly` and an optional `Pdb`. Because `Config.xml` is copied to `$(TargetDir)` and the project reference already put `core.dll` there, the plain file name resolves — the same mechanism as `FeatureAssembly`.
+
+**Forgetting this fails late and confusingly**: the build succeeds, the Publisher does not complain, the `.addin` is produced, TIA loads it — and it throws a `FileNotFoundException` the first time the menu is built. Confirm it in the build output, which names every packaged assembly:
+
+```
+Packaging assembly 'plc-framework.v20, ... processorarchitecture=amd64'
+Packaging assembly 'plc-framework.core, ... processorarchitecture=msil'
+```
+
+That `msil` also confirms `core` stayed AnyCPU while the Add-In is `amd64`; the two coexist in the same process without trouble.
+
+> **Merging the two DLLs into one is deliberately not done.** ILRepack or Costura.Fody could do it, but the `.addin` is already a single deployable file, `AdditionalAssemblies` is the vendor-supported mechanism, and the satellite apps will need `core` as an assembly with a single identity anyway. Merging would leave the same code compiled in two places.
 
 ### 3. Installing into TIA Portal
 

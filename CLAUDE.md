@@ -15,12 +15,15 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 - **`PlatformTarget` = `x64`** in every project TIA loads into its process.
 - **`<Private>False</Private>`** on every reference to a Siemens assembly.
 - **Siemens DLL paths parameterized** through `$(SiemensPublicApi)`, never hardcoded in each `HintPath`.
-- Classes TIA instantiates by reflection (`AddInProvider`, `AddInController`) must be **`public`**. If they are `internal` the build succeeds and the Add-In never appears — a silent failure.
-- `Core` **references nothing from Siemens**. If an `IEngineeringObject` seems to belong there, that type stays in the Add-In project instead.
+- Classes TIA instantiates by reflection (`AddInProvider`, `AddInController`) must be **`public`**. If they are `internal` the build succeeds and the Add-In never appears — a silent failure. Adapters are `internal sealed`.
+- `core` **references nothing from Siemens**, and stays **AnyCPU** (the `x64` constraint is the host process's, and the satellites will reference `core` too). If an `IEngineeringObject` seems to belong there, that type stays in the Add-In instead.
+- **Adapters convert Siemens types into primitives or DTOs before crossing into `core`.** `Project` stays in the Add-In; `core` receives `project?.Name`.
+- **Never name a namespace `addin.core`.** Inside `namespace addin`, `core` would resolve to `addin.core` before the global `core`, breaking every qualified reference with a misleading "type does not exist" error. Adapters live in `addin.adapters`.
+- Any assembly beyond the Add-In's own must be declared in `Config.xml` under **`AdditionalAssemblies`**, or TIA throws `FileNotFoundException` at runtime even though everything built and packaged cleanly.
 
 ## Naming convention (settled)
 
-Projects `addin.v20` / `addin.v21` · `AssemblyName` `PLC-Framework.v20` / `PLC-Framework.v21` · `RootNamespace` `addin` in both.
+Projects `core` / `addin.v20` / `addin.v21` · `AssemblyName` `PLC-Framework.core` / `PLC-Framework.v20` / `PLC-Framework.v21` · `RootNamespace` `core` / `addin` / `addin`.
 
 Lowercase, and the version is not repeated in the namespace because the project name already carries it. **Do not propose PascalCase**: this was a deliberate decision by the user, not an oversight.
 
@@ -30,7 +33,7 @@ Hyphens are legal in an `AssemblyName` and illegal in a C# namespace.
 
 Do not relitigate without new information:
 
-1. **Layers**: `Core` (no Siemens) → Add-In → satellites.
+1. **Layers**: `core` (no Siemens, holds the ports) → Add-In `adapters/` (implement those ports per TIA version) → satellites. Ports go in `core` as interfaces; anything touching a Siemens type stays in the Add-In.
 2. **Two Add-In projects**: `addin.v20` (valid V17–V20) and `addin.v21`. V21 breaks binary compatibility and splits the assemblies.
 3. **Satellites**: standalone WPF apps launched with `Process.Start`.
 4. **Add-In ↔ satellite communication**: JSON snapshot through a temp file when data at open time is enough; named pipes plus an `IPC` project only if live queries are required. **Prefer the snapshot** until hitting a real limitation.
@@ -38,27 +41,28 @@ Do not relitigate without new information:
 
 ### Sharing code between `addin.v20` and `addin.v21`
 
-V21 rules out a single binary. Right now the two projects are **near-duplicates**: `AddInProvider.cs` is byte-identical and `AddInController.cs` differs in one line (the message box). So this is already a live problem, not a hypothetical one.
+**Settled**: a port in `core` plus one thin adapter per version. Applied to the message box and it worked — the divergence collapsed to a single line. No build tricks, no `#if`, no Shared Project. Keep using this for every new divergence.
 
-Options, best to worst:
+`#if V20 / #if V21` remains rejected: it degrades fast and makes menu code unreadable.
 
-1. **An interface in `Core` plus two thin implementations** — no build tricks, no `#if`. ← start here
-2. **Shared Project (`.shproj`) or linked files** for whatever stays genuinely identical.
-3. **`#if V20 / #if V21`** — avoid: it degrades fast and makes menu code unreadable.
+### Shipping `core` — settled, do not relitigate
+
+`core` travels inside each `.addin` via `AdditionalAssemblies` in `Config.xml`. **Do not propose merging the DLLs** with ILRepack or Costura.Fody: the `.addin` is already a single deployable file, `AdditionalAssemblies` is the vendor-supported mechanism, and the satellites will need `core` as an assembly with one identity anyway.
 
 ## Status (2026-08-23)
 
-- [x] `addin.v20` and `addin.v21` created, both in the `.slnx`, both **validated end to end**: build → produce the `.addin` → load correctly in TIA Portal V20 / V21 on the VM. Each is a hello world with one context-menu entry.
-- [ ] `Core`, `IPC`, satellites
+- [x] `core`, `addin.v20` and `addin.v21` created, all in the `.slnx`.
+- [x] Both Add-Ins **validated end to end**: build → `.addin` containing `core` → load and run correctly in TIA Portal V20 / V21 on the VM.
+- [x] First port extracted: `INotifier`, implemented by `addin.vXX/adapters/TiaNotifier.cs`. `HelloWorldAction` lives in `core` and never sees a Siemens type.
+- [ ] `IPC`, satellites
 
 ### Known V20/V21 divergence
 
-The menu and provider API is identical across versions, but the two are **not source-compatible**. Found so far: the message box. V20 uses `tiaPortal.GetMessageBox()` returning `MessageBox`; V21 removed that extension and uses `tiaPortal.GetService<MessageBoxProvider>()`. Expect more divergences as real actions get written — each one is an argument for pushing the difference behind a `Core` interface.
+The menu and provider API is identical across versions, but the two are **not source-compatible**. Found so far: the message box. V20 uses `tiaPortal.GetMessageBox()` returning `MessageBox`; V21 removed that extension and uses `tiaPortal.GetService<MessageBoxProvider>()` (which can return `null`). That single line is now the only difference between the two `TiaNotifier.cs` files — every new divergence should be pushed behind a `core` port the same way.
 
 ### Pending
 
-- [ ] Create `Core` and extract into it the first interface isolating the TIA API. The message-box divergence is the natural first candidate (`INotifier.Info(caption, message)` or similar)
-- [ ] **Decide**: migrate the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
+- [ ] **Decide**: migrate the domain logic from `add-in-for-tia-portal` into `core`, or leave it aside. Deferred on 2026-08-23
 - [ ] Automate deployment of the `.addin` to the VM (currently a manual copy)
 - [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to shorten the test cycle
 - [ ] Decide how many satellites there will be and whether they need live TIA data or just a snapshot
