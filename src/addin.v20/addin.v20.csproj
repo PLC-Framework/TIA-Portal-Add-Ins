@@ -37,8 +37,12 @@
       <HintPath>$(TiaAddInApi)\Siemens.Engineering.Hmi.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    
+    <!-- Solution references -->
+    <ProjectReference Include="..\core\core.csproj" />
+    
   </ItemGroup>
-
+  
   <!-- Packages the built DLL into a .addin file TIA Portal can load, using the
        Siemens-provided publisher tool and Config.xml.
 

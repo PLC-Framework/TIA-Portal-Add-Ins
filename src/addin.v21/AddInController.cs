@@ -1,8 +1,10 @@
 ﻿using System.Linq;
 
 using Siemens.Engineering;
-using Siemens.Engineering.AddIn;
 using Siemens.Engineering.AddIn.Menu;
+
+using core;
+using addin.adapters;
 
 namespace addin
 {
@@ -10,24 +12,22 @@ namespace addin
     {
         private const string Title = "PLC-Framework";
         private readonly TiaPortal _tiaPortal;
+        private TiaNotifier _notifier;
 
         public AddInController(TiaPortal tiaPortal) : base(Title)
         {
             _tiaPortal = tiaPortal;
+            _notifier = new TiaNotifier(_tiaPortal);
         }
 
         protected override void BuildContextMenuItems(ContextMenuAddInRoot addInRootSubmenu)
         {
             addInRootSubmenu.Items.AddActionItem<Project> (
-                "Hello world!",
+                HelloWorldAction.Title,
                 (MenuSelectionProvider<Project> menuSelectionProvider) =>
                 {
                     Project project = menuSelectionProvider?.GetSelection<Project>().FirstOrDefault();
-                    string projectName = project?.Name ?? "No project";
-
-                    _tiaPortal.GetService<MessageBoxProvider>()
-                        .ShowNotification(NotificationIcon.Information, Title, $"Hello world! {projectName}");
-
+                    HelloWorldAction.Execute(_notifier, project?.Name);
                 });
         }
     }

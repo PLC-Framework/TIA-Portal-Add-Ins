@@ -20,6 +20,13 @@
 		</AssemblyInfo>
 	</FeatureAssembly>
 
+	<!-- Add core project -->
+	<AdditionalAssemblies>
+		<AssemblyInfo>
+			<Assembly>PLC-Framework.core.dll</Assembly>
+		</AssemblyInfo>
+	</AdditionalAssemblies>
+
 	<RequiredPermissions>
 		
 		<TIAPermissions>

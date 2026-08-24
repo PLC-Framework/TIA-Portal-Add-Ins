@@ -21,24 +21,28 @@
 
   <!-- External references -->
   <ItemGroup>
-  <Reference Include="Siemens.Engineering.AddIn.Base">
-    <HintPath>$(TiaAddInApi)\Siemens.Engineering.AddIn.Base.dll</HintPath>
-    <Private>False</Private>
-  </Reference>
-  <Reference Include="Siemens.Engineering.Base">
-    <HintPath>$(TiaAddInApi)\Siemens.Engineering.Base.dll</HintPath>
-    <Private>False</Private>
-  </Reference>
-  <Reference Include="Siemens.Engineering.AddIn.Permissions">
-    <HintPath>$(TiaAddInApi)\Siemens.Engineering.AddIn.Permissions.dll</HintPath>
-    <Private>False</Private>
-  </Reference>
-  <Reference Include="Siemens.Engineering.AddIn.Utilities">
-    <HintPath>$(TiaAddInApi)\Siemens.Engineering.AddIn.Utilities.dll</HintPath>
-    <Private>False</Private>
-  </Reference>
-</ItemGroup>
-
+    <Reference Include="Siemens.Engineering.AddIn.Base">
+      <HintPath>$(TiaAddInApi)\Siemens.Engineering.AddIn.Base.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Siemens.Engineering.Base">
+      <HintPath>$(TiaAddInApi)\Siemens.Engineering.Base.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Siemens.Engineering.AddIn.Permissions">
+      <HintPath>$(TiaAddInApi)\Siemens.Engineering.AddIn.Permissions.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Siemens.Engineering.AddIn.Utilities">
+      <HintPath>$(TiaAddInApi)\Siemens.Engineering.AddIn.Utilities.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    
+    <!-- Solution references -->
+    <ProjectReference Include="..\core\core.csproj" />
+    
+  </ItemGroup>
+  
   <!-- Packages the built DLL into a .addin file TIA Portal can load, using the
        Siemens-provided publisher tool and Config.xml.
 
