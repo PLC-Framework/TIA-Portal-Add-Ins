@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace core.dependencyGraph
+namespace Core.DependencyGraph
 {
     /// <summary>
     /// One .scl or .udt file in the graph. Every key is always present in core.json,

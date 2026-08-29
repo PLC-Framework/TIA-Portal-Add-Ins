@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace core.dependencyGraph
+namespace Core.DependencyGraph
 {
     /// <summary>
     /// One diagnostic about the graph. Level, Type and Message are always present;

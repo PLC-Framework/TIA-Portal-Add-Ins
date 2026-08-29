@@ -2,7 +2,7 @@
 
 <PackageConfiguration xmlns="http://www.siemens.com/automation/Openness/AddIn/Publisher/V21">
 	
-	<!-- This custom file is used to create .addin file in /bin/[Debug|Release]/net48/<name>.[addin|dll|pdb] -->	
+	<!-- This custom file is used to create .Addin file in /bin/[Debug|Release]/net48/<name>.[Addin|dll|pdb] -->	
 	
 	<Author>cyanezf</Author>
 	<Description>PLC-Framework Add-In for TIA Portal V21</Description>

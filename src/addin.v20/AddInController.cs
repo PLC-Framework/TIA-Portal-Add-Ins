@@ -3,10 +3,10 @@
 using Siemens.Engineering;
 using Siemens.Engineering.AddIn.Menu;
 
-using core;
-using addin.adapters;
+using Core;
+using Addin.Adapters;
 
-namespace addin
+namespace Addin
 {
     public class AddInController : ContextMenuAddIn
     {

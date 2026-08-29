@@ -1,9 +1,9 @@
 ﻿using Siemens.Engineering;
 using Siemens.Engineering.AddIn;
 
-using core;
+using Core;
 
-namespace addin.adapters
+namespace Addin.Adapters
 {
     internal sealed class TiaNotifier : INotifier
     {

@@ -1,5 +1,5 @@
 ﻿
-namespace core.config
+namespace Core.Config
 {
     public static class ConfigPaths
     {

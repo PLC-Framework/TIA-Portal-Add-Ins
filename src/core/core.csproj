@@ -5,8 +5,8 @@
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>core</RootNamespace>
-    <AssemblyName>PLC-Framework.core</AssemblyName>
+    <RootNamespace>Core</RootNamespace>
+    <AssemblyName>PLC-Framework.Core</AssemblyName>
   </PropertyGroup>
 
   <!-- References -->

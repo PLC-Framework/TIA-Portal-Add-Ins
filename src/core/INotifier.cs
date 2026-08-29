@@ -1,5 +1,5 @@
 ﻿
-namespace core
+namespace Core
 {
     public interface INotifier
     {

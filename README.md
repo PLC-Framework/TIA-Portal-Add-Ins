@@ -1,20 +1,20 @@
-# tia-portal-addins
+# tia-portal-Addins
 
 A **TIA Portal Add-In** (Siemens Openness) plus the **satellite apps** with UI that the Add-In launches on events.
 
-- Solution: `tia-portal-addins.slnx` — the new XML format, not the classic `.sln`
+- Solution: `tia-portal-Addins.slnx` — the new XML format, not the classic `.sln`
 - Target framework: **.NET Framework 4.8** for everything touching TIA Portal / Openness, WPF included
 
-Three projects exist today: `core`, plus the two Add-Ins `addin.v20` and `addin.v21`. Both Add-Ins are validated on the VM against their respective TIA Portal versions, each a hello world that shows a notification from a context-menu entry on the project root node. They serve as validated scaffolding to build on.
+Three projects exist today: `core`, plus the two Add-Ins `Addin.v20` and `Addin.v21`. Both Add-Ins are validated on the VM against their respective TIA Portal versions, each a hello world that shows a notification from a context-menu entry on the project root node. They serve as validated scaffolding to build on.
 
 ## Working environment: two machines
 
 | Machine | Role | TIA Portal |
 |---|---|---|
-| Development PC | write code, build, produce the `.addin` | **not** installed, and not needed |
+| Development PC | write code, build, produce the `.Addin` | **not** installed, and not needed |
 | VM | debugging and testing: load the Add-In in TIA | V20 and V21 installed |
 
-The full cycle up to the `.addin` package closes on the development PC: references resolve against the DLLs in `.lib\`, not against a TIA installation, and the Publisher does not need the product installed either.
+The full cycle up to the `.Addin` package closes on the development PC: references resolve against the DLLs in `.lib\`, not against a TIA installation, and the Publisher does not need the product installed either.
 
 The **VM** does require TIA Portal and the user to belong to the local **"Siemens TIA Openness"** group — without it the Add-In will not even show up.
 
@@ -28,11 +28,11 @@ The **VM** does require TIA Portal and the user to belong to the local **"Siemen
 ## Layout
 
 ```
-tia-portal-addins.slnx
+tia-portal-Addins.slnx
 └── src/
     ├── core/                  (net48, AnyCPU) — models and interfaces, NO Siemens references  ← EXISTS
-    ├── addin.v20/             (net48, x64) — references PublicAPI\V20.addIn (valid V17–V20)  ← EXISTS
-    ├── addin.v21/             (net48, x64) — references PublicAPI\V21\net48                  ← EXISTS
+    ├── Addin.v20/             (net48, x64) — references PublicAPI\V20.addIn (valid V17–V20)  ← EXISTS
+    ├── Addin.v21/             (net48, x64) — references PublicAPI\V21\net48                  ← EXISTS
     ├── IPC/                   (net48) — Add-In ↔ satellite contract (named pipes)
     ├── Satellite.Shared/      (net48, WPF) — shared styles and controls
     └── Satellite.<Name>/      (net48, WPF) — one project per satellite app
@@ -41,11 +41,11 @@ tia-portal-addins.slnx
 Both Add-In projects have the same shape:
 
 ```
-src/addin.vXX/
-├── addin.vXX.csproj          SDK-style net48 x64, Siemens references + Publisher target
+src/Addin.vXX/
+├── Addin.vXX.csproj          SDK-style net48 x64, Siemens references + Publisher target
 ├── AddInProvider.cs          ProjectTreeAddInProvider — entry point
 ├── AddInController.cs        ContextMenuAddIn — menu wiring
-├── adapters/
+├── Adapters/
 │   └── TiaNotifier.cs        INotifier implemented against this version's TIA API
 └── Config.xml                PackageConfiguration for the Publisher
 ```
@@ -59,22 +59,22 @@ src/core/
 
 ### Naming convention
 
-| Item | `core` | `addin.v20` | `addin.v21` | Rationale |
+| Item | `core` | `Addin.v20` | `Addin.v21` | Rationale |
 |---|---|---|---|---|
-| Project / folder | `core` | `addin.v20` | `addin.v21` | lowercase |
+| Project / folder | `core` | `Addin.v20` | `Addin.v21` | lowercase |
 | `AssemblyName` | `PLC-Framework.core` | `PLC-Framework.v20` | `PLC-Framework.v21` | the output is part of PLC-Framework; hyphens are legal in an assembly name |
-| `RootNamespace` | `core` | `addin` | `addin` | repeating the version inside `addin.vXX` is redundant |
+| `RootNamespace` | `core` | `Addin` | `Addin` | repeating the version inside `Addin.vXX` is redundant |
 
-Both Add-Ins sharing the `addin` namespace causes no collision: they are separate assemblies that nothing references together — TIA loads one or the other depending on its version.
+Both Add-Ins sharing the `Addin` namespace causes no collision: they are separate assemblies that nothing references together — TIA loads one or the other depending on its version.
 
-> **Do not create a namespace called `addin.core`.** Inside `namespace addin`, the identifier `core` would then resolve to `addin.core` before the global `core` namespace, so `core.SomeType` stops compiling and the failure reads as a missing type. Adapters live in `addin.adapters`, named for their role rather than their folder.
+> **Do not create a namespace called `Addin.core`.** Inside `namespace Addin`, the identifier `core` would then resolve to `Addin.core` before the global `core` namespace, so `core.SomeType` stops compiling and the failure reads as a missing type. Adapters live in `Addin.Adapters`, named for their role rather than their folder.
 
-## Architecture: core and adapters
+## Architecture: core and Adapters
 
 ```
-core  ←  addin.v20 / addin.v21  ←  TIA Portal
+core  ←  Addin.v20 / Addin.v21  ←  TIA Portal
  │              │
- │              └── adapters/  implement core's ports against a specific TIA version
+ │              └── Adapters/  implement core's ports against a specific TIA version
  └── ports (interfaces) + version-agnostic logic, no Siemens types
 ```
 
@@ -111,12 +111,12 @@ Other tools, under `E:\PlcFramework\.lib\Siemens\Support\TIA_Portal_Add-In_Tools
 | Folder | Contents |
 |---|---|
 | `Development\` | `.nupkg` + `.vsix` — the official VS template for Add-Ins (TIA V18+) |
-| `Trusted_Add-Ins_Certification_Tool\` | `Company_Trusted_Add-In_Certification_Tool.exe` — signs the `.addin` as trusted |
+| `Trusted_Add-Ins_Certification_Tool\` | `Company_Trusted_Add-In_Certification_Tool.exe` — signs the `.Addin` as trusted |
 
 The path is parameterized in the `.csproj` through `$(SiemensPublicApi)`, so it can be overridden without editing the file:
 
 ```
-dotnet build src\addin.v20\addin.v20.csproj -p:SiemensPublicApi=D:\some\other\path
+dotnet build src\Addin.v20\Addin.v20.csproj -p:SiemensPublicApi=D:\some\other\path
 ```
 
 ### V17–V20 vs V21
@@ -128,14 +128,14 @@ V17 through V20 share the same Openness API and are binary compatible. **V21 int
 ## Building
 
 ```
-dotnet build src\addin.v20\addin.v20.csproj
+dotnet build src\Addin.v20\Addin.v20.csproj
 ```
 
 Output lands in `bin\Debug\net48\`:
 
 - `PLC-Framework.v20.dll` — the compiled Add-In
 - `PLC-Framework.core.dll` — copied in by the `ProjectReference` (Siemens references are `Private=False`; project references are not — this one *must* be copied)
-- `PLC-Framework.v20.addin` — the package TIA Portal actually loads, generated automatically, containing **both** DLLs
+- `PLC-Framework.v20.Addin` — the package TIA Portal actually loads, generated automatically, containing **both** DLLs
 - `Config.xml` — the copy the Publisher consumes (see below)
 
 ### References
@@ -153,9 +153,9 @@ All references carry `<Private>False</Private>` because TIA resolves them from i
 | References needed | **only** the Add-In assembly | **both** `AddIn.Base` and `Base` |
 | `extern alias` | needed if `Siemens.Engineering.dll` is added | never needed |
 
-`addin.v20` references: `Siemens.Engineering.AddIn` · `.AddIn.Permissions` · `.AddIn.Utilities` · `Siemens.Engineering.Hmi`
+`Addin.v20` references: `Siemens.Engineering.AddIn` · `.AddIn.Permissions` · `.AddIn.Utilities` · `Siemens.Engineering.Hmi`
 
-`addin.v21` references: `Siemens.Engineering.AddIn.Base` · `Siemens.Engineering.Base` · `.AddIn.Permissions` · `.AddIn.Utilities`
+`Addin.v21` references: `Siemens.Engineering.AddIn.Base` · `Siemens.Engineering.Base` · `.AddIn.Permissions` · `.AddIn.Utilities`
 
 #### V20: do not add `Siemens.Engineering.dll`
 
@@ -173,27 +173,27 @@ Since `Siemens.Engineering.AddIn.dll` already carries the whole object model, re
 
 ### 1. The Publisher
 
-`Siemens.Engineering.AddIn.Publisher.exe` turns the compiled `.dll` into the `.addin` TIA loads. The syntax uses **flags**, not positional arguments:
+`Siemens.Engineering.AddIn.Publisher.exe` turns the compiled `.dll` into the `.Addin` TIA loads. The syntax uses **flags**, not positional arguments:
 
 ```
-Siemens.Engineering.AddIn.Publisher.exe --configuration <Config.xml> --outfile <output.addin> --console
+Siemens.Engineering.AddIn.Publisher.exe --configuration <Config.xml> --outfile <output.Addin> --console
 ```
 
-Flags: `--configuration/-f`, `--outfile/-o` (optional — defaults to an `.addin` with the same name and folder as the main assembly), `--certificatepassword/-p`, `--logfile/-l`, `--edition/-e`, `--verbose/-v`, `--console/-c`, `--pause/-x`, `--template/-t`, `--skipEngMemberCheck/-s`.
+Flags: `--configuration/-f`, `--outfile/-o` (optional — defaults to an `.Addin` with the same name and folder as the main assembly), `--certificatepassword/-p`, `--logfile/-l`, `--edition/-e`, `--verbose/-v`, `--console/-c`, `--pause/-x`, `--template/-t`, `--skipEngMemberCheck/-s`.
 
 Each project uses the Publisher **for its own version**:
 
 | Project | Path |
 |---|---|
-| `addin.v20` (V17–V20) | `.lib\Siemens\PublicAPI\V20.addIn\Siemens.Engineering.AddIn.Publisher.exe` |
-| `addin.v21` | `.lib\Siemens\PublicAPI\V21\Siemens.Engineering.AddIn.Publisher.exe` — loose in `V21\`, **not** inside `V21\net48\` |
+| `Addin.v20` (V17–V20) | `.lib\Siemens\PublicAPI\V20.addIn\Siemens.Engineering.AddIn.Publisher.exe` |
+| `Addin.v21` | `.lib\Siemens\PublicAPI\V21\Siemens.Engineering.AddIn.Publisher.exe` — loose in `V21\`, **not** inside `V21\net48\` |
 
 **Gotcha**: the Publisher resolves the config's `<Assembly>` path **relative to the config file's own location**, not to the working directory. The approach taken here is to copy `Config.xml` next to the DLL before invoking it:
 
 ```xml
 <Target Name="PublishTiaAddIn" AfterTargets="Build" Condition="Exists('$(TiaPublisher)')">
   <Copy SourceFiles="$(MSBuildProjectDirectory)\Config.xml" DestinationFolder="$(TargetDir)" />
-  <Exec Command="&quot;$(TiaPublisher)&quot; --configuration &quot;$(TargetDir)Config.xml&quot; --outfile &quot;$(TargetDir)$(TargetName).addin&quot; --console" />
+  <Exec Command="&quot;$(TiaPublisher)&quot; --configuration &quot;$(TargetDir)Config.xml&quot; --outfile &quot;$(TargetDir)$(TargetName).Addin&quot; --console" />
 </Target>
 ```
 
@@ -211,7 +211,7 @@ Every Add-In needs its own, validated against `Siemens.Engineering.AddIn.Publish
 
 Request only the permissions actually used: every extra one is friction when signing the Add-In as trusted. Launching the satellite apps via `Process.Start` requires declaring `<Siemens.Engineering.AddIn.Permissions.ProcessStartPermission/>`.
 
-#### Shipping `core` inside the `.addin`
+#### Shipping `core` inside the `.Addin`
 
 The package contains **only what `Config.xml` declares**. A project reference is not enough — `core` must be listed explicitly:
 
@@ -225,7 +225,7 @@ The package contains **only what `Config.xml` declares**. A project reference is
 
 `AdditionalAssemblies` accepts any number of `AssemblyInfo` entries, each with an `Assembly` and an optional `Pdb`. Because `Config.xml` is copied to `$(TargetDir)` and the project reference already put `core.dll` there, the plain file name resolves — the same mechanism as `FeatureAssembly`.
 
-**Forgetting this fails late and confusingly**: the build succeeds, the Publisher does not complain, the `.addin` is produced, TIA loads it — and it throws a `FileNotFoundException` the first time the menu is built. Confirm it in the build output, which names every packaged assembly:
+**Forgetting this fails late and confusingly**: the build succeeds, the Publisher does not complain, the `.Addin` is produced, TIA loads it — and it throws a `FileNotFoundException` the first time the menu is built. Confirm it in the build output, which names every packaged assembly:
 
 ```
 Packaging assembly 'plc-framework.v20, ... processorarchitecture=amd64'
@@ -234,11 +234,11 @@ Packaging assembly 'plc-framework.core, ... processorarchitecture=msil'
 
 That `msil` also confirms `core` stayed AnyCPU while the Add-In is `amd64`; the two coexist in the same process without trouble.
 
-> **Merging the two DLLs into one is deliberately not done.** ILRepack or Costura.Fody could do it, but the `.addin` is already a single deployable file, `AdditionalAssemblies` is the vendor-supported mechanism, and the satellite apps will need `core` as an assembly with a single identity anyway. Merging would leave the same code compiled in two places.
+> **Merging the two DLLs into one is deliberately not done.** ILRepack or Costura.Fody could do it, but the `.Addin` is already a single deployable file, `AdditionalAssemblies` is the vendor-supported mechanism, and the satellite apps will need `core` as an assembly with a single identity anyway. Merging would leave the same code compiled in two places.
 
 ### 3. Installing into TIA Portal
 
-Copy the `.addin` to the `UserAddIns` folder of the matching TIA version, on the machine where TIA runs (here, the VM):
+Copy the `.Addin` to the `UserAddIns` folder of the matching TIA version, on the machine where TIA runs (here, the VM):
 
 ```
 C:\Users\<user-name>\AppData\Roaming\Siemens\Automation\Portal V20\UserAddIns\
@@ -251,7 +251,7 @@ Three things that bite:
 - It is under **`AppData\Roaming`** (what `%AppData%` expands to), not `AppData\Local`.
 - The folder does not exist until created by hand.
 
-Each TIA version only looks at its own folder, so both Add-Ins coexist without interfering. The `.addin` already contains the DLL; nothing else needs copying.
+Each TIA version only looks at its own folder, so both Add-Ins coexist without interfering. The `.Addin` already contains the DLL; nothing else needs copying.
 
 Unsigned, TIA loads it but it must be enabled manually. Optionally sign it with `Company_Trusted_Add-In_Certification_Tool.exe` to mark it trusted — TIA distinguishes three levels: trusted, unsigned/invalid, and revoked/tampered.
 

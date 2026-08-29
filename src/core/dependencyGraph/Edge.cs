@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace core.dependencyGraph
+namespace Core.DependencyGraph
 {
     /// <summary>
     /// One declared dependency. An edge only ever takes one of three shapes, and

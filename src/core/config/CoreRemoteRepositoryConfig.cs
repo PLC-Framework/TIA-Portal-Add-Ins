@@ -1,6 +1,6 @@
 ﻿using System.Runtime.Serialization;
 
-namespace core.config
+namespace Core.Config
 {
     [DataContract]
     public class CoreRemoteRepositoryConfig

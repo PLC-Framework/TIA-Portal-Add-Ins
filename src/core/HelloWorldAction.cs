@@ -1,5 +1,5 @@
 ﻿
-namespace core
+namespace Core
 {
     public static class HelloWorldAction
     {

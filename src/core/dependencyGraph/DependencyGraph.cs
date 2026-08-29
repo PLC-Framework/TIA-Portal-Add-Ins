@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace core.dependencyGraph
+namespace Core.DependencyGraph
 {
     /// <summary>
     /// Root object of the dependency file (core.json), one graph per PLC family.
