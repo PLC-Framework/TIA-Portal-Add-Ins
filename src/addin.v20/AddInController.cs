@@ -10,11 +10,10 @@ namespace AddIn
 {
     public class AddInController : ContextMenuAddIn
     {
-        private const string Title = "PLC-Framework";
         private readonly TiaPortal _tiaPortal;
-        private TiaNotifier _notifier;
+        private readonly INotifier _notifier;
 
-        public AddInController(TiaPortal tiaPortal) : base(Title)
+        public AddInController(TiaPortal tiaPortal) : base(Constants.Title)
         {
             _tiaPortal = tiaPortal;
             _notifier = new TiaNotifier(_tiaPortal);
