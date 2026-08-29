@@ -29,24 +29,26 @@ The **VM** does require TIA Portal and the user to belong to the local **"Siemen
 
 ```
 tia-portal-addins.slnx
+├── assets/                   shared binary assets, grouped by feature (see below)
 └── src/
-    ├── Core/                  (net48, AnyCPU) — models and interfaces, NO Siemens references  ← EXISTS
-    ├── AddIn.V20/             (net48, x64) — references PublicAPI\V20.addIn (valid V17–V20)  ← EXISTS
-    ├── AddIn.V21/             (net48, x64) — references PublicAPI\V21\net48                  ← EXISTS
-    ├── IPC/                   (net48) — Add-In ↔ satellite contract (named pipes)
-    ├── Satellite.Shared/      (net48, WPF) — shared styles and controls
-    └── Satellite.<Name>/      (net48, WPF) — one project per satellite app
+    ├── Core/                 (net48, AnyCPU) — models and interfaces, NO Siemens references  ← EXISTS
+    ├── AddIn.V20/            (net48, x64) — references PublicAPI\V20.addIn (valid V17–V20)  ← EXISTS
+    ├── AddIn.V21/            (net48, x64) — references PublicAPI\V21\net48                  ← EXISTS
+    ├── IPC/                  (net48) — Add-In ↔ satellite contract (named pipes)
+    ├── Satellite.Shared/     (net48, WPF) — shared styles and controls
+    └── Satellite.<Name>/     (net48, WPF) — one project per satellite app
 ```
 
 Both Add-In projects have the same shape:
 
 ```
-src/AddIn.vXX/
-├── AddIn.vXX.csproj          SDK-style net48 x64, Siemens references + Publisher target
+src/AddIn.VXX/
+├── AddIn.VXX.csproj          SDK-style net48 x64, Siemens references + Publisher target
 ├── AddInProvider.cs          ProjectTreeAddInProvider — entry point
 ├── AddInController.cs        ContextMenuAddIn — menu wiring
 ├── Adapters/
-│   └── TiaNotifier.cs        INotifier implemented against this version's TIA API
+│   ├── TiaNotifier.cs        INotifier implemented against this version's TIA API
+│   └── Icons.cs              resolves embedded assets into System.Drawing.Icon
 └── Config.xml                PackageConfiguration for the Publisher
 ```
 
@@ -94,6 +96,52 @@ The payoff is measurable: the two `TiaNotifier.cs` files differ in exactly one l
 Adapters can be `internal sealed`: TIA only instantiates `AddInProvider` and `AddInController` by reflection, so only those two need to be `public`.
 
 The `AssemblyName` **must match** the `<Assembly>` element in `Config.xml` (`PLC-Framework.V20.dll` / `PLC-Framework.V21.dll`). What TIA displays in the menu does not depend on it: that comes from the `string` passed to the `ContextMenuAddIn` constructor and from `<Product><Name>` in `Config.xml`.
+
+## Assets and icons
+
+Binary assets live once, at the repo root, grouped **by feature** rather than by extension, so a feature can keep its `.ico`, `.svg` and anything else together:
+
+```
+assets/
+├── AddIn/                    icons for the Add-In's context-menu entries
+│   ├── coding-style.ico
+│   ├── folder-hierarchy.ico
+│   └── github.ico
+└── Brand/
+    └── favicon.ico
+```
+
+They are **linked** into both Add-Ins by a glob, so adding an icon is dropping a file — no `.csproj` edit, and no way for V20 and V21 to drift apart:
+
+```xml
+<EmbeddedResource Include="..\..\assets\**\*.ico"
+                  Link="Assets\%(RecursiveDir)%(Filename)%(Extension)" />
+```
+
+**`EmbeddedResource`, never `Content`.** The `.addin` package only carries assemblies, so a loose file would never reach TIA Portal. Embedded, the asset travels inside the `.dll` and needs no `Config.xml` entry.
+
+### Naming the icon in `Core`, resolving it in the adapter
+
+`Core` names the asset; the Add-In turns it into a platform type. That keeps `System.Drawing` out of `Core` and puts the icon next to the action it belongs to:
+
+```csharp
+// Core
+public const string IconPath = "Brand/favicon.ico";
+```
+
+```csharp
+// AddIn.Adapters — Icons.Get(path) → System.Drawing.Icon
+```
+
+**`Icons` cannot live in `Core`.** Embedded resources are scoped to the assembly that carries them: `PLC-Framework.Core.dll` has **0** resources, the Add-In assembly has 4. A loader in `Core` would search `Core.dll` and silently find nothing. The satellites will need the same files as `ImageSource`, not `System.Drawing.Icon`, so a shared loader would not help them either.
+
+### Two traps
+
+**Never hardcode the resource-name prefix.** MSBuild derives names as `<RootNamespace>.Assets.<Feature>.<file>`, e.g. `AddIn.Assets.Brand.favicon.ico`. A literal prefix does not fail at compile time when it stops matching — `GetManifestResourceStream` just returns `null` and the icon blows up at runtime inside TIA. Match on the **tail** instead, so renaming the root namespace or the link path cannot break it.
+
+**Cache the icons.** `GetContextMenuAddIns()` returns a **new `AddInController` on every right-click**, so loading icons in the constructor re-reads every asset each time the menu opens. A static cache (misses included) fixes it.
+
+Menu entries fall back to `AddActionItem` when `Icons.Get` returns `null`, so a missing asset costs an icon rather than the whole menu.
 
 ## Siemens dependencies
 
@@ -254,6 +302,30 @@ Three things that bite:
 - The folder does not exist until created by hand.
 
 Each TIA version only looks at its own folder, so both Add-Ins coexist without interfering. The `.addin` already contains the DLL; nothing else needs copying.
+
+### What a `.addin` actually is
+
+An **OPC package** — a zip (`PK` magic bytes) with `_rels/.rels` and `[Content_Types].xml`, the same container family as `.docx`. Its parts, read from a real build:
+
+```
+EngineeringVersion
+PLC-FRAMEWORK.V21,%20VERSION=1.0.0.0,...          the FeatureAssembly
+LocalAssemblyCache/PLC-FRAMEWORK.CORE,...         one part per AdditionalAssemblies entry
+Product/Id · Product/ProductName
+Multiuser/DisplayState
+DevToolsInfo/ProjectTemplate
+Permissions/Required/Tia/TIA.ReadWrite
+Permissions/Required/Security/<one part per permission>
+Meta/TimeStampUTC · Version · Description · Location · PublisherTarget
+```
+
+Useful consequences:
+
+- Renaming the file is safe; the identity TIA uses comes from `Product/Id`, not the file name.
+- Additional assemblies land under `LocalAssemblyCache/`, which is a quick way to confirm `Core` really travelled.
+- **There is no icon part, and the Publisher schema has no icon element** — no `icon`, `image`, `logo` or `thumbnail` anywhere in either `.xsd`. A `.addin` cannot carry its own icon. What Explorer shows comes from the `.addin` file-type association that TIA's installer registers, which is per extension, not per file.
+- Branding inside TIA therefore goes on the **menu entries** (`AddActionItemWithIcon`) and on `<Product><Name>` / `<Description>`. The submenu root takes no icon: `ContextMenuAddInRoot` exposes only `Items` and `DefaultLabelText`.
+- **Do not post-process the zip.** TIA validates package integrity and distinguishes trusted / unsigned / revoked-tampered; editing the package lands in the third.
 
 Unsigned, TIA loads it but it must be enabled manually. Optionally sign it with `Company_Trusted_Add-In_Certification_Tool.exe` to mark it trusted — TIA distinguishes three levels: trusted, unsigned/invalid, and revoked/tampered.
 

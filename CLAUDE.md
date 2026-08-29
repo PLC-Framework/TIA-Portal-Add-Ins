@@ -20,6 +20,9 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 - **Adapters convert Siemens types into primitives or DTOs before crossing into `Core`.** `Project` stays in the Add-In; `Core` receives `project?.Name`.
 - **Never name a namespace `AddIn.Core`.** Inside `namespace AddIn`, the identifier `Core` would then resolve to `AddIn.Core` before the global `Core`, breaking every qualified reference with a misleading "type does not exist" error. Adapters live in `AddIn.Adapters`.
 - Any assembly beyond the Add-In's own must be declared in `Config.xml` under **`AdditionalAssemblies`**, or TIA throws `FileNotFoundException` at runtime even though everything built and packaged cleanly.
+- Assets live once in `assets/`, grouped **by feature**, and are linked into each project as **`EmbeddedResource`** (never `Content`: the `.addin` only carries assemblies). Use a glob, not a list.
+- **Never hardcode a resource-name prefix.** Match on the tail of the name — a stale prefix compiles fine and returns `null` at runtime inside TIA.
+- **`Icons` stays in the Add-In, not in `Core`.** Embedded resources are scoped to their own assembly; a loader in `Core` would search `Core.dll` and find nothing. `Core` names the asset (`IconPath`), the adapter materialises it.
 
 ## Naming convention (settled 2026-08-29)
 
@@ -62,20 +65,38 @@ Do not relitigate without new information:
 
 `Core` travels inside each `.addin` via `AdditionalAssemblies` in `Config.xml`. **Do not propose merging the DLLs** with ILRepack or Costura.Fody: the `.addin` is already a single deployable file, `AdditionalAssemblies` is the vendor-supported mechanism, and the satellites will need `Core` as an assembly with one identity anyway.
 
-## Status (2026-08-23)
+## Status (2026-08-29)
 
 - [x] `Core`, `AddIn.V20` and `AddIn.V21` created, all in the `.slnx`.
 - [x] Both Add-Ins **validated end to end**: build → `.addin` containing `Core` → load and run correctly in TIA Portal V20 / V21 on the VM.
-- [x] First port extracted: `INotifier`, implemented by `AddIn.vXX/Adapters/TiaNotifier.cs`. `HelloWorldAction` lives in `Core` and never sees a Siemens type.
+- [x] First port extracted: `INotifier`, implemented by `AddIn.VXX/Adapters/TiaNotifier.cs`. `HelloWorldAction` lives in `Core` and never sees a Siemens type.
+- [x] Icons working end to end: `assets/` by feature → embedded by glob → `Adapters/Icons.cs` → `AddActionItemWithIcon`, verified in TIA on the VM.
+- [x] `config.json` and `core.json` models complete in `Core.Config` / `Core.DependencyGraph`, cross-checked key by key against the real files **and** against the generator's own models in `code/tools/dependency_graph_builder`.
 - [ ] `IPC`, satellites
 
 ### Known V20/V21 divergence
 
 The menu and provider API is identical across versions, but the two are **not source-compatible**. Found so far: the message box. V20 uses `tiaPortal.GetMessageBox()` returning `MessageBox`; V21 removed that extension and uses `tiaPortal.GetService<MessageBoxProvider>()` (which can return `null`). That single line is now the only difference between the two `TiaNotifier.cs` files — every new divergence should be pushed behind a `Core` port the same way.
 
+### `config.json` pipeline — designed, not yet built
+
+`config.json` has **two producers** (a future WPF satellite with a UI, and the user editing by hand) and **one consumer** (the Add-In). Decisions taken:
+
+- **DTOs stay permissive**, validation is a separate pass. A serializer that throws stops at the first problem and loses the rest; a validator reports all of them with their location.
+- **Validation lives in `Core` and runs twice**: in the satellite before saving, in the Add-In after loading. Validating only in the UI is useless — hand-editing bypasses it.
+- **Scoped per concern, not per document.** Each action reads only its section, so no section is globally required; "required" belongs to the concern. The satellite runs the composite validator, an action runs only its own.
+- **Structural vs environmental** validation kept apart: closed value sets, required fields, internal references and regex-that-compile are pure; checking a path exists or a `${VAR}` resolves touches disk and belongs in a separate method.
+- `coreSource` is `local | remote`, and it decides which repository section is required.
+- The `.env` lookup is environment-specific (Add-In vs satellite resolve it differently) → it becomes a `Core` port, with `${VAR}` expansion pure in `Core`.
+- A **JSON Schema** is the highest-leverage addition for the hand-edit path: it validates while the user types, before any of the above runs.
+
 ### Pending
 
-- [ ] **Decide**: migrate the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
+- [ ] `Config.Load` — the loader. `Stream` overload as the primitive, `path` as convenience
+- [ ] Structural validator per concern, then the environmental one
+- [ ] `config.schema.json` referenced from the file itself via `$schema`
+- [ ] `ISecretLookup` port + verify on the VM where `Assembly.GetExecutingAssembly().Location` actually points for a loaded `.addin` (the old project assumed the `UserAddIns` folder; unconfirmed)
+- [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
 - [ ] Automate deployment of the `.addin` to the VM (currently a manual copy)
 - [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to shorten the test cycle
 - [ ] Decide how many satellites there will be and whether they need live TIA data or just a snapshot
