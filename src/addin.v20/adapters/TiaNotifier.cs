@@ -1,6 +1,6 @@
 ﻿using Siemens.Engineering;
 
-using Core;
+using Core.Adapters;
 
 namespace AddIn.Adapters
 {

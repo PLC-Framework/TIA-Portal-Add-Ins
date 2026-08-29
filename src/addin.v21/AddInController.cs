@@ -5,6 +5,8 @@ using Siemens.Engineering;
 using Siemens.Engineering.AddIn.Menu;
 
 using Core;
+using Core.Adapters;
+using Core.Actions;
 
 using AddIn.Adapters;
 

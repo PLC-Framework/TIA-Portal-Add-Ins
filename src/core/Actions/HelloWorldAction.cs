@@ -1,5 +1,6 @@
-﻿
-namespace Core
+﻿using Core.Adapters;
+
+namespace Core.Actions
 {
     public static class HelloWorldAction
     {

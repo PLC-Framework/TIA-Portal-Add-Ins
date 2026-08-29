@@ -1,5 +1,4 @@
-﻿
-namespace Core
+﻿namespace Core.Adapters
 {
     public interface INotifier
     {
