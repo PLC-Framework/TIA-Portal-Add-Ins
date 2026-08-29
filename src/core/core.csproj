@@ -9,4 +9,9 @@
     <AssemblyName>PLC-Framework.core</AssemblyName>
   </PropertyGroup>
 
+  <!-- References -->
+  <ItemGroup>
+    <Reference Include="System.Runtime.Serialization" />
+  </ItemGroup>
+
 </Project>
