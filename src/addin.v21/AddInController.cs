@@ -4,9 +4,9 @@ using Siemens.Engineering;
 using Siemens.Engineering.AddIn.Menu;
 
 using Core;
-using Addin.Adapters;
+using AddIn.Adapters;
 
-namespace Addin
+namespace AddIn
 {
     public class AddInController : ContextMenuAddIn
     {

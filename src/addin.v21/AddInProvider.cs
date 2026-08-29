@@ -4,7 +4,7 @@ using Siemens.Engineering;
 using Siemens.Engineering.AddIn;
 using Siemens.Engineering.AddIn.Menu;
 
-namespace Addin
+namespace AddIn
 {
     public class AddInProvider : ProjectTreeAddInProvider
     {

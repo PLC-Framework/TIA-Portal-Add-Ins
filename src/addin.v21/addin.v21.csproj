@@ -7,8 +7,8 @@
     <TargetFramework>net48</TargetFramework>
     <LangVersion>latest</LangVersion>
     <PlatformTarget>x64</PlatformTarget>
-    <RootNamespace>Addin</RootNamespace>
-    <AssemblyName>PLC-Framework.v21</AssemblyName>
+    <RootNamespace>AddIn</RootNamespace>
+    <AssemblyName>PLC-Framework.V21</AssemblyName>
   </PropertyGroup>
 
   <!-- Siemens properties -->
@@ -39,11 +39,11 @@
     </Reference>
     
     <!-- Solution references -->
-    <ProjectReference Include="..\core\core.csproj" />
+    <ProjectReference Include="..\Core\Core.csproj" />
     
   </ItemGroup>
   
-  <!-- Packages the built DLL into a .Addin file TIA Portal can load, using the
+  <!-- Packages the built DLL into a .addin file TIA Portal can load, using the
        Siemens-provided publisher tool and Config.xml.
 
        The Publisher resolves the config's <Assembly> path relative to the config
@@ -56,11 +56,11 @@
   <Target Name="PublishTiaAddIn" AfterTargets="Build" Condition="Exists('$(TiaPublisher)')">
 
     <Copy SourceFiles="$(MSBuildProjectDirectory)\Config.xml" DestinationFolder="$(TargetDir)" />
-    <Exec Command="&quot;$(TiaPublisher)&quot; --configuration &quot;$(TargetDir)Config.xml&quot; --outfile &quot;$(TargetDir)$(TargetName).Addin&quot; --console" />
+    <Exec Command="&quot;$(TiaPublisher)&quot; --configuration &quot;$(TargetDir)Config.xml&quot; --outfile &quot;$(TargetDir)$(TargetName).addin&quot; --console" />
   </Target>
 
   <Target Name="WarnIfPublisherMissing" AfterTargets="Build" Condition="!Exists('$(TiaPublisher)')">
-    <Warning Text="Publisher was not found in '$(TiaPublisher)'. File .dll was compiled, but file .Addin was not generated." />
+    <Warning Text="Publisher was not found in '$(TiaPublisher)'. File .dll was compiled, but file .addin was not generated." />
   </Target>
 
 </Project>

@@ -1,5 +1,5 @@
 <Solution>
-  <Project Path="src/Addin.v20/Addin.v20.csproj" />
-  <Project Path="src/Addin.v21/Addin.v21.csproj" Id="2df26466-bf86-49f0-9739-22f866dbaeaa" />
-  <Project Path="src/core/core.csproj" Id="79efcd26-b240-41de-95b8-4a553c1e2358" />
+  <Project Path="src/AddIn.V20/AddIn.V20.csproj" />
+  <Project Path="src/AddIn.V21/AddIn.V21.csproj" Id="2df26466-bf86-49f0-9739-22f866dbaeaa" />
+  <Project Path="src/Core/Core.csproj" Id="79efcd26-b240-41de-95b8-4a553c1e2358" />
 </Solution>

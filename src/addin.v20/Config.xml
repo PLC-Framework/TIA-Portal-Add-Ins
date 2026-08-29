@@ -2,7 +2,7 @@
 
 <PackageConfiguration xmlns="http://www.siemens.com/automation/Openness/AddIn/Publisher/V20">
 	
-	<!-- This custom file is used to create .Addin file in /bin/[Debug|Release]/net48/<name>.[Addin|dll|pdb] -->	
+	<!-- This custom file is used to create the .addin file in /bin/[Debug|Release]/net48/<name>.[addin|dll|pdb] -->	
 	
 	<Author>cyanezf</Author>
 	<Description>PLC-Framework Add-In for TIA Portal V20</Description>
@@ -10,20 +10,20 @@
 	
 	<Product>
 		<Name>PLC-Framework Add-In</Name>
-		<Id>PLC-Framework.v20</Id>
+		<Id>PLC-Framework.V20</Id>
 		<Version>1.0.0.0</Version>
 	</Product>
 
 	<FeatureAssembly>
 		<AssemblyInfo>
-			<Assembly>PLC-Framework.v20.dll</Assembly>
+			<Assembly>PLC-Framework.V20.dll</Assembly>
 		</AssemblyInfo>
 	</FeatureAssembly>
 
 	<!-- Add core project -->
 	<AdditionalAssemblies>
 		<AssemblyInfo>
-			<Assembly>PLC-Framework.core.dll</Assembly>
+			<Assembly>PLC-Framework.Core.dll</Assembly>
 		</AssemblyInfo>
 	</AdditionalAssemblies>
 

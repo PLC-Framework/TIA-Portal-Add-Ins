@@ -3,7 +3,7 @@ using Siemens.Engineering.AddIn;
 
 using Core;
 
-namespace Addin.Adapters
+namespace AddIn.Adapters
 {
     internal sealed class TiaNotifier : INotifier
     {
