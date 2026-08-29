@@ -13,7 +13,7 @@ namespace AddIn
         private readonly TiaPortal _tiaPortal;
         private readonly INotifier _notifier;
 
-        public AddInController(TiaPortal tiaPortal) : base(Constants.Title)
+        public AddInController(TiaPortal tiaPortal) : base(Product.Title)
         {
             _tiaPortal = tiaPortal;
             _notifier = new TiaNotifier(_tiaPortal);
