@@ -9,6 +9,8 @@ using Siemens.Engineering.SW.TechnologicalObjects;
 using Siemens.Engineering.SW.Types;
 
 using AddIn.Shared.Adapters;
+using Siemens.Engineering.SW.Units;
+using System.Collections.Generic;
 
 namespace AddIn.Adapters
 {
@@ -34,6 +36,20 @@ namespace AddIn.Adapters
         public static HierarchyTargets TargetsFor(DeviceItem deviceItem)
         {
             PlcSoftware plc = deviceItem?.GetService<SoftwareContainer>()?.Software as PlcSoftware;
+
+            PlcUnitProvider unitProvider = plc.GetService<PlcUnitProvider>();
+            PlcUnitComposition units = unitProvider?.UnitGroup?.Units;
+
+            List<IGroupNode> softwareUnits = null;
+
+            foreach (PlcUnit x in units)
+            {
+                
+
+            }
+            
+
+
             if (plc == null) return null;
 
             return new HierarchyTargets
@@ -41,7 +57,8 @@ namespace AddIn.Adapters
                 Blocks = From(plc.BlockGroup?.Groups),
                 TechnologyObjects = From(plc.TechnologicalObjectGroup?.Groups),
                 TagTables = From(plc.TagTableGroup?.Groups),
-                Types = From(plc.TypeGroup?.Groups)
+                Types = From(plc.TypeGroup?.Groups),
+                
             };
         }
 

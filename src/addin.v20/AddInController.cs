@@ -12,6 +12,7 @@ using Core;
 using Core.Config;
 
 using AddIn.Adapters;
+using Siemens.Engineering.SW.Units;
 
 namespace AddIn
 {
@@ -59,6 +60,42 @@ namespace AddIn
                         result.Config.ProjectConfig?.Hierarchy,
                         TiaGroupNode.TargetsFor(deviceItem));
                 });
+
+            AddAction<PlcUnitSystemGroup>(
+                menuAddInRoot,
+                "Sw Units",
+                null,
+                menuSelectionProvider =>
+                {
+                    PlcUnitSystemGroup unitGroup = menuSelectionProvider?.GetSelection<PlcUnitSystemGroup>().FirstOrDefault();
+
+                    PlcUnitComposition units = unitGroup.Units;
+
+                    string unitNames = "\n\n";
+
+                    foreach(PlcUnit x in units)
+                    {
+                        unitNames += $"-{x.Name}\n";
+
+                    }
+
+                    _notifier.Info("PLC Units", unitNames);
+
+                });
+
+            AddAction<PlcUnit>(
+                menuAddInRoot,
+                "Sw Unit",
+                null,
+                menuSelectionProvider =>
+                {
+                    PlcUnit unit = menuSelectionProvider?.GetSelection<PlcUnit>().FirstOrDefault();
+                    string unitNames = "\n\n";
+                    unitNames += unit.Name;
+
+                    _notifier.Info("PLC Unit", unitNames);
+                });
+
         }
 
         /// <summary>

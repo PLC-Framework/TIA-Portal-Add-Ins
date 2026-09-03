@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace AddIn.Shared.Adapters
 {
     /// <summary>
@@ -13,5 +15,7 @@ namespace AddIn.Shared.Adapters
         public IGroupNode TechnologyObjects { get; set; }
         public IGroupNode TagTables { get; set; }
         public IGroupNode Types { get; set; }
+
+        public List<HierarchySoftwareUnitTargets> SoftwareUnits { get; set; }
     }
 }
