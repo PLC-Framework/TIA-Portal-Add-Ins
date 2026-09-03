@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
@@ -8,7 +8,7 @@ using Siemens.Engineering.SW.Tags;
 using Siemens.Engineering.SW.TechnologicalObjects;
 using Siemens.Engineering.SW.Types;
 
-using Core.Adapters;
+using AddIn.Shared.Adapters;
 
 namespace AddIn.Adapters
 {
@@ -18,7 +18,7 @@ namespace AddIn.Adapters
     /// The four families (blocks, technology objects, tag tables, types) share no base
     /// type and no interface, even though each one offers the same Find/Create pair, so
     /// one thin overload per family is unavoidable. What is NOT repeated is the walk:
-    /// that lives once in Core.Actions.CreateProjectHierarchyAction.
+    /// that lives once in AddIn.Shared.Actions.CreateProjectHierarchyAction.
     /// </summary>
     internal sealed class TiaGroupNode : IGroupNode
     {

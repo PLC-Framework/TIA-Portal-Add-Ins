@@ -1,8 +1,9 @@
-namespace Core.Adapters
+namespace AddIn.Shared.Adapters
 {
     /// <summary>
-    /// The four group roots a PLC exposes, as ports. The Add-In fills this in from the
-    /// selected device; Core never learns which Siemens types are behind them.
+    /// The four group roots a PLC exposes, as ports. The version-specific Add-In fills
+    /// this in from the selected device; the action never learns which Siemens types are
+    /// behind them.
     ///
     /// Any of them may be null when that family is not available.
     /// </summary>

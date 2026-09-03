@@ -1,6 +1,6 @@
-﻿namespace Core.Adapters
+﻿namespace AddIn.Shared.Adapters
 {
-    public interface INotifier
+    public interface ITiaNotifier
     {
         void Success(string caption, string message);
         void Info(string caption, string message);

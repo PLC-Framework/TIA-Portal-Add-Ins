@@ -16,9 +16,9 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 - **`<Private>False</Private>`** on every reference to a Siemens assembly.
 - **Siemens DLL paths parameterized** through `$(SiemensPublicApi)`, never hardcoded in each `HintPath`.
 - Classes TIA instantiates by reflection (`AddInProvider`, `AddInController`) must be **`public`**. If they are `internal` the build succeeds and the Add-In never appears — a silent failure. Adapters are `internal sealed`.
-- `Core` **references nothing from Siemens**, and stays **AnyCPU** (the `x64` constraint is the host process's, and the satellites will reference `Core` too). If an `IEngineeringObject` seems to belong there, that type stays in the Add-In instead.
-- **Adapters convert Siemens types into primitives or DTOs before crossing into `Core`.** `Project` stays in the Add-In; `Core` receives `project?.Name`.
-- **Never name a namespace `AddIn.Core`.** Inside `namespace AddIn`, the identifier `Core` would then resolve to `AddIn.Core` before the global `Core`, breaking every qualified reference with a misleading "type does not exist" error. Adapters live in `AddIn.Adapters`.
+- **Where a type goes is decided by its dependencies**, per the three-layer rule below. Both `Core` and `AddIn.Shared` stay **AnyCPU**; only the version projects are `x64`.
+- **Adapters convert Siemens types into primitives or DTOs before crossing a layer.** `Project` stays in the version project; the action receives `project?.Name`.
+- **Never name a namespace `AddIn.Core`.** Inside `namespace AddIn`, the identifier `Core` would then resolve to `AddIn.Core` before the global `Core`, breaking every qualified reference with a misleading "type does not exist" error.
 - Any assembly beyond the Add-In's own must be declared in `Config.xml` under **`AdditionalAssemblies`**, or TIA throws `FileNotFoundException` at runtime even though everything built and packaged cleanly.
 - Assets live once in `assets/`, grouped **by feature**, and are embedded **in `Core`** as `EmbeddedResource` (never `Content`: the `.addin` only carries assemblies). Use a glob, not a list. Every consumer gets them by referencing `Core`.
 - **Never hardcode a resource-name prefix.** Match on the tail of the name — a stale prefix compiles fine and returns `null` at runtime inside TIA.
@@ -26,11 +26,13 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 
 ## Naming convention (settled 2026-08-29)
 
-| Item | `Core` | `AddIn.V20` | `AddIn.V21` |
-|---|---|---|---|
-| Project / folder | `Core` | `AddIn.V20` | `AddIn.V21` |
-| `AssemblyName` | `PLC-Framework.Core` | `PLC-Framework.V20` | `PLC-Framework.V21` |
-| `RootNamespace` | `Core` | `AddIn` | `AddIn` |
+| Item | `Core` | `AddIn.Shared` | `AddIn.V20` | `AddIn.V21` |
+|---|---|---|---|---|
+| Project / folder | `Core` | `AddIn.Shared` | `AddIn.V20` | `AddIn.V21` |
+| `AssemblyName` | `PLC-Framework.Core` | `PLC-Framework.AddIn.Shared` | `PLC-Framework.V20` | `PLC-Framework.V21` |
+| `RootNamespace` | `Core` | `AddIn.Shared` | `AddIn` | `AddIn` |
+
+The namespace says which layer a type is in: `AddIn.Shared.*` is version-agnostic, `AddIn.*` is version-specific.
 
 **PascalCase throughout**, TIA version suffixes included (`V20`, `V21`). The version is not repeated in the namespace because the project name already carries it.
 
@@ -49,27 +51,52 @@ Hyphens are legal in an `AssemblyName` and illegal in a C# namespace.
 
 Do not relitigate without new information:
 
-1. **Layers**: `Core` (no Siemens, holds the ports) → Add-In `Adapters/` (implement those ports per TIA version) → satellites. Ports go in `Core` as interfaces; anything touching a Siemens type stays in the Add-In.
+1. **Three layers, decided by dependency set** — see below.
 2. **Two Add-In projects**: `AddIn.V20` (valid V17–V20) and `AddIn.V21`. V21 breaks binary compatibility and splits the assemblies.
 3. **Satellites**: standalone WPF apps launched with `Process.Start`.
 4. **Add-In ↔ satellite communication**: JSON snapshot through a temp file when data at open time is enough; named pipes plus an `IPC` project only if live queries are required. **Prefer the snapshot** until hitting a real limitation.
 5. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup.
 
+### The three layers — this decides where every new type goes
+
+A type's layer is decided by **what it depends on**, not by who happens to call it today:
+
+| Layer | May depend on | Holds | Verified deps |
+|---|---|---|---|
+| `Core` | only what **every** consumer needs, satellites included | `Config` model + loader, `DependencyGraph` model, `Assets`, `Product` | `mscorlib`, `System.Core`, `System.Runtime.Serialization` |
+| `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`) and its ports (`ITiaNotifier`, `IGroupNode`, `HierarchyTargets`, `Icons`) | `+ System.Drawing` |
+| `AddIn.V20` / `.V21` | anything, including Siemens | `AddInProvider`, `AddInController`, `Adapters/` implementing the ports | `+ Siemens.Engineering.AddIn` |
+
+Consequences worth remembering:
+
+- **`System.Drawing` must not reach `Core`.** If it did, symmetry would later drag `PresentationCore`/`WindowsBase` in when the satellites need `ImageSource` — and `Core` is loaded inside TIA Portal's process. `Core`'s dependencies are the **intersection** of its consumers' needs, never the union.
+- **Ports live with the layer whose vocabulary they speak.** `IGroupNode` talks about PLC group trees, so it belongs to `AddIn.Shared`, not `Core` — even though it has no Siemens reference.
+- Check the layering with the assembly metadata (`GetReferencedAssemblies`), not by reading `using` statements.
+
 ### Sharing code between `AddIn.V20` and `AddIn.V21`
 
-**Settled**: a port in `Core` plus one thin adapter per version. Applied to the message box and it worked — the divergence collapsed to a single line. No build tricks, no `#if`, no Shared Project. Keep using this for every new divergence.
+Three mechanisms, each for a different case:
+
+| Situation | Mechanism |
+|---|---|
+| Code that **diverges** between versions | port in `AddIn.Shared` + one thin adapter per version |
+| Identical code with **no** Siemens dependency | put it in `AddIn.Shared` — one binary serves both |
+| Identical code **with** Siemens dependencies | must be compiled twice; a shared assembly is impossible |
+
+That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemens.Engineering.AddIn.Base` (V21) are **different assembly names with different public key tokens**, and V21 does not ship the V20 one. A shared binary would bind to one identity and fail to load in the other host. Source linking is the only option there; today `AddInProvider.cs` and `TiaGroupNode.cs` are simply duplicated instead.
 
 `#if V20 / #if V21` remains rejected: it degrades fast and makes menu code unreadable.
 
 ### Shipping `Core` — settled, do not relitigate
 
-`Core` travels inside each `.addin` via `AdditionalAssemblies` in `Config.xml`. **Do not propose merging the DLLs** with ILRepack or Costura.Fody: the `.addin` is already a single deployable file, `AdditionalAssemblies` is the vendor-supported mechanism, and the satellites will need `Core` as an assembly with one identity anyway.
+`Core` and `AddIn.Shared` travel inside each `.addin` via `AdditionalAssemblies` in `Config.xml` — **one entry per assembly; transitive project references are not packaged automatically**. **Do not propose merging the DLLs** with ILRepack or Costura.Fody: the `.addin` is already a single deployable file, `AdditionalAssemblies` is the vendor-supported mechanism, and the satellites will need `Core` as an assembly with one identity anyway.
 
 ## Status (2026-08-29)
 
 - [x] `Core`, `AddIn.V20` and `AddIn.V21` created, all in the `.slnx`.
 - [x] Both Add-Ins **validated end to end**: build → `.addin` containing `Core` → load and run correctly in TIA Portal V20 / V21 on the VM.
-- [x] First port extracted: `INotifier`, implemented by `AddIn.VXX/Adapters/TiaNotifier.cs`. `HelloWorldAction` lives in `Core` and never sees a Siemens type.
+- [x] `AddIn.Shared` created: the Add-In's version-agnostic layer. Ports `ITiaNotifier` / `IGroupNode` implemented per version in `AddIn.VXX/Adapters/`.
+- [x] `ConfigLoader` reading the real `config.json`, and `CreateProjectHierarchyAction` migrated from the old project — the four duplicated recursive walks collapsed into one, exercised with fakes and **no TIA installed**.
 - [x] Icons working end to end: `assets/` by feature → embedded by glob → `Adapters/Icons.cs` → `AddActionItemWithIcon`, verified in TIA on the VM.
 - [x] `config.json` and `core.json` models complete in `Core.Config` / `Core.DependencyGraph`, cross-checked key by key against the real files **and** against the generator's own models in `code/tools/dependency_graph_builder`.
 - [ ] `IPC`, satellites

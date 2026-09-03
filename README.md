@@ -31,25 +31,13 @@ The **VM** does require TIA Portal and the user to belong to the local **"Siemen
 tia-portal-addins.slnx
 ├── assets/                   shared binary assets, grouped by feature (see below)
 └── src/
-    ├── Core/                 (net48, AnyCPU) — models and interfaces, NO Siemens references  ← EXISTS
-    ├── AddIn.V20/            (net48, x64) — references PublicAPI\V20.addIn (valid V17–V20)  ← EXISTS
-    ├── AddIn.V21/            (net48, x64) — references PublicAPI\V21\net48                  ← EXISTS
+    ├── Core/                 (net48, AnyCPU) — model, no host types at all          ← EXISTS
+    ├── AddIn.Shared/         (net48, AnyCPU) — the Add-In layer, NO Siemens          ← EXISTS
+    ├── AddIn.V20/            (net48, x64) — references PublicAPI\V20.addIn (V17–V20) ← EXISTS
+    ├── AddIn.V21/            (net48, x64) — references PublicAPI\V21\net48           ← EXISTS
     ├── IPC/                  (net48) — Add-In ↔ satellite contract (named pipes)
     ├── Satellite.Shared/     (net48, WPF) — shared styles and controls
     └── Satellite.<Name>/     (net48, WPF) — one project per satellite app
-```
-
-Both Add-In projects have the same shape:
-
-```
-src/AddIn.VXX/
-├── AddIn.VXX.csproj          SDK-style net48 x64, Siemens references + Publisher target
-├── AddInProvider.cs          ProjectTreeAddInProvider — entry point
-├── AddInController.cs        ContextMenuAddIn — menu wiring
-├── Adapters/
-│   ├── TiaNotifier.cs        INotifier implemented against this version's TIA API
-│   └── Icons.cs              resolves embedded assets into System.Drawing.Icon
-└── Config.xml                PackageConfiguration for the Publisher
 ```
 
 ```
@@ -57,45 +45,79 @@ src/Core/
 ├── Core.csproj               SDK-style net48, AnyCPU, embeds assets\
 ├── Product.cs                literals shared by every consumer
 ├── Assets.cs                 embedded assets → Stream, host-agnostic
-├── Adapters/                 ports: INotifier, IGroupNode, HierarchyTargets
-├── Actions/                  version-agnostic action logic
 ├── Config/                   config.json loader + model under Model/
 └── DependencyGraph/          core.json model (DependencyGraph, Node, Edge, Report)
 ```
 
+```
+src/AddIn.Shared/
+├── AddIn.Shared.csproj       SDK-style net48, AnyCPU, references Core
+├── Actions/                  use cases: HelloWorldAction, CreateProjectHierarchyAction
+└── Adapters/                 ports: ITiaNotifier, IGroupNode, HierarchyTargets
+                              plus Icons (embedded assets → System.Drawing.Icon)
+```
+
+Both version projects have the same shape:
+
+```
+src/AddIn.VXX/
+├── AddIn.VXX.csproj          SDK-style net48 x64, Siemens references + Publisher target
+├── AddInProvider.cs          ProjectTreeAddInProvider — entry point
+├── AddInController.cs        ContextMenuAddIn — menu wiring
+├── Adapters/
+│   ├── TiaNotifier.cs        ITiaNotifier against this version's message box
+│   └── TiaGroupNode.cs       IGroupNode over this version's group compositions
+└── Config.xml                PackageConfiguration for the Publisher
+```
+
 ### Naming convention
 
-| Item | `Core` | `AddIn.V20` | `AddIn.V21` | Rationale |
+| Item | `Core` | `AddIn.Shared` | `AddIn.V20` | `AddIn.V21` |
 |---|---|---|---|---|
-| Project / folder | `Core` | `AddIn.V20` | `AddIn.V21` | PascalCase throughout, TIA version suffixes included |
-| `AssemblyName` | `PLC-Framework.Core` | `PLC-Framework.V20` | `PLC-Framework.V21` | the output is part of PLC-Framework; hyphens are legal in an assembly name |
-| `RootNamespace` | `Core` | `AddIn` | `AddIn` | repeating the version inside `AddIn.vXX` is redundant |
+| Project / folder | `Core` | `AddIn.Shared` | `AddIn.V20` | `AddIn.V21` |
+| `AssemblyName` | `PLC-Framework.Core` | `PLC-Framework.AddIn.Shared` | `PLC-Framework.V20` | `PLC-Framework.V21` |
+| `RootNamespace` | `Core` | `AddIn.Shared` | `AddIn` | `AddIn` |
 
-Both Add-Ins sharing the `AddIn` namespace causes no collision: they are separate assemblies that nothing references together — TIA loads one or the other depending on its version.
+PascalCase throughout, TIA version suffixes included. Hyphens are legal in an `AssemblyName` and illegal in a C# namespace, which is why only the assembly carries the `PLC-Framework.` prefix.
 
-> **Do not create a namespace called `AddIn.Core`.** Inside `namespace AddIn`, the identifier `Core` would then resolve to `AddIn.Core` before the global `Core` namespace, so `core.SomeType` stops compiling and the failure reads as a missing type. Adapters live in `AddIn.Adapters`, named for their role rather than their folder.
+The namespace tells you the layer: **`AddIn.Shared.*` is version-agnostic, `AddIn.*` is version-specific**. Both version projects sharing the `AddIn` namespace causes no collision — they are separate assemblies that nothing references together, and TIA loads one or the other.
 
-## Architecture: core and Adapters
+> **Do not create a namespace called `AddIn.Core`.** Inside `namespace AddIn`, the identifier `Core` would then resolve to `AddIn.Core` before the global `Core` namespace, so `Core.SomeType` stops compiling and the failure reads as a missing type.
+
+## Architecture: three layers
+
+A type's layer is decided by **what it depends on**, not by who calls it today.
 
 ```
-core  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
- │              │
- │              └── Adapters/  implement core's ports against a specific TIA version
- └── ports (interfaces) + version-agnostic logic, no Siemens types
+Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
+ │            │                    │
+ │            │                    └── Adapters/  implement the ports against one TIA version
+ │            └── use cases (Actions/) + the ports they need
+ └── model, config loader, assets — what the satellites will also use
 ```
 
-`Core` **references nothing from Siemens**, and that is the whole point. It stays `AnyCPU` because the `x64` constraint belongs to the host process, not to a library — and because the satellite apps will reference `Core` too.
+| Layer | May depend on | Actual references |
+|---|---|---|
+| `Core` | only what **every** consumer needs, satellites included | `mscorlib`, `System.Core`, `System.Runtime.Serialization` |
+| `AddIn.Shared` | `Core` + host types that are **not** Siemens | `+ System.Drawing` |
+| `AddIn.VXX` | anything, Siemens included | `+ Siemens.Engineering.AddIn` |
 
-The rule that keeps the boundary honest: **the adapter converts Siemens types into primitives or its own DTOs before crossing into `Core`**. `Project` stays in the Add-In; `Core` only ever sees a `string`:
+That third column is read from the compiled assemblies, not from the `using` statements — it is the only check that cannot drift.
+
+**Why `System.Drawing` must not reach `Core`.** `Icons` turns an asset into a `System.Drawing.Icon`; a WPF satellite will want an `ImageSource` from the same bytes. If the first materialiser went into `Core`, symmetry would eventually drag `PresentationCore` and `WindowsBase` in with the second — and `Core` is loaded **inside TIA Portal's process**. `Core`'s dependencies are the *intersection* of what its consumers need, never the union.
+
+**Ports live with the layer whose vocabulary they speak.** `ITiaNotifier` and `IGroupNode` carry no Siemens reference at all, yet they belong to `AddIn.Shared`: one is shaped like a TIA notification, the other talks about PLC group trees. Neither is vocabulary a satellite would use.
+
+**The adapter converts Siemens types before crossing a layer.** `Project` never leaves the version project:
 
 ```csharp
 Project project = menuSelectionProvider?.GetSelection<Project>().FirstOrDefault();
 HelloWorldAction.Execute(_notifier, project?.Name);
 ```
 
-The payoff is measurable: the two `TiaNotifier.cs` files differ in exactly one line — the one documented under *Known V20 / V21 divergences* — and every other file is either identical or lives in `Core`. When a new divergence appears, it belongs behind a new port in `Core` rather than scattered through menu code.
+The payoff is measurable: the two `TiaNotifier.cs` files differ in exactly one line — the one documented under *Known V20 / V21 divergences* — and everything else either is identical or lives one layer down.
 
-Adapters can be `internal sealed`: TIA only instantiates `AddInProvider` and `AddInController` by reflection, so only those two need to be `public`.
+Adapters are `internal sealed`: TIA only instantiates `AddInProvider` and `AddInController` by reflection, so only those two need to be `public`. Types crossing an assembly boundary (`Icons`, the ports, the actions) are `public` because they must be.
 
 The `AssemblyName` **must match** the `<Assembly>` element in `Config.xml` (`PLC-Framework.V20.dll` / `PLC-Framework.V21.dll`). What TIA displays in the menu does not depend on it: that comes from the `string` passed to the `ContextMenuAddIn` constructor and from `<Product><Name>` in `Config.xml`.
 
@@ -140,15 +162,15 @@ public static Stream Open(string path)     // Core.Assets
 
 Both were verified against the same embedded `favicon.ico`. Returning a `Stream` is also what keeps `System.Drawing` out of `Core`.
 
-`Core` names the asset next to the action that uses it, and each adapter resolves it:
+The action names the asset next to the behaviour that uses it, and the materialiser resolves it:
 
 ```csharp
-// Core.Actions
+// AddIn.Shared.Actions
 public const string IconPath = "Brand/favicon.ico";
 ```
 
 ```csharp
-// AddIn.Adapters — Icons.Get(path) → System.Drawing.Icon, with a cache
+// AddIn.Shared.Adapters — Icons.Get(path) → System.Drawing.Icon, with a cache
 ```
 
 ### Two traps
@@ -279,12 +301,15 @@ Request only the permissions actually used: every extra one is friction when sig
 
 #### Shipping `Core` inside the `.addin`
 
-The package contains **only what `Config.xml` declares**. A project reference is not enough — `Core` must be listed explicitly:
+The package contains **only what `Config.xml` declares**. Project references are not enough, and they are not transitive either — every extra assembly needs its own entry:
 
 ```xml
 <AdditionalAssemblies>
   <AssemblyInfo>
     <Assembly>PLC-Framework.Core.dll</Assembly>
+  </AssemblyInfo>
+  <AssemblyInfo>
+    <Assembly>PLC-Framework.AddIn.Shared.dll</Assembly>
   </AssemblyInfo>
 </AdditionalAssemblies>
 ```
@@ -396,7 +421,7 @@ _tiaPortal.GetService<MessageBoxProvider>()
 
 `GetService<T>()` returns `null` when the service is unavailable — worth guarding in real actions.
 
-This is precisely the kind of difference that justifies putting an interface in `Core` (something like `INotifier.Info(caption, message)`) implemented once per version, so the rest of the code never learns that the difference exists.
+This is precisely the kind of difference that justifies a port in `AddIn.Shared` — `ITiaNotifier.Info(caption, message)` — implemented once per version, so the rest of the code never learns that the difference exists.
 
 ## Prior reference project
 

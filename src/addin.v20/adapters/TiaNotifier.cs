@@ -1,18 +1,18 @@
 ﻿using Siemens.Engineering;
 
-using Core.Adapters;
+using AddIn.Shared.Adapters;
 
 namespace AddIn.Adapters
 {
     /// <summary>
-    /// INotifier implemented against the TIA Portal V17-V20 message box.
+    /// ITiaNotifier implemented against the TIA Portal V17-V20 message box.
     ///
     /// The V21 adapter is identical except for how the message box is obtained:
     /// V21 dropped TiaPortal.GetMessageBox() in favour of the generic service
     /// lookup. The two cannot be unified: V20's MessageBox does not implement
     /// IEngineeringService, so GetService&lt;MessageBox&gt;() does not compile.
     /// </summary>
-    internal sealed class TiaNotifier : INotifier
+    internal sealed class TiaNotifier : ITiaNotifier
     {
         private readonly TiaPortal _tiaPortal;
 

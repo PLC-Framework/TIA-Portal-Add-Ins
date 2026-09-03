@@ -5,7 +5,7 @@ using System.IO;
 
 using Core;
 
-namespace AddIn.Adapters
+namespace AddIn.Shared.Adapters
 {
     /// <summary>
     /// Materialises the assets Core embeds into System.Drawing.Icon, which is what the

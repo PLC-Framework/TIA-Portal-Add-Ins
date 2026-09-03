@@ -2,8 +2,9 @@ namespace Core.Config
 {
     /// <summary>
     /// Outcome of reading config.json. The failure travels as data rather than as an
-    /// exception because both consumers need the message, not the stack: the Add-In
-    /// shows it through INotifier, the satellite shows it next to the field.
+    /// exception because every consumer needs the message, not the stack: the Add-In
+    /// shows it in a TIA notification, the satellite next to the offending field.
+    /// Neither wants to catch exceptions to find out what went wrong.
     /// </summary>
     public sealed class ConfigLoadResult
     {

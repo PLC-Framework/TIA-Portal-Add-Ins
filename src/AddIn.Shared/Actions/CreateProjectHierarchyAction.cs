@@ -1,23 +1,23 @@
 using System.Collections.Generic;
 
-using Core.Adapters;
+using AddIn.Shared.Adapters;
 using Core.Config;
 
-namespace Core.Actions
+namespace AddIn.Shared.Actions
 {
     /// <summary>
     /// Creates the group hierarchy declared under projectConfig.hierarchy inside a PLC.
     ///
     /// Existing groups are kept, so running it twice is harmless: it only fills in what
-    /// is missing. Everything here is version-agnostic; the four IGroupNode roots come
-    /// from the Add-In, which is the only side that knows about TIA.
+    /// is missing. Nothing here touches Siemens; the four IGroupNode roots come from the
+    /// version-specific Add-In, which is the only side that knows about TIA.
     /// </summary>
     public static class CreateProjectHierarchyAction
     {
         public const string Title = "Create project hierarchy";
         public const string IconPath = "AddIn/folder-hierarchy.ico";
 
-        public static void Execute(INotifier notifier, Hierarchy hierarchy, HierarchyTargets targets)
+        public static void Execute(ITiaNotifier notifier, Hierarchy hierarchy, HierarchyTargets targets)
         {
             if (notifier == null) return;
 

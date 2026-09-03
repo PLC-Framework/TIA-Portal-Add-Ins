@@ -1,13 +1,14 @@
-using System.Drawing;
+﻿using System.Drawing;
 using System.Linq;
 
 using Siemens.Engineering;
 using Siemens.Engineering.AddIn.Menu;
 using Siemens.Engineering.HW;
 
+using AddIn.Shared.Adapters;
+using AddIn.Shared.Actions;
+
 using Core;
-using Core.Actions;
-using Core.Adapters;
 using Core.Config;
 
 using AddIn.Adapters;
@@ -17,7 +18,7 @@ namespace AddIn
     public class AddInController : ContextMenuAddIn
     {
         private readonly TiaPortal _tiaPortal;
-        private readonly INotifier _notifier;
+        private readonly ITiaNotifier _notifier;
 
         public AddInController(TiaPortal tiaPortal) : base(Product.Title)
         {

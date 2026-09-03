@@ -1,18 +1,18 @@
-﻿using Core.Adapters;
+using AddIn.Shared.Adapters;
 
-namespace Core.Actions
+namespace AddIn.Shared.Actions
 {
     public static class HelloWorldAction
     {
         public const string Title = "Hello World";
 
         /// <summary>
-        /// Path into the assets\ folder, as "Feature/file.ico". Core names the icon;
-        /// the Add-In adapter is the one that knows how to turn it into a real image.
+        /// Path into the assets\ folder, as "Feature/file.ico". The action names the icon;
+        /// the version-specific adapter is what turns it into a real image.
         /// </summary>
         public const string IconPath = "Brand/favicon.ico";
 
-        public static void Execute(INotifier notifier, string projectName)
+        public static void Execute(ITiaNotifier notifier, string projectName)
         {
             notifier.Info(Title, $"\n\nHello world! {projectName ?? "No project"}");
         }

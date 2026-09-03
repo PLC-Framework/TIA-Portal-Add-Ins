@@ -5,12 +5,16 @@
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>AddIn</RootNamespace>
+    <RootNamespace>AddIn.Shared</RootNamespace>
     <AssemblyName>PLC-Framework.AddIn.Shared</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Core\Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Actions\" />
   </ItemGroup>
   
 </Project>
