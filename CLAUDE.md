@@ -20,9 +20,9 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 - **Adapters convert Siemens types into primitives or DTOs before crossing into `Core`.** `Project` stays in the Add-In; `Core` receives `project?.Name`.
 - **Never name a namespace `AddIn.Core`.** Inside `namespace AddIn`, the identifier `Core` would then resolve to `AddIn.Core` before the global `Core`, breaking every qualified reference with a misleading "type does not exist" error. Adapters live in `AddIn.Adapters`.
 - Any assembly beyond the Add-In's own must be declared in `Config.xml` under **`AdditionalAssemblies`**, or TIA throws `FileNotFoundException` at runtime even though everything built and packaged cleanly.
-- Assets live once in `assets/`, grouped **by feature**, and are linked into each project as **`EmbeddedResource`** (never `Content`: the `.addin` only carries assemblies). Use a glob, not a list.
+- Assets live once in `assets/`, grouped **by feature**, and are embedded **in `Core`** as `EmbeddedResource` (never `Content`: the `.addin` only carries assemblies). Use a glob, not a list. Every consumer gets them by referencing `Core`.
 - **Never hardcode a resource-name prefix.** Match on the tail of the name — a stale prefix compiles fine and returns `null` at runtime inside TIA.
-- **`Icons` stays in the Add-In, not in `Core`.** Embedded resources are scoped to their own assembly; a loader in `Core` would search `Core.dll` and find nothing. `Core` names the asset (`IconPath`), the adapter materialises it.
+- **`Core.Assets.Open(path)` returns a `Stream`, never an image type.** Embedded resources are scoped to the assembly that carries them, so the loader must live in the same assembly as the assets — but the *type* must not: the Add-Ins need `System.Drawing.Icon` and the WPF satellites need an `ImageSource`. Each host materialises its own from the same stream; that is what keeps `System.Drawing` out of `Core`.
 
 ## Naming convention (settled 2026-08-29)
 

@@ -54,10 +54,12 @@ src/AddIn.VXX/
 
 ```
 src/Core/
-├── Core.csproj               SDK-style net48, AnyCPU, zero references
-├── INotifier.cs              port: showing messages to the user
-├── HelloWorldAction.cs       version-agnostic action logic
-├── Config/                   config.json model (Config, Metadata, ProjectConfig, …)
+├── Core.csproj               SDK-style net48, AnyCPU, embeds assets\
+├── Product.cs                literals shared by every consumer
+├── Assets.cs                 embedded assets → Stream, host-agnostic
+├── Adapters/                 ports: INotifier, IGroupNode, HierarchyTargets
+├── Actions/                  version-agnostic action logic
+├── Config/                   config.json loader + model under Model/
 └── DependencyGraph/          core.json model (DependencyGraph, Node, Edge, Report)
 ```
 
@@ -111,33 +113,47 @@ assets/
     └── favicon.ico
 ```
 
-They are **linked** into both Add-Ins by a glob, so adding an icon is dropping a file — no `.csproj` edit, and no way for V20 and V21 to drift apart:
+They are **embedded into `Core`** by a glob, so adding an asset is dropping a file — no `.csproj` edit anywhere:
 
 ```xml
-<EmbeddedResource Include="..\..\assets\**\*.ico"
+<!-- Core.csproj -->
+<EmbeddedResource Include="..\..\assets\**\*.*"
                   Link="Assets\%(RecursiveDir)%(Filename)%(Extension)" />
 ```
 
-**`EmbeddedResource`, never `Content`.** The `.addin` package only carries assemblies, so a loose file would never reach TIA Portal. Embedded, the asset travels inside the `.dll` and needs no `Config.xml` entry.
+**`EmbeddedResource`, never `Content`.** The `.addin` package only carries assemblies, so a loose file would never reach TIA Portal. Embedded, the asset travels inside `PLC-Framework.Core.dll`, which is already listed under `AdditionalAssemblies` — so nothing extra to declare.
 
-### Naming the icon in `Core`, resolving it in the adapter
+### Why they live in `Core`, and why the loader returns a `Stream`
 
-`Core` names the asset; the Add-In turns it into a platform type. That keeps `System.Drawing` out of `Core` and puts the icon next to the action it belongs to:
+Embedded resources are **scoped to the assembly that carries them**: `Assembly.GetManifestResourceNames()` only ever sees its own. So the loader has to sit in the same assembly as the assets. Putting both in `Core` means every consumer — the two Add-Ins today, the WPF satellites tomorrow — gets them just by referencing `Core`.
+
+What must **not** be shared is the type:
 
 ```csharp
-// Core
+public static Stream Open(string path)     // Core.Assets
+```
+
+| Host | Materialises it as |
+|---|---|
+| `AddIn.V20` / `AddIn.V21` | `new Icon(stream)` → `System.Drawing.Icon`, what the TIA menu API takes |
+| WPF satellite | `IconBitmapDecoder(stream, …).Frames[0]` → `ImageSource` |
+
+Both were verified against the same embedded `favicon.ico`. Returning a `Stream` is also what keeps `System.Drawing` out of `Core`.
+
+`Core` names the asset next to the action that uses it, and each adapter resolves it:
+
+```csharp
+// Core.Actions
 public const string IconPath = "Brand/favicon.ico";
 ```
 
 ```csharp
-// AddIn.Adapters — Icons.Get(path) → System.Drawing.Icon
+// AddIn.Adapters — Icons.Get(path) → System.Drawing.Icon, with a cache
 ```
-
-**`Icons` cannot live in `Core`.** Embedded resources are scoped to the assembly that carries them: `PLC-Framework.Core.dll` has **0** resources, the Add-In assembly has 4. A loader in `Core` would search `Core.dll` and silently find nothing. The satellites will need the same files as `ImageSource`, not `System.Drawing.Icon`, so a shared loader would not help them either.
 
 ### Two traps
 
-**Never hardcode the resource-name prefix.** MSBuild derives names as `<RootNamespace>.Assets.<Feature>.<file>`, e.g. `AddIn.Assets.Brand.favicon.ico`. A literal prefix does not fail at compile time when it stops matching — `GetManifestResourceStream` just returns `null` and the icon blows up at runtime inside TIA. Match on the **tail** instead, so renaming the root namespace or the link path cannot break it.
+**Never hardcode the resource-name prefix.** MSBuild derives names as `<RootNamespace>.Assets.<Feature>.<file>`, e.g. `Core.Assets.Brand.favicon.ico`. A literal prefix does not fail at compile time when it stops matching — `GetManifestResourceStream` just returns `null` and the icon blows up at runtime inside TIA. Match on the **tail** instead, so renaming the root namespace or the link path cannot break it.
 
 **Cache the icons.** `GetContextMenuAddIns()` returns a **new `AddInController` on every right-click**, so loading icons in the constructor re-reads every asset each time the menu opens. A static cache (misses included) fixes it.
 

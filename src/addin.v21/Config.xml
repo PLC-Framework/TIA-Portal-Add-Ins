@@ -20,10 +20,14 @@
 		</AssemblyInfo>
 	</FeatureAssembly>
 
-	<!-- Add core project -->
+	<!-- Add shared projects -->
 	<AdditionalAssemblies>
 		<AssemblyInfo>
 			<Assembly>PLC-Framework.Core.dll</Assembly>
+		</AssemblyInfo>
+
+		<AssemblyInfo>
+			<Assembly>PLC-Framework.AddIn.Shared.dll</Assembly>
 		</AssemblyInfo>
 	</AdditionalAssemblies>
 	

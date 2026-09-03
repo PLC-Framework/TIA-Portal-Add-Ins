@@ -40,18 +40,12 @@
     
     <!-- Solution references -->
     <ProjectReference Include="..\Core\Core.csproj" />
+    <ProjectReference Include="..\AddIn.Shared\AddIn.Shared.csproj" />
 
   </ItemGroup>
 
-  <!-- Icons live once in the repo-level assets\ folder, grouped by feature, and are
-       linked into both Add-Ins. They must be EmbeddedResource, not Content: the .addin
-       package only carries assemblies, so a loose file would never reach TIA Portal.
-
-       A glob rather than a list, so adding an icon is just dropping a file. -->
-  <ItemGroup>
-    <EmbeddedResource Include="..\..\assets\**\*.ico"
-                      Link="Assets\%(RecursiveDir)%(Filename)%(Extension)" />
-  </ItemGroup>
+  <!-- Assets are embedded in Core and travel inside the .addin with it, so there is
+       nothing to embed here. Adapters/Icons.cs turns Core.Assets streams into Icons. -->
 
   <!-- Packages the built DLL into a .addin file TIA Portal can load, using the
        Siemens-provided publisher tool and Config.xml.
