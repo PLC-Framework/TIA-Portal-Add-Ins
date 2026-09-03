@@ -3,10 +3,12 @@ using System.Linq;
 
 using Siemens.Engineering;
 using Siemens.Engineering.AddIn.Menu;
+using Siemens.Engineering.HW;
 
 using Core;
-using Core.Adapters;
 using Core.Actions;
+using Core.Adapters;
+using Core.Config;
 
 using AddIn.Adapters;
 
@@ -23,16 +25,38 @@ namespace AddIn
             _notifier = new TiaNotifier(_tiaPortal);
         }
 
-        protected override void BuildContextMenuItems(ContextMenuAddInRoot addInRootSubmenu)
+        protected override void BuildContextMenuItems(ContextMenuAddInRoot menuAddInRoot)
         {
             AddAction<Project>(
-                addInRootSubmenu,
+                menuAddInRoot,
                 HelloWorldAction.Title,
                 HelloWorldAction.IconPath,
                 menuSelectionProvider =>
                 {
                     Project project = menuSelectionProvider?.GetSelection<Project>().FirstOrDefault();
                     HelloWorldAction.Execute(_notifier, project?.Name);
+                });
+
+            // On a device rather than the project root: the hierarchy is created inside a PLC.
+            AddAction<DeviceItem>(
+                menuAddInRoot,
+                CreateProjectHierarchyAction.Title,
+                CreateProjectHierarchyAction.IconPath,
+                menuSelectionProvider =>
+                {
+                    DeviceItem deviceItem = menuSelectionProvider?.GetSelection<DeviceItem>().FirstOrDefault();
+
+                    ConfigLoadResult result = ConfigLoader.LoadFromProject(ProjectDirectory());
+                    if (!result.Succeeded)
+                    {
+                        _notifier.Error(CreateProjectHierarchyAction.Title, result.Error);
+                        return;
+                    }
+
+                    CreateProjectHierarchyAction.Execute(
+                        _notifier,
+                        result.Config.ProjectConfig?.Hierarchy,
+                        TiaGroupNode.TargetsFor(deviceItem));
                 });
         }
 
@@ -53,5 +77,9 @@ namespace AddIn
             else
                 root.Items.AddActionItem<T>(text, onClick);
         }
+
+        /// <summary>Directory of the open TIA project, where .plc-framework lives.</summary>
+        private string ProjectDirectory() =>
+            _tiaPortal?.Projects?.FirstOrDefault()?.Path?.DirectoryName;
     }
 }

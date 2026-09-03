@@ -29,7 +29,13 @@
       <HintPath>$(TiaAddInApi)\Siemens.Engineering.Base.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Siemens.Engineering.AddIn.Permissions">
+    <!-- V21 splits the object model: PlcSoftware and the four *UserGroupComposition
+       types live here, while V20 carries them inside the fat AddIn assembly. -->
+  <Reference Include="Siemens.Engineering.Step7">
+    <HintPath>$(TiaAddInApi)\Siemens.Engineering.Step7.dll</HintPath>
+    <Private>False</Private>
+  </Reference>
+  <Reference Include="Siemens.Engineering.AddIn.Permissions">
       <HintPath>$(TiaAddInApi)\Siemens.Engineering.AddIn.Permissions.dll</HintPath>
       <Private>False</Private>
     </Reference>
