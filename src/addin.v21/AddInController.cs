@@ -1,17 +1,15 @@
-﻿using System.Drawing;
-using System.Linq;
-
+﻿using AddIn.Adapters;
+using AddIn.Shared.Actions;
+using AddIn.Shared.Adapters;
+using Core;
+using Core.Config;
 using Siemens.Engineering;
 using Siemens.Engineering.AddIn.Menu;
 using Siemens.Engineering.HW;
-
-using AddIn.Shared.Adapters;
-using AddIn.Shared.Actions;
-
-using Core;
-using Core.Config;
-
-using AddIn.Adapters;
+using Siemens.Engineering.SW.Blocks;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
 
 namespace AddIn
 {
@@ -61,6 +59,28 @@ namespace AddIn
                         TiaGroupNode.TargetsFor(deviceItem));
                 });
 
+            // Test DB
+            AddAction<DataBlock>(
+                menuAddInRoot,
+                "Data Block",
+                null,
+                menuSelectionProvider =>
+                {
+                    List<DataBlock> dbs = menuSelectionProvider?.GetSelection<DataBlock>().ToList() ?? new List<DataBlock>();
+
+                    if (dbs.Count <= 0)
+                    {
+                        _notifier.Warning("Data Block", "Not found!");
+                        return;
+                    }
+
+                    string l = string.Join("\n", dbs.Select(db =>
+                        $"{db.Namespace}.{db.Name} [DB{db.Number}]"
+                        ));
+
+                    _notifier.Success("Data Block", $"\n\nBlocks: {dbs.Count} Selected:\n\n{l}");
+                    
+                });
         }
         
         /// <summary>
