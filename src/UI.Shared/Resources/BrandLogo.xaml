@@ -18,7 +18,9 @@
          SVG were dropped: they were the same colour as their own fill and invisible at
          any size, and one of them was a stray blue left over from editing.
 
-    When Satellite.Shared exists, this resource belongs there rather than here.
+    It lives in UI.Shared, not in a satellite: any executable with a window wants it,
+    whether it is a satellite the Add-In launches or a command-line tool that happens
+    to show a dialog. What decides the layer is the WPF dependency, not the consumer.
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">

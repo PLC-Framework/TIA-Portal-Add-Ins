@@ -1,0 +1,17 @@
+<!--
+    Brand palette, shared by every executable with a window.
+
+    The two colours are the ones the logo is actually drawn with — they were read back
+    from a render of BrandLogo.xaml, not picked by eye — so the UI and the mark cannot
+    drift apart.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Color x:Key="BrandColor">#E22D50</Color>
+    <Color x:Key="BrandDarkColor">#B11A39</Color>
+
+    <SolidColorBrush x:Key="BrandBrush" Color="{StaticResource BrandColor}" />
+    <SolidColorBrush x:Key="BrandDarkBrush" Color="{StaticResource BrandDarkColor}" />
+
+</ResourceDictionary>

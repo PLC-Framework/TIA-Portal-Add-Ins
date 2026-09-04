@@ -64,11 +64,26 @@ Do not relitigate without new information:
 
 A type's layer is decided by **what it depends on**, not by who happens to call it today:
 
-| Layer | May depend on | Holds | Verified deps |
-|---|---|---|---|
-| `Core` | only what **every** consumer needs, satellites included | `Config` model + loader, `DependencyGraph` model, `Assets`, `Product` | `mscorlib`, `System.Core`, `System.Runtime.Serialization` |
-| `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`) and its ports (`ITiaNotifier`, `IGroupNode`, `HierarchyTargets`, `Icons`) | `+ System.Drawing` |
-| `AddIn.V20` / `.V21` | anything, including Siemens | `AddInProvider`, `AddInController`, `Adapters/` implementing the ports | `+ Siemens.Engineering.AddIn` |
+| Layer | May depend on | Holds |
+|---|---|---|
+| `Core` | only what **every** consumer needs | `Config` model + loader, `DependencyGraph` model, `Assets`, `InstallPaths`, `Product` |
+| `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`) and its ports (`ITiaNotifier`, `IGroupNode`, `HierarchyTargets`, `Icons`) |
+| `UI.Shared` | `Core` + WPF | brand resources (`BrandLogo.xaml`, `Theme.xaml`) and, later, shared windows and the single-instance guard |
+| `AddIn.V20` / `.V21` | anything, including Siemens | `AddInProvider`, `AddInController`, `Adapters/` implementing the ports |
+| `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window | one executable each |
+
+Verified from the compiled assemblies:
+
+```
+PLC-Framework.Core          -> mscorlib, System.Core, System.Runtime.Serialization
+PLC-Framework.AddIn.Shared  -> + PLC-Framework.Core, System.Drawing
+PLC-Framework.UI.Shared     -> WPF only (today it is pure XAML, so it emits almost nothing)
+PLC-Framework.V20           -> + Siemens.Engineering.AddIn
+```
+
+**`UI.Shared` is named after the concern, not the consumer.** Anything with a window wants the logo and the palette, whether it is a satellite the Add-In launches or a command-line tool that shows a dialog. Naming it `Satellite.Shared` would have broken the rule above in the name itself. `AddIn.Shared` keeps its consumer-shaped name because its contents genuinely are Add-In vocabulary.
+
+A useful consequence: **if a project references `UI.Shared`, it has a GUI.** The dependency states what a name prefix only suggests.
 
 Consequences worth remembering:
 

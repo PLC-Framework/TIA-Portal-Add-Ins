@@ -1,13 +1,46 @@
-﻿<Window x:Class="Satellite.About.MainWindow"
+<Window x:Class="Satellite.About.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Satellite.About"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
-        <Button Content="Button" HorizontalAlignment="Left" Margin="76,313,0,0" VerticalAlignment="Top" Height="47" Width="109"/>
+        xmlns:core="clr-namespace:Core;assembly=PLC-Framework.Core"
+        Title="{x:Static core:Product.Title}"
+        Icon="{StaticResource BrandLogo}"
+        Height="360" Width="420"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Background="White"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display">
 
+    <Grid Margin="32,28">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- The logo is a DrawingImage, so it stays vector at any size. -->
+        <Image Grid.Row="0"
+               Source="{StaticResource BrandLogo}"
+               Width="112" Height="112"
+               HorizontalAlignment="Center" />
+
+        <TextBlock Grid.Row="1"
+                   Text="{x:Static core:Product.Title}"
+                   Foreground="{StaticResource BrandBrush}"
+                   FontSize="30"
+                   FontWeight="SemiBold"
+                   HorizontalAlignment="Center"
+                   Margin="0,18,0,0" />
+
+        <TextBlock Grid.Row="2"
+                   Text="A very Platypus-like framework for designing modern PLC programs!"
+                   Foreground="#555555"
+                   FontSize="14"
+                   TextWrapping="Wrap"
+                   TextAlignment="Center"
+                   LineHeight="22"
+                   HorizontalAlignment="Center"
+                   Margin="8,14,8,0" />
     </Grid>
+
 </Window>

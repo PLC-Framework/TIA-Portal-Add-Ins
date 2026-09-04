@@ -33,11 +33,12 @@ tia-portal-addins.slnx
 └── src/
     ├── Core/                 (net48, AnyCPU) — model, no host types at all          ← EXISTS
     ├── AddIn.Shared/         (net48, AnyCPU) — the Add-In layer, NO Siemens          ← EXISTS
+    ├── UI.Shared/            (net48, WPF) — brand resources, shared windows          ← EXISTS
     ├── AddIn.V20/            (net48, x64) — references PublicAPI\V20.addIn (V17–V20) ← EXISTS
     ├── AddIn.V21/            (net48, x64) — references PublicAPI\V21\net48           ← EXISTS
-    ├── IPC/                  (net48) — Add-In ↔ satellite contract (named pipes)
-    ├── Satellite.Shared/     (net48, WPF) — shared styles and controls
-    └── Satellite.<Name>/     (net48, WPF) — one project per satellite app
+    ├── Satellite.About/      (net48, WPF) — first satellite: the About window        ← EXISTS
+    ├── Satellite.<Name>/     (net48, WPF) — a UI app the Add-In launches
+    └── Tool.<Name>/          (net48) — a command-line helper
 ```
 
 ```
@@ -56,6 +57,14 @@ src/AddIn.Shared/
 ├── Actions/                  use cases: HelloWorldAction, CreateProjectHierarchyAction
 └── Adapters/                 ports: ITiaNotifier, IGroupNode, HierarchyTargets
                               plus Icons (embedded assets → System.Drawing.Icon)
+```
+
+```
+src/UI.Shared/
+├── UI.Shared.csproj          SDK-style net48, UseWPF, references Core
+└── Resources/
+    ├── BrandLogo.xaml        favicon.svg converted to a vector DrawingImage
+    └── Theme.xaml            the brand palette as Colors and Brushes
 ```
 
 Both version projects have the same shape:
@@ -99,11 +108,17 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
 
 | Layer | May depend on | Actual references |
 |---|---|---|
-| `Core` | only what **every** consumer needs, satellites included | `mscorlib`, `System.Core`, `System.Runtime.Serialization` |
+| `Core` | only what **every** consumer needs | `mscorlib`, `System.Core`, `System.Runtime.Serialization` |
 | `AddIn.Shared` | `Core` + host types that are **not** Siemens | `+ System.Drawing` |
+| `UI.Shared` | `Core` + WPF | WPF only |
 | `AddIn.VXX` | anything, Siemens included | `+ Siemens.Engineering.AddIn` |
+| `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window | |
 
 That third column is read from the compiled assemblies, not from the `using` statements — it is the only check that cannot drift.
+
+**Shared projects are named after the concern, not the consumer.** `UI.Shared` holds what anything with a window needs — the logo, the palette — regardless of whether that thing is a satellite or a command-line tool that shows a dialog. Calling it `Satellite.Shared` would have broken the rule above in the name itself. `AddIn.Shared` keeps a consumer-shaped name because its contents genuinely are Add-In vocabulary: a TIA notification, a PLC group tree.
+
+A useful consequence: **if a project references `UI.Shared`, it has a GUI.** The dependency states what a name prefix only suggests.
 
 **Why `System.Drawing` must not reach `Core`.** `Icons` turns an asset into a `System.Drawing.Icon`; a WPF satellite will want an `ImageSource` from the same bytes. If the first materialiser went into `Core`, symmetry would eventually drag `PresentationCore` and `WindowsBase` in with the second — and `Core` is loaded **inside TIA Portal's process**. `Core`'s dependencies are the *intersection* of what its consumers need, never the union.
 

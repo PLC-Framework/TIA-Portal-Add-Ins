@@ -4,6 +4,12 @@
              xmlns:local="clr-namespace:Satellite.About"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- The URI carries the AssemblyName, not the project name. -->
+                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/Theme.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/BrandLogo.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>
