@@ -9,6 +9,10 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>Satellite.About</RootNamespace>
     <AssemblyName>PLC-Framework.Satellite.About</AssemblyName>
+    <!-- Win32 icon resource: what Explorer, Alt-Tab and shortcuts show. It must be a
+         file on disk at build time, so it reads assets\ directly rather than through
+         the copy Core embeds. Window.Icon is set separately, in XAML. -->
+    <ApplicationIcon>..\..\assets\Brand\favicon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
