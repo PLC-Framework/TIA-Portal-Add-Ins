@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Satellite.About</RootNamespace>
+    <AssemblyName>PLC-Framework.Satellite.About</AssemblyName>
+    <!-- Win32 icon resource: what Explorer, Alt-Tab and shortcuts show. It must be a
+         file on disk at build time, so it reads assets\ directly rather than through
+         the copy Core embeds. Window.Icon is set separately, in XAML. -->
+    <ApplicationIcon>..\..\assets\Brand\favicon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Core.csproj" />
+    <ProjectReference Include="..\UI.Shared\UI.Shared.csproj" />
+    <ProjectReference Include="..\S7PlcWebserverApi\S7PlcWebserverApi.csproj" />
+  </ItemGroup>
+  
+</Project>
