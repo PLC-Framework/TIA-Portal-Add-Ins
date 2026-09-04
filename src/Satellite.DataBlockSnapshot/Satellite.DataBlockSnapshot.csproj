@@ -7,8 +7,8 @@
     <TargetFramework>net48</TargetFramework>
     <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>Satellite.About</RootNamespace>
-    <AssemblyName>PLC-Framework.Satellite.About</AssemblyName>
+    <RootNamespace>Satellite.DataBlockSnapshot</RootNamespace>
+    <AssemblyName>PLC-Framework.Satellite.DataBlockSnapshot</AssemblyName>
     <!-- Win32 icon resource: what Explorer, Alt-Tab and shortcuts show. It must be a
          file on disk at build time, so it reads assets\ directly rather than through
          the copy Core embeds. Window.Icon is set separately, in XAML. -->
