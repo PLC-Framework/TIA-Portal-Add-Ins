@@ -4,33 +4,35 @@
         xmlns:core="clr-namespace:Core;assembly=PLC-Framework.Core"
         Title="{x:Static core:Product.Title}"
         Icon="{StaticResource BrandLogo}"
-        Height="360" Width="420"
+        Height="530" Width="440"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource DarkThemeGradientBrush}"
         SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display">
 
-    <Grid Margin="32,28">
+    <Grid Margin="28,44,28,26">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- The logo is a DrawingImage, so it stays vector at any size. -->
+        <!-- The logo is a DrawingImage, so it stays vector at any size. Only Width is set:
+             Stretch is Uniform by default, so the height follows the drawing's own aspect
+             and the mark cannot be squashed by a wrong guess. -->
         <Image Grid.Row="0"
                Source="{StaticResource BrandLogo}"
-               Width="112" Height="112"
-               HorizontalAlignment="Center" />
+               Width="300"
+               HorizontalAlignment="Left" Margin="23,0,0,0" />
 
         <TextBlock Grid.Row="1"
                    Text="{x:Static core:Product.Title}"
                    Foreground="{StaticResource BrandBrushTop}"
-                   FontSize="30"
+                   FontSize="32"
                    FontWeight="SemiBold"
                    HorizontalAlignment="Center"
-                   Margin="0,18,0,0" />
+                   Margin="0,4,0,0" />
 
         <TextBlock Grid.Row="2"
                    Text="A very Platypus-like framework for designing modern PLC programs!"
@@ -40,7 +42,7 @@
                    TextAlignment="Center"
                    LineHeight="22"
                    HorizontalAlignment="Center"
-                   Margin="8,14,8,0" />
+                   Margin="16,10,16,0" />
     </Grid>
 
 </Window>
