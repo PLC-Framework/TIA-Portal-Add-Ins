@@ -166,7 +166,9 @@ They are **embedded into `AddIn.Shared`** by a glob, so adding an asset is dropp
 
 Embedded resources are **scoped to the assembly that carries them**: `Assembly.GetManifestResourceNames()` only ever sees its own, and `Assets` resolves against `typeof(Assets).Assembly`. **The loader and the assets cannot be separated** — move one without the other and every lookup returns `null`, silently, because `Open` returns `null` by design so callers can degrade.
 
-They sat in `Core` first, and moved on 2026-09-04: `Assets` had exactly one caller, `Adapters/Icons`, and no consumer outside the Add-Ins. The brand files a satellite uses are consumed at build time instead — `favicon.svg` hand-converted into `UI.Shared/Resources/BrandLogo.xaml`, `favicon.ico` as the satellites' `ApplicationIcon` — and neither goes through the loader. A satellite or tool needing an asset **at runtime** is what would move them back, glob included.
+They sat in `Core` first, and moved on 2026-09-04 **because the transformation only ever serves the Add-Ins**. `Core` was the right home only under a prediction — that a WPF satellite would build an `ImageSource` from the same `.ico` stream — and the first real satellite disproved it. `Satellite.About` uses the brand asset twice and reaches the loader neither time: the window and `Window.Icon` take `BrandLogo` from `UI.Shared` as a vector, and the executable's icon is an `ApplicationIcon` resolved at build time.
+
+That is structural rather than accidental. Turning a `.ico` into an image at runtime is TIA menu vocabulary, because `AddActionItemWithIcon` takes a `System.Drawing.Icon`; a WPF app wants a vector resource or a Win32 one. Moving the assets back would take a windowed app that genuinely reads an arbitrary asset at runtime — and even then a XAML resource in `UI.Shared` is the likelier answer. The glob moves with them either way.
 
 What must **not** be shared is the type:
 
@@ -177,9 +179,9 @@ public static Stream Open(string path)     // AddIn.Shared.Assets
 | Host | Materialises it as |
 |---|---|
 | `AddIn.V20` / `AddIn.V21` | `new Icon(stream)` → `System.Drawing.Icon`, what the TIA menu API takes |
-| a WPF consumer | `IconBitmapDecoder(stream, …).Frames[0]` → `ImageSource` |
+| a WPF consumer | `IconBitmapDecoder(stream, …).Frames[0]` → `ImageSource` — verified to work, but **nothing does this**: see above |
 
-Both were verified against the same embedded `favicon.ico`. Returning a `Stream` is what keeps `System.Drawing` out of the lookup.
+Both were verified against the same embedded `favicon.ico`, which is why the loader returns a `Stream` and not an `Icon` — that is what keeps `System.Drawing` out of it. The second row survives as evidence that the split is sound, not as a path in use; a windowed app reaches for `UI.Shared` instead.
 
 ### The executables' icon does not go through the loader
 
