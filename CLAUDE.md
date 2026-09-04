@@ -60,6 +60,7 @@ Do not relitigate without new information:
 5. **Add-In ↔ satellite communication**: JSON snapshot through a temp file when data at open time is enough. Two live options exist: Siemens' `Process` wrapper supports **redirected stdin/stdout** with `OutputDataReceived` and `Exited`, which is simpler than named pipes and needs no `IPC` project. Reach for named pipes only if stdio proves insufficient. **Prefer the snapshot** until hitting a real limitation.
 6. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup.
 7. **No Siemens API exposes the Add-In's own path or the running TIA version.** Checked `TiaPortal` and the whole `Siemens.Engineering.AddIn` root namespace. Anything needing a location must derive it from a well-known folder.
+8. **Satellites stay multi-file and stay on `net48` — for now.** A single-file `.exe` was considered on 2026-09-04 and deferred. ILRepack / ILMerge is ruled out outright: `App.xaml` merges its dictionaries by **pack URI, which carries the assembly name**, so merging breaks resource resolution at runtime with no build error. Costura.Fody does work and stays available. Worth knowing: **nothing binds a satellite to `net48`** — that constraint comes from Openness, which a satellite never touches — so multi-targeting `Core` and `UI.Shared` would give `PublishSingleFile` for free, at the price of a .NET runtime on the station. The real cost is the manual copy, not the file count, and the deployment automation already on the pending list fixes that for the `.addin` and the satellite at once.
 
 ### The three layers — this decides where every new type goes
 
@@ -68,7 +69,7 @@ A type's layer is decided by **what it depends on**, not by who happens to call 
 | Layer | May depend on | Holds |
 |---|---|---|
 | `Core` | only what **every** consumer needs | `Config` model + loader, `DependencyGraph` model, `InstallPaths`, `Product` |
-| `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`), its ports (`ITiaNotifier`, `IGroupNode`, `HierarchyTargets`, `Icons`), and the embedded `assets\` with their `Assets` loader |
+| `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`), its ports (`ITiaNotifier`, `IGroupNode`, `IProcessLauncher`, `HierarchyTargets`, `Icons`), and the embedded `assets\` with their `Assets` loader |
 | `UI.Shared` | `Core` + WPF | brand resources (`BrandLogo.xaml`, `Theme.xaml`) and, later, shared windows and the single-instance guard |
 | `AddIn.V20` / `.V21` | anything, including Siemens | `AddInProvider`, `AddInController`, `Adapters/` implementing the ports |
 | `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window | one executable each |
@@ -105,25 +106,32 @@ Three mechanisms, each for a different case:
 
 That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemens.Engineering.AddIn.Base` (V21) are **different assembly names with different public key tokens**, and V21 does not ship the V20 one. A shared binary would bind to one identity and fail to load in the other host. Source linking is the only option there; today `AddInProvider.cs` and `TiaGroupNode.cs` are simply duplicated instead.
 
+**`Siemens.Engineering.AddIn.Utilities` is the subtler case, and the one worth remembering.** Its `Process` wrapper has an identical public surface in both versions — same namespace, same type, same members — but the assembly carries a **different public key token** in each: `65b871d8372d6a8f` in V20, `29bfe5fdf4ba5d3b` in V21. Source-identical code still cannot be compiled once. That is why `Adapters/ProcessLauncher.cs` is duplicated behind `IProcessLauncher`: the two files are byte-identical and nothing in them hints at why, so the reason lives here.
+
 `#if V20 / #if V21` remains rejected: it degrades fast and makes menu code unreadable.
 
 ### Shipping `Core` — settled, do not relitigate
 
 `Core` and `AddIn.Shared` travel inside each `.addin` via `AdditionalAssemblies` in `Config.xml` — **one entry per assembly; transitive project references are not packaged automatically**. **Do not propose merging the DLLs** with ILRepack or Costura.Fody: the `.addin` is already a single deployable file, `AdditionalAssemblies` is the vendor-supported mechanism, and the satellites will need `Core` as an assembly with one identity anyway.
 
-## Status (2026-08-29)
+## Status (2026-09-04)
 
 - [x] `Core`, `AddIn.V20` and `AddIn.V21` created, all in the `.slnx`.
 - [x] Both Add-Ins **validated end to end**: build → `.addin` containing `Core` → load and run correctly in TIA Portal V20 / V21 on the VM.
-- [x] `AddIn.Shared` created: the Add-In's version-agnostic layer. Ports `ITiaNotifier` / `IGroupNode` implemented per version in `AddIn.VXX/Adapters/`.
+- [x] `AddIn.Shared` created: the Add-In's version-agnostic layer. Ports `ITiaNotifier` / `IGroupNode` / `IProcessLauncher` implemented per version in `AddIn.VXX/Adapters/`.
 - [x] `ConfigLoader` reading the real `config.json`, and `CreateProjectHierarchyAction` migrated from the old project — the four duplicated recursive walks collapsed into one, exercised with fakes and **no TIA installed**.
 - [x] Icons working end to end: `assets/` by feature → embedded by glob → `Adapters/Icons.cs` → `AddActionItemWithIcon`, verified in TIA on the VM.
 - [x] `config.json` and `core.json` models complete in `Core.Config` / `Core.DependencyGraph`, cross-checked key by key against the real files **and** against the generator's own models in `code/tools/dependency_graph_builder`.
-- [ ] `IPC`, satellites
+- [x] `UI.Shared` created: `BrandLogo.xaml` (the SVG as a vector `DrawingImage`), `Theme.xaml`, and the `SingleInstance` guard.
+- [x] **First satellite complete**: `Satellite.About` — window, single-instance guard and `ApplicationIcon`, each verified by running the real binary here, not by inspecting XAML.
+- [x] `AboutAction` launches it from the menu through `IProcessLauncher`. All four paths exercised with fakes plus one real launch — **but never yet run inside TIA**, which is the only untested link.
+- [ ] `IPC` — not started, and possibly never needed: see decision 5.
 
 ### Known V20/V21 divergence
 
 The menu and provider API is identical across versions, but the two are **not source-compatible**. Found so far: the message box. V20 uses `tiaPortal.GetMessageBox()` returning `MessageBox`; V21 removed that extension and uses `tiaPortal.GetService<MessageBoxProvider>()` (which can return `null`). That single line is now the only difference between the two `TiaNotifier.cs` files — every new divergence should be pushed behind a `Core` port the same way.
+
+A different kind of divergence, and easier to miss because the source is identical, is the public key token of `Siemens.Engineering.AddIn.Utilities` — see *Sharing code between `AddIn.V20` and `AddIn.V21`* above.
 
 ### `config.json` pipeline — designed, not yet built
 
@@ -139,13 +147,14 @@ The menu and provider API is identical across versions, but the two are **not so
 
 ### Pending
 
-- [ ] `Config.Load` — the loader. `Stream` overload as the primitive, `path` as convenience
+- [ ] **Run "About us" inside TIA on the VM.** Copy the satellite's whole build output to `%ProgramData%\PLC-Framework\tools\` first — the `.exe` alone will not run, it needs `PLC-Framework.Core.dll` and `PLC-Framework.UI.Shared.dll` beside it. What this actually tests is whether Siemens' `Process` wrapper works under the Add-In's declared permission set; everything upstream of it is already verified here
+- [ ] **Fix the paths git still records in lower case**: `src/core/`, `src/addin.v20/`, `src/addin.v21/` (and `core.csproj`, `config/`, `dependencyGraph/`, `adapters/` inside them). On disk they are PascalCase; the index kept the pre-rename names because Windows cannot tell the difference. A clone on a case-sensitive filesystem gets `src/core/core.csproj` while the `.slnx` points at `src/Core/Core.csproj`, and nothing builds. Only `AddIn.Shared`, `UI.Shared` and `Satellite.About` are clean, being newer than the rename
 - [ ] Structural validator per concern, then the environmental one
 - [ ] `config.schema.json` referenced from the file itself via `$schema`
 - [ ] `.env` reader over `InstallPaths.EnvFile` + `${VAR}` expansion, both in `Core`. The `ISecretLookup` port is probably unnecessary now: with a deterministic path, the Add-In and the satellites read the same file with the same code
 - [ ] Verify on the VM what `Assembly.GetExecutingAssembly().Location` returns for a loaded `.addin`. No longer blocking anything, but worth knowing — the old project assumed `UserAddIns` and may well get an empty string
 - [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
-- [ ] Automate deployment of the `.addin` to the VM (currently a manual copy)
+- [ ] Automate deployment to the VM — now two copies, the `.addin` into `UserAddIns\` and the satellite into `tools\`. Both are manual today, and this is the item that makes a single-file satellite unnecessary (decision 8)
 - [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to shorten the test cycle
 - [ ] Decide how many satellites there will be and whether they need live TIA data or just a snapshot
 

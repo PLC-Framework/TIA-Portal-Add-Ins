@@ -5,7 +5,7 @@ A **TIA Portal Add-In** (Siemens Openness) plus the **satellite apps** with UI t
 - Solution: `tia-portal-addins.slnx` — the new XML format, not the classic `.sln`
 - Target framework: **.NET Framework 4.8** for everything touching TIA Portal / Openness, WPF included
 
-Three projects exist today: `Core`, plus the two Add-Ins `AddIn.V20` and `AddIn.V21`. Both Add-Ins are validated on the VM against their respective TIA Portal versions, each a hello world that shows a notification from a context-menu entry on the project root node. They serve as validated scaffolding to build on.
+Six projects exist today: `Core`, `AddIn.Shared` and `UI.Shared` as the shared layers, the two Add-Ins `AddIn.V20` and `AddIn.V21`, and the first satellite, `Satellite.About`. Both Add-Ins are validated on the VM against their respective TIA Portal versions. The satellite is built and verified here, by running the real binary; it has **not** yet been launched from inside TIA.
 
 ## Working environment: two machines
 
@@ -54,18 +54,31 @@ src/Core/
 src/AddIn.Shared/
 ├── AddIn.Shared.csproj       SDK-style net48, AnyCPU, references Core, embeds assets\
 ├── Assets.cs                 embedded assets → Stream, no image type
-├── Actions/                  use cases: HelloWorldAction, CreateProjectHierarchyAction
-└── Adapters/                 ports: ITiaNotifier, IGroupNode, HierarchyTargets
-                              plus Icons (embedded assets → System.Drawing.Icon)
+├── Actions/                  use cases: AboutAction, CreateProjectHierarchyAction, and
+│                             HelloWorldAction, kept but no longer wired into the menu
+└── Adapters/                 ports: ITiaNotifier, IGroupNode, IProcessLauncher,
+                              HierarchyTargets, plus Icons (assets → System.Drawing.Icon)
 ```
 
 ```
 src/UI.Shared/
 ├── UI.Shared.csproj          SDK-style net48, UseWPF, references Core
+├── SingleInstance.cs         named Mutex + bring the running window to the front
 └── Resources/
     ├── BrandLogo.xaml        favicon.svg converted to a vector DrawingImage
     └── Theme.xaml            the brand palette as Colors and Brushes
 ```
+
+```
+src/Satellite.About/
+├── Satellite.About.csproj    WinExe, UseWPF, ApplicationIcon from assets\
+├── App.xaml                  merges the UI.Shared dictionaries by pack URI
+├── App.xaml.cs               claims the single-instance mutex, then shows the window
+├── MainWindow.xaml           logo, Product.Title and the tagline
+└── MainWindow.xaml.cs
+```
+
+> `App.xaml` carries **no `StartupUri`**. The window is created in `OnStartup` instead, after the single-instance check — leaving `StartupUri` in place makes WPF create a *second* window once `OnStartup` returns, which looks exactly like a broken guard and is not.
 
 Both version projects have the same shape:
 
@@ -76,7 +89,8 @@ src/AddIn.VXX/
 ├── AddInController.cs        ContextMenuAddIn — menu wiring
 ├── Adapters/
 │   ├── TiaNotifier.cs        ITiaNotifier against this version's message box
-│   └── TiaGroupNode.cs       IGroupNode over this version's group compositions
+│   ├── TiaGroupNode.cs       IGroupNode over this version's group compositions
+│   └── ProcessLauncher.cs    IProcessLauncher over Siemens' Process wrapper
 └── Config.xml                PackageConfiguration for the Publisher
 ```
 
@@ -124,11 +138,15 @@ A useful consequence: **if a project references `UI.Shared`, it has a GUI.** The
 
 **Ports live with the layer whose vocabulary they speak.** `ITiaNotifier` and `IGroupNode` carry no Siemens reference at all, yet they belong to `AddIn.Shared`: one is shaped like a TIA notification, the other talks about PLC group trees. Neither is vocabulary a satellite would use.
 
-**The adapter converts Siemens types before crossing a layer.** `Project` never leaves the version project:
+**The adapter converts Siemens types before crossing a layer.** `DeviceItem` never leaves the version project — the action receives an `IGroupNode` tree instead:
 
 ```csharp
-Project project = menuSelectionProvider?.GetSelection<Project>().FirstOrDefault();
-HelloWorldAction.Execute(_notifier, project?.Name);
+DeviceItem deviceItem = menuSelectionProvider?.GetSelection<DeviceItem>().FirstOrDefault();
+
+CreateProjectHierarchyAction.Execute(
+    _notifier,
+    result.Config.ProjectConfig?.Hierarchy,
+    TiaGroupNode.TargetsFor(deviceItem));
 ```
 
 The payoff is measurable: the two `TiaNotifier.cs` files differ in exactly one line — the one documented under *Known V20 / V21 divergences* — and everything else either is identical or lives one layer down.
@@ -431,7 +449,7 @@ That redirection is worth remembering: it is a ready-made IPC channel between th
 
 **One folder for every executable.** A split between `satellites\` and `tools\` was tried and reverted: the boundary blurred immediately, and it only raised the question of which half a new executable belonged in.
 
-> **"Satellite" is a role, not a location.** It names a WPF app the Add-In launches from the menu — as opposed to a command-line helper. Both live in `tools\`. The word stays in project names (`Satellite.About`, `Satellite.Shared`) and in the architecture decisions, because it describes what a thing *is*; the folder only says where it sits.
+> **"Satellite" is a role, not a location.** It names a WPF app the Add-In launches from the menu — as opposed to a command-line helper. Both live in `tools\`. The word stays in project names (`Satellite.About`) and in the architecture decisions, because it describes what a thing *is*; the folder only says where it sits.
 
 > The `.env` is therefore readable by **every user of the station**. That is the right call for a shared team credential; a personal token would belong somewhere per-user instead.
 
@@ -439,9 +457,48 @@ That redirection is worth remembering: it is a ready-made IPC channel between th
 
 Not next to the `.addin`. `UserAddIns` is **per TIA version**, so V20 and V21 would each need their own copy of a satellite that is really per machine, and it is Siemens' directory rather than ours. Not derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be relied on.
 
-`Environment.GetFolderPath(LocalApplicationData)` is deterministic, identical for every consumer, needs no discovery and no elevation. `PLC_FRAMEWORK_HOME` overrides the root for staging or for a test run on the VM.
+`Environment.GetFolderPath(CommonApplicationData)` is deterministic and identical for every consumer, and needs no discovery. Note it is **`CommonApplicationData`, not `LocalApplicationData`** — `%ProgramData%`, not `%AppData%`. Copying a satellite into the latter is the easiest way to get a "not installed" error out of an install that looks correct.
 
 No Siemens API offers an alternative: neither `TiaPortal` nor the `Siemens.Engineering.AddIn` namespace exposes the Add-In's own path or the running TIA version.
+
+### Installing a satellite
+
+Copy the project's **whole build output** into `tools\`, not just the executable:
+
+| File | |
+|---|---|
+| `PLC-Framework.Satellite.About.exe` | the app |
+| `PLC-Framework.Core.dll` | `Product.Title`, used by the window title and the mutex name |
+| `PLC-Framework.UI.Shared.dll` | `BrandLogo.xaml`, `Theme.xaml`, `SingleInstance` |
+| `PLC-Framework.Satellite.About.exe.config` | 174 bytes pinning .NET Framework 4.8 |
+
+The three `.pdb` files are optional: they only add line numbers to stack traces, which is worth having while testing on the VM and not afterwards.
+
+```
+robocopy "src\Satellite.About\bin\Debug\net48" "C:\ProgramData\PLC-Framework\tools" /E
+```
+
+Creating `C:\ProgramData\PLC-Framework\` needs elevation once. To test without it, point `PLC_FRAMEWORK_HOME` at any folder holding a `tools\`, and **restart TIA Portal afterwards** — a running process does not see an environment variable created after it started.
+
+### How the Add-In launches one
+
+`AboutAction` is the worked example and the shape generalises:
+
+```csharp
+string path = InstallPaths.Tool(ExecutableName);
+if (!File.Exists(path)) { /* notifier.Error naming the missing path */ return; }
+
+string error = launcher.Start(path);
+if (error != null) { /* notifier.Error with the reason */ }
+```
+
+Three things there are deliberate:
+
+- **The "not installed" check sits in the action, not in the adapter.** It is the expected failure, and it deserves a message naming the missing path rather than whatever the process API happens to say.
+- **`IProcessLauncher.Start` returns the failure as a `string`, not as an exception**, so the Add-In reports it through `ITiaNotifier` like every other problem.
+- **`ExecutableName` is the satellite's `AssemblyName`.** Renaming that project breaks this at runtime rather than at compile time: the two sit in different layers on purpose, so nothing binds them at build time.
+
+The adapter wraps Siemens' `Process` — what `ProcessStartPermission` authorises — and is duplicated per version for the reason given under *Known V20 / V21 divergences*.
 
 ## The Add-In API
 
@@ -495,6 +552,17 @@ _tiaPortal.GetService<MessageBoxProvider>()
 `GetService<T>()` returns `null` when the service is unavailable — worth guarding in real actions.
 
 This is precisely the kind of difference that justifies a port in `AddIn.Shared` — `ITiaNotifier.Info(caption, message)` — implemented once per version, so the rest of the code never learns that the difference exists.
+
+**Assembly identity, where the source is identical.** This one is easy to miss, because there is nothing to see in the code. `Siemens.Engineering.AddIn.Utilities` exposes the very same `Process` wrapper in both versions — same namespace, same type, same members, verified by reflection — but the assembly is signed with a **different public key token**:
+
+| | V20 | V21 |
+|---|---|---|
+| Assembly name | `Siemens.Engineering.AddIn.Utilities` | `Siemens.Engineering.AddIn.Utilities` |
+| Public key token | `65b871d8372d6a8f` | `29bfe5fdf4ba5d3b` |
+
+So even source-identical code cannot be compiled once: a single binary would bind to one identity and fail to load in the other host. That is why `Adapters/ProcessLauncher.cs` exists twice, byte for byte, behind `IProcessLauncher`. Nothing in either file hints at the reason, which is why it is written down here.
+
+The wrapper itself delegates to `System.Diagnostics.Process` — it holds an `m_InternalProcess` field — so its `Dispose` releases the handle without touching the process that was started, and a fire-and-forget launch can safely use a `using`.
 
 ## Prior reference project
 
