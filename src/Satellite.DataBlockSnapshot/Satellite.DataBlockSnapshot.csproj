@@ -20,5 +20,12 @@
     <ProjectReference Include="..\UI.Shared\UI.Shared.csproj" />
     <ProjectReference Include="..\S7PlcWebserverApi\S7PlcWebserverApi.csproj" />
   </ItemGroup>
+
+  <!-- Writing a real .xlsx by hand means five XML parts in a zip whose only true test
+       is whether Excel opens it. With the capture's reliability as the priority, that is
+       not the place to save a dependency. Microsoft's own SDK, MIT licensed. -->
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+  </ItemGroup>
   
 </Project>
