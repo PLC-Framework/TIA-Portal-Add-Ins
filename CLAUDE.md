@@ -53,9 +53,11 @@ Do not relitigate without new information:
 
 1. **Three layers, decided by dependency set** — see below.
 2. **Two Add-In projects**: `AddIn.V20` (valid V17–V20) and `AddIn.V21`. V21 breaks binary compatibility and splits the assemblies.
-3. **Satellites**: standalone WPF apps launched with `Process.Start`.
-4. **Add-In ↔ satellite communication**: JSON snapshot through a temp file when data at open time is enough; named pipes plus an `IPC` project only if live queries are required. **Prefer the snapshot** until hitting a real limitation.
-5. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup.
+3. **Satellites are separate `.exe` files, and cannot be otherwise.** Verified: the Publisher **silently drops** any `.exe` listed under `AdditionalAssemblies` — no error, no warning, the package is just built without it. The filter is purely by extension (the same PE renamed to `.dll` is packaged), but that is no workaround: the part lands in `LocalAssemblyCache/` and TIA loads it as an assembly inside its own process, never as a file on disk. Siemens' own `Siemens.Engineering.AddIn.Utilities.Process` wrapper plus `ProcessStartPermission` confirm launching an external executable is the sanctioned path.
+4. **Install location** — `%ProgramData%\PLC-Framework\`, exposed by `Core.InstallPaths`, holding `.env`, `satellites\` (apps the user opens) and `tools\` (helpers the framework invokes). **Per machine, not per user.** **Not** next to the `.addin`: `UserAddIns` is per TIA version (V20 and V21 would each need a copy) and belongs to Siemens. **Not** derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be trusted. `PLC_FRAMEWORK_HOME` overrides it for staging. Installing needs elevation once; reading does not.
+5. **Add-In ↔ satellite communication**: JSON snapshot through a temp file when data at open time is enough. Two live options exist: Siemens' `Process` wrapper supports **redirected stdin/stdout** with `OutputDataReceived` and `Exited`, which is simpler than named pipes and needs no `IPC` project. Reach for named pipes only if stdio proves insufficient. **Prefer the snapshot** until hitting a real limitation.
+6. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup.
+7. **No Siemens API exposes the Add-In's own path or the running TIA version.** Checked `TiaPortal` and the whole `Siemens.Engineering.AddIn` root namespace. Anything needing a location must derive it from a well-known folder.
 
 ### The three layers — this decides where every new type goes
 
@@ -122,7 +124,8 @@ The menu and provider API is identical across versions, but the two are **not so
 - [ ] `Config.Load` — the loader. `Stream` overload as the primitive, `path` as convenience
 - [ ] Structural validator per concern, then the environmental one
 - [ ] `config.schema.json` referenced from the file itself via `$schema`
-- [ ] `ISecretLookup` port + verify on the VM where `Assembly.GetExecutingAssembly().Location` actually points for a loaded `.addin` (the old project assumed the `UserAddIns` folder; unconfirmed)
+- [ ] `.env` reader over `InstallPaths.EnvFile` + `${VAR}` expansion, both in `Core`. The `ISecretLookup` port is probably unnecessary now: with a deterministic path, the Add-In and the satellites read the same file with the same code
+- [ ] Verify on the VM what `Assembly.GetExecutingAssembly().Location` returns for a loaded `.addin`. No longer blocking anything, but worth knowing — the old project assumed `UserAddIns` and may well get an empty string
 - [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
 - [ ] Automate deployment of the `.addin` to the VM (currently a manual copy)
 - [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to shorten the test cycle

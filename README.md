@@ -45,6 +45,7 @@ src/Core/
 ├── Core.csproj               SDK-style net48, AnyCPU, embeds assets\
 ├── Product.cs                literals shared by every consumer
 ├── Assets.cs                 embedded assets → Stream, host-agnostic
+├── InstallPaths.cs           %LocalAppData%\PLC-Framework — .env and satellites\
 ├── Config/                   config.json loader + model under Model/
 └── DependencyGraph/          core.json model (DependencyGraph, Node, Edge, Report)
 ```
@@ -369,6 +370,46 @@ Useful consequences:
 - **Do not post-process the zip.** TIA validates package integrity and distinguishes trusted / unsigned / revoked-tampered; editing the package lands in the third.
 
 Unsigned, TIA loads it but it must be enabled manually. Optionally sign it with `Company_Trusted_Add-In_Certification_Tool.exe` to mark it trusted — TIA distinguishes three levels: trusted, unsigned/invalid, and revoked/tampered.
+
+### A `.addin` cannot carry an executable
+
+Tested, because it fails in the worst possible way. An `.exe` listed under `AdditionalAssemblies` is **silently dropped**: the Publisher reports `SUCCEEDED`, lists only the other assemblies, and produces a package without it.
+
+```
+Packaging assembly 'plc-framework.v20 ...'
+Packaging assembly 'plc-framework.core ...'
+Packaging assembly 'plc-framework.addin.shared ...'
+ --> S U C C E E D E D <--          the .exe is simply not there
+```
+
+The filter is purely by extension — the very same PE file renamed to `.dll` gets packaged — but that is not a workaround worth taking. The part lands under `LocalAssemblyCache/`, and TIA loads it as an assembly **inside its own process**; it never becomes a file on disk that could be started.
+
+Launching an external executable is the sanctioned path, and Siemens equips it: `Siemens.Engineering.AddIn.Utilities` ships a full mirror of `System.Diagnostics.Process` — `Start(fileName, arguments)`, a 20-property `ProcessStartInfo`, `RedirectStandardInput/Output/Error`, `OutputDataReceived`, `Exited`, `WaitForExit`, even `Start(fileName, userName, password, domain)` — and `ProcessStartPermission` exists in the closed permission list for exactly this.
+
+That redirection is worth remembering: it is a ready-made IPC channel between the Add-In and a satellite, simpler than named pipes.
+
+### Where the satellites live
+
+```
+%ProgramData%\PLC-Framework\         ← Core.InstallPaths.Root
+├── .env                             ← InstallPaths.EnvFile
+├── satellites\                      ← InstallPaths.Satellites — apps the user opens
+└── tools\                           ← InstallPaths.Tools — helpers the framework invokes
+```
+
+**Per machine, not per user**: one install serves every engineer who logs into the station, and both the V20 and V21 Add-Ins resolve the same path. Creating the folder needs administrator rights once; reading it afterwards does not — `%ProgramData%` grants `BUILTIN\Users` read and execute by default.
+
+The split between `satellites` and `tools` is by **role, not by file type**: what the user sees and interacts with goes in `satellites`, what only the framework runs goes in `tools`. That is what keeps either one from turning into a dumping ground.
+
+> The `.env` is therefore readable by **every user of the station**. That is the right call for a shared team credential; a personal token would belong somewhere per-user instead.
+
+`PLC_FRAMEWORK_HOME` overrides the root, which is how you point a test run — or the VM — at a staging folder without installing or needing elevation.
+
+Not next to the `.addin`. `UserAddIns` is **per TIA version**, so V20 and V21 would each need their own copy of a satellite that is really per machine, and it is Siemens' directory rather than ours. Not derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be relied on.
+
+`Environment.GetFolderPath(LocalApplicationData)` is deterministic, identical for every consumer, needs no discovery and no elevation. `PLC_FRAMEWORK_HOME` overrides the root for staging or for a test run on the VM.
+
+No Siemens API offers an alternative: neither `TiaPortal` nor the `Siemens.Engineering.AddIn` namespace exposes the Add-In's own path or the running TIA version.
 
 ## The Add-In API
 
