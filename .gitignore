@@ -4,3 +4,4 @@ obj/
 *.user
 .example/
 .claude/
+.tmp/

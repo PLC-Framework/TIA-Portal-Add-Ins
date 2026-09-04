@@ -50,8 +50,8 @@
 
   </ItemGroup>
 
-  <!-- Assets are embedded in Core and travel inside the .addin with it, so there is
-       nothing to embed here. Adapters/Icons.cs turns Core.Assets streams into Icons. -->
+  <!-- Assets are embedded in AddIn.Shared and travel inside the .addin with it, so there
+       is nothing to embed here. Adapters/Icons.cs turns those streams into Icons. -->
   
   <!-- Packages the built DLL into a .addin file TIA Portal can load, using the
        Siemens-provided publisher tool and Config.xml.

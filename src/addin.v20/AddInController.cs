@@ -12,7 +12,6 @@ using Core;
 using Core.Config;
 
 using AddIn.Adapters;
-using Siemens.Engineering.SW.Units;
 
 namespace AddIn
 {
@@ -20,24 +19,25 @@ namespace AddIn
     {
         private readonly TiaPortal _tiaPortal;
         private readonly ITiaNotifier _notifier;
+        private readonly IProcessLauncher _launcher;
 
         public AddInController(TiaPortal tiaPortal) : base(Product.Title)
         {
             _tiaPortal = tiaPortal;
             _notifier = new TiaNotifier(_tiaPortal);
+            _launcher = new ProcessLauncher();
         }
 
         protected override void BuildContextMenuItems(ContextMenuAddInRoot menuAddInRoot)
         {
+            // On the project root, and last: it is about the framework rather than about
+            // anything selected. The window itself is a separate executable in tools\, so
+            // all this does is launch it.
             AddAction<Project>(
                 menuAddInRoot,
-                HelloWorldAction.Title,
-                HelloWorldAction.IconPath,
-                menuSelectionProvider =>
-                {
-                    Project project = menuSelectionProvider?.GetSelection<Project>().FirstOrDefault();
-                    HelloWorldAction.Execute(_notifier, project?.Name);
-                });
+                AboutAction.Title,
+                AboutAction.IconPath,
+                menuSelectionProvider => AboutAction.Execute(_notifier, _launcher));
 
             // On a device rather than the project root: the hierarchy is created inside a PLC.
             AddAction<DeviceItem>(
@@ -60,42 +60,7 @@ namespace AddIn
                         result.Config.ProjectConfig?.Hierarchy,
                         TiaGroupNode.TargetsFor(deviceItem));
                 });
-            /*
-            AddAction<PlcUnitSystemGroup>(
-                menuAddInRoot,
-                "Sw Units",
-                null,
-                menuSelectionProvider =>
-                {
-                    PlcUnitSystemGroup unitGroup = menuSelectionProvider?.GetSelection<PlcUnitSystemGroup>().FirstOrDefault();
 
-                    PlcUnitComposition units = unitGroup.Units;
-
-                    string unitNames = "\n\n";
-
-                    foreach(PlcUnit x in units)
-                    {
-                        unitNames += $"-{x.Name}\n";
-
-                    }
-
-                    _notifier.Info("PLC Units", unitNames);
-
-                });
-
-            AddAction<PlcUnit>(
-                menuAddInRoot,
-                "Sw Unit",
-                null,
-                menuSelectionProvider =>
-                {
-                    PlcUnit unit = menuSelectionProvider?.GetSelection<PlcUnit>().FirstOrDefault();
-                    string unitNames = "\n\n";
-                    unitNames += unit.Name;
-
-                    _notifier.Info("PLC Unit", unitNames);
-                });
-                */
         }
 
         /// <summary>
