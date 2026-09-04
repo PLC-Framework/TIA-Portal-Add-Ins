@@ -4,7 +4,7 @@ using System.IO;
 namespace Core
 {
     /// <summary>
-    /// The framework's installation folder, shared by the Add-Ins and the satellite apps.
+    /// The framework's installation folder, shared by the Add-Ins and everything they run.
     ///
     /// It is **per machine**, not per user: one install serves every engineer who logs
     /// into the station, and both the V20 and V21 Add-Ins resolve the very same path.
@@ -17,12 +17,12 @@ namespace Core
     ///
     ///     %ProgramData%\PLC-Framework\
     ///     +-- .env
-    ///     +-- satellites\      apps with a UI, launched for the user
-    ///     +-- tools\           helper executables, run without a UI
+    ///     +-- tools\           every executable shipped with the framework
     ///
-    /// The split is by role, not by file type: what the user sees and interacts with
-    /// goes in satellites, what only the framework invokes goes in tools. Keeping them
-    /// apart is what stops either folder from becoming a dumping ground.
+    /// One folder, on purpose. "Satellite" stays the name of a role — a WPF app the
+    /// Add-In launches from the menu — not of a location: satellites live in tools\
+    /// alongside command-line helpers. Splitting the folder by role only invited
+    /// arguments about which half a new executable belonged in.
     ///
     /// Nothing here creates directories or touches disk: these are just the agreed
     /// locations. Installing is somebody else's job.
@@ -35,7 +35,6 @@ namespace Core
         /// </summary>
         public const string RootOverrideVariable = "PLC_FRAMEWORK_HOME";
 
-        private const string SatellitesFolderName = "satellites";
         private const string ToolsFolderName = "tools";
         private const string EnvFileName = ".env";
 
@@ -54,10 +53,10 @@ namespace Core
             }
         }
 
-        /// <summary>Where the satellite apps live — the ones the user opens.</summary>
-        public static string Satellites => Combine(Root, SatellitesFolderName);
-
-        /// <summary>Where helper executables live — the ones only the framework invokes.</summary>
+        /// <summary>
+        /// Where every executable shipped with the framework lives: the satellite apps
+        /// the Add-In launches from the menu, and any command-line helper alike.
+        /// </summary>
         public static string Tools => Combine(Root, ToolsFolderName);
 
         /// <summary>
@@ -69,10 +68,7 @@ namespace Core
         /// </summary>
         public static string EnvFile => Combine(Root, EnvFileName);
 
-        /// <summary>Full path of a satellite app, by file name.</summary>
-        public static string Satellite(string fileName) => Combine(Satellites, fileName);
-
-        /// <summary>Full path of a helper executable, by file name.</summary>
+        /// <summary>Full path of a shipped executable, by file name.</summary>
         public static string Tool(string fileName) => Combine(Tools, fileName);
 
         private static string Combine(string root, string child) =>

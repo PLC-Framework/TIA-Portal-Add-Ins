@@ -45,7 +45,7 @@ src/Core/
 ├── Core.csproj               SDK-style net48, AnyCPU, embeds assets\
 ├── Product.cs                literals shared by every consumer
 ├── Assets.cs                 embedded assets → Stream, host-agnostic
-├── InstallPaths.cs           %LocalAppData%\PLC-Framework — .env and satellites\
+├── InstallPaths.cs           %ProgramData%\PLC-Framework — .env and tools\
 ├── Config/                   config.json loader + model under Model/
 └── DependencyGraph/          core.json model (DependencyGraph, Node, Edge, Report)
 ```
@@ -393,13 +393,14 @@ That redirection is worth remembering: it is a ready-made IPC channel between th
 ```
 %ProgramData%\PLC-Framework\         ← Core.InstallPaths.Root
 ├── .env                             ← InstallPaths.EnvFile
-├── satellites\                      ← InstallPaths.Satellites — apps the user opens
-└── tools\                           ← InstallPaths.Tools — helpers the framework invokes
+└── tools\                           ← InstallPaths.Tools — every executable shipped
 ```
 
 **Per machine, not per user**: one install serves every engineer who logs into the station, and both the V20 and V21 Add-Ins resolve the same path. Creating the folder needs administrator rights once; reading it afterwards does not — `%ProgramData%` grants `BUILTIN\Users` read and execute by default.
 
-The split between `satellites` and `tools` is by **role, not by file type**: what the user sees and interacts with goes in `satellites`, what only the framework runs goes in `tools`. That is what keeps either one from turning into a dumping ground.
+**One folder for every executable.** A split between `satellites\` and `tools\` was tried and reverted: the boundary blurred immediately, and it only raised the question of which half a new executable belonged in.
+
+> **"Satellite" is a role, not a location.** It names a WPF app the Add-In launches from the menu — as opposed to a command-line helper. Both live in `tools\`. The word stays in project names (`Satellite.About`, `Satellite.Shared`) and in the architecture decisions, because it describes what a thing *is*; the folder only says where it sits.
 
 > The `.env` is therefore readable by **every user of the station**. That is the right call for a shared team credential; a personal token would belong somewhere per-user instead.
 
