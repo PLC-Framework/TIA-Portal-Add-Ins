@@ -14,14 +14,4 @@
     <Reference Include="System.Runtime.Serialization" />
   </ItemGroup>
 
-  <!-- Assets live once in the repo-level assets\ folder, grouped by feature, and are
-       embedded here so every consumer gets them by referencing Core: the Add-Ins (which
-       need System.Drawing.Icon) and the satellite apps (which need an ImageSource).
-
-       A glob rather than a list, so adding an asset is just dropping a file. -->
-  <ItemGroup>
-    <EmbeddedResource Include="..\..\assets\**\*.*"
-                      Link="Assets\%(RecursiveDir)%(Filename)%(Extension)" />
-  </ItemGroup>
-
 </Project>

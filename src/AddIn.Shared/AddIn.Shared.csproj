@@ -16,5 +16,16 @@
   <ItemGroup>
     <Folder Include="Actions\" />
   </ItemGroup>
-  
+
+  <!-- Assets live once in the repo-level assets\ folder, grouped by feature, and are
+       embedded here because Assets.cs resolves them against its own assembly: embedded
+       resources are scoped to the assembly that carries them, so the loader and the
+       assets cannot be separated.
+
+       A glob rather than a list, so adding an asset is just dropping a file. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\assets\**\*.*"
+                      Link="Assets\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

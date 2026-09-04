@@ -43,9 +43,8 @@ tia-portal-addins.slnx
 
 ```
 src/Core/
-├── Core.csproj               SDK-style net48, AnyCPU, embeds assets\
+├── Core.csproj               SDK-style net48, AnyCPU
 ├── Product.cs                literals shared by every consumer
-├── Assets.cs                 embedded assets → Stream, host-agnostic
 ├── InstallPaths.cs           %ProgramData%\PLC-Framework — .env and tools\
 ├── Config/                   config.json loader + model under Model/
 └── DependencyGraph/          core.json model (DependencyGraph, Node, Edge, Report)
@@ -53,7 +52,8 @@ src/Core/
 
 ```
 src/AddIn.Shared/
-├── AddIn.Shared.csproj       SDK-style net48, AnyCPU, references Core
+├── AddIn.Shared.csproj       SDK-style net48, AnyCPU, references Core, embeds assets\
+├── Assets.cs                 embedded assets → Stream, no image type
 ├── Actions/                  use cases: HelloWorldAction, CreateProjectHierarchyAction
 └── Adapters/                 ports: ITiaNotifier, IGroupNode, HierarchyTargets
                               plus Icons (embedded assets → System.Drawing.Icon)
@@ -102,8 +102,8 @@ A type's layer is decided by **what it depends on**, not by who calls it today.
 Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
  │            │                    │
  │            │                    └── Adapters/  implement the ports against one TIA version
- │            └── use cases (Actions/) + the ports they need
- └── model, config loader, assets — what the satellites will also use
+ │            └── use cases (Actions/), the ports they need, and the embedded assets\
+ └── model, config loader, install paths — what the satellites will also use
 ```
 
 | Layer | May depend on | Actual references |
@@ -120,7 +120,7 @@ That third column is read from the compiled assemblies, not from the `using` sta
 
 A useful consequence: **if a project references `UI.Shared`, it has a GUI.** The dependency states what a name prefix only suggests.
 
-**Why `System.Drawing` must not reach `Core`.** `Icons` turns an asset into a `System.Drawing.Icon`; a WPF satellite will want an `ImageSource` from the same bytes. If the first materialiser went into `Core`, symmetry would eventually drag `PresentationCore` and `WindowsBase` in with the second — and `Core` is loaded **inside TIA Portal's process**. `Core`'s dependencies are the *intersection* of what its consumers need, never the union.
+**Why `System.Drawing` must not reach `Core`.** `Core` is loaded **inside TIA Portal's process**, and its dependencies are the *intersection* of what its consumers need, never the union. `Icons` turns an asset into a `System.Drawing.Icon` and a WPF consumer would want an `ImageSource` from the same bytes; putting either materialiser in `Core` would eventually drag `PresentationCore` and `WindowsBase` in behind the other. With `assets\` in `AddIn.Shared` nothing in `Core` pulls that way at all.
 
 **Ports live with the layer whose vocabulary they speak.** `ITiaNotifier` and `IGroupNode` carry no Siemens reference at all, yet they belong to `AddIn.Shared`: one is shaped like a TIA notification, the other talks about PLC group trees. Neither is vocabulary a satellite would use.
 
@@ -148,35 +148,49 @@ assets/
 │   ├── folder-hierarchy.ico
 │   └── github.ico
 └── Brand/
-    └── favicon.ico
+    ├── favicon.ico
+    └── favicon.svg
 ```
 
-They are **embedded into `Core`** by a glob, so adding an asset is dropping a file — no `.csproj` edit anywhere:
+They are **embedded into `AddIn.Shared`** by a glob, so adding an asset is dropping a file — no `.csproj` edit anywhere:
 
 ```xml
-<!-- Core.csproj -->
+<!-- AddIn.Shared.csproj -->
 <EmbeddedResource Include="..\..\assets\**\*.*"
                   Link="Assets\%(RecursiveDir)%(Filename)%(Extension)" />
 ```
 
-**`EmbeddedResource`, never `Content`.** The `.addin` package only carries assemblies, so a loose file would never reach TIA Portal. Embedded, the asset travels inside `PLC-Framework.Core.dll`, which is already listed under `AdditionalAssemblies` — so nothing extra to declare.
+**`EmbeddedResource`, never `Content`.** The `.addin` package only carries assemblies, so a loose file would never reach TIA Portal. Embedded, the asset travels inside `PLC-Framework.AddIn.Shared.dll`, which is already listed under `AdditionalAssemblies` — so nothing extra to declare.
 
-### Why they live in `Core`, and why the loader returns a `Stream`
+### Why they live in `AddIn.Shared`, and why the loader returns a `Stream`
 
-Embedded resources are **scoped to the assembly that carries them**: `Assembly.GetManifestResourceNames()` only ever sees its own. So the loader has to sit in the same assembly as the assets. Putting both in `Core` means every consumer — the two Add-Ins today, the WPF satellites tomorrow — gets them just by referencing `Core`.
+Embedded resources are **scoped to the assembly that carries them**: `Assembly.GetManifestResourceNames()` only ever sees its own, and `Assets` resolves against `typeof(Assets).Assembly`. **The loader and the assets cannot be separated** — move one without the other and every lookup returns `null`, silently, because `Open` returns `null` by design so callers can degrade.
+
+They sat in `Core` first, and moved on 2026-09-04: `Assets` had exactly one caller, `Adapters/Icons`, and no consumer outside the Add-Ins. The brand files a satellite uses are consumed at build time instead — `favicon.svg` hand-converted into `UI.Shared/Resources/BrandLogo.xaml`, `favicon.ico` as the satellites' `ApplicationIcon` — and neither goes through the loader. A satellite or tool needing an asset **at runtime** is what would move them back, glob included.
 
 What must **not** be shared is the type:
 
 ```csharp
-public static Stream Open(string path)     // Core.Assets
+public static Stream Open(string path)     // AddIn.Shared.Assets
 ```
 
 | Host | Materialises it as |
 |---|---|
 | `AddIn.V20` / `AddIn.V21` | `new Icon(stream)` → `System.Drawing.Icon`, what the TIA menu API takes |
-| WPF satellite | `IconBitmapDecoder(stream, …).Frames[0]` → `ImageSource` |
+| a WPF consumer | `IconBitmapDecoder(stream, …).Frames[0]` → `ImageSource` |
 
-Both were verified against the same embedded `favicon.ico`. Returning a `Stream` is also what keeps `System.Drawing` out of `Core`.
+Both were verified against the same embedded `favicon.ico`. Returning a `Stream` is what keeps `System.Drawing` out of the lookup.
+
+### The executables' icon does not go through the loader
+
+`<ApplicationIcon>` is what Explorer, Alt-Tab and shortcuts show, and it is a **Win32 resource generated at build time**, so it needs a file on disk — an embedded resource arrives far too late. It therefore reads `assets\` directly:
+
+```xml
+<!-- Satellite.About.csproj -->
+<ApplicationIcon>..\..\assets\Brand\favicon.ico</ApplicationIcon>
+```
+
+Same single file, different path to it. It coexists with `Window.Icon`, which is set in XAML from `BrandLogo` and is what the window and the taskbar show; drop that and WPF falls back to this one. One line per executable — `favicon.ico` carries frames from 16 to 128, so only Explorer's 256-pixel view has to upscale.
 
 The action names the asset next to the behaviour that uses it, and the materialiser resolves it:
 
@@ -191,7 +205,7 @@ public const string IconPath = "Brand/favicon.ico";
 
 ### Two traps
 
-**Never hardcode the resource-name prefix.** MSBuild derives names as `<RootNamespace>.Assets.<Feature>.<file>`, e.g. `Core.Assets.Brand.favicon.ico`. A literal prefix does not fail at compile time when it stops matching — `GetManifestResourceStream` just returns `null` and the icon blows up at runtime inside TIA. Match on the **tail** instead, so renaming the root namespace or the link path cannot break it.
+**Never hardcode the resource-name prefix.** MSBuild derives names as `<RootNamespace>.Assets.<Feature>.<file>`, e.g. `AddIn.Shared.Assets.Brand.favicon.ico`. A literal prefix does not fail at compile time when it stops matching — `GetManifestResourceStream` just returns `null` and the icon blows up at runtime inside TIA. Match on the **tail** instead, so renaming the root namespace or the link path cannot break it.
 
 **Cache the icons.** `GetContextMenuAddIns()` returns a **new `AddInController` on every right-click**, so loading icons in the constructor re-reads every asset each time the menu opens. A static cache (misses included) fixes it.
 

@@ -20,9 +20,10 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 - **Adapters convert Siemens types into primitives or DTOs before crossing a layer.** `Project` stays in the version project; the action receives `project?.Name`.
 - **Never name a namespace `AddIn.Core`.** Inside `namespace AddIn`, the identifier `Core` would then resolve to `AddIn.Core` before the global `Core`, breaking every qualified reference with a misleading "type does not exist" error.
 - Any assembly beyond the Add-In's own must be declared in `Config.xml` under **`AdditionalAssemblies`**, or TIA throws `FileNotFoundException` at runtime even though everything built and packaged cleanly.
-- Assets live once in `assets/`, grouped **by feature**, and are embedded **in `Core`** as `EmbeddedResource` (never `Content`: the `.addin` only carries assemblies). Use a glob, not a list. Every consumer gets them by referencing `Core`.
+- Assets live once in `assets/`, grouped **by feature**, and are embedded **in `AddIn.Shared`** as `EmbeddedResource` (never `Content`: the `.addin` only carries assemblies). Use a glob, not a list.
+- **The loader and the assets cannot be separated.** Embedded resources are scoped to the assembly that carries them, and `Assets` resolves against `typeof(Assets).Assembly`. Moving `Assets.cs` without moving the `EmbeddedResource` glob makes every lookup return `null` — **silently**, because `Open` returns `null` by design so callers degrade.
 - **Never hardcode a resource-name prefix.** Match on the tail of the name — a stale prefix compiles fine and returns `null` at runtime inside TIA.
-- **`Core.Assets.Open(path)` returns a `Stream`, never an image type.** Embedded resources are scoped to the assembly that carries them, so the loader must live in the same assembly as the assets — but the *type* must not: the Add-Ins need `System.Drawing.Icon` and the WPF satellites need an `ImageSource`. Each host materialises its own from the same stream; that is what keeps `System.Drawing` out of `Core`.
+- **`AddIn.Shared.Assets.Open(path)` returns a `Stream`, never an image type.** The lookup is worth sharing; the type is not. `Adapters/Icons` materialises a `System.Drawing.Icon` for the TIA menu, and a WPF consumer would build an `ImageSource` from the same bytes. Keeping the lookup free of `System.Drawing` is what allows both.
 
 ## Naming convention (settled 2026-08-29)
 
@@ -66,8 +67,8 @@ A type's layer is decided by **what it depends on**, not by who happens to call 
 
 | Layer | May depend on | Holds |
 |---|---|---|
-| `Core` | only what **every** consumer needs | `Config` model + loader, `DependencyGraph` model, `Assets`, `InstallPaths`, `Product` |
-| `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`) and its ports (`ITiaNotifier`, `IGroupNode`, `HierarchyTargets`, `Icons`) |
+| `Core` | only what **every** consumer needs | `Config` model + loader, `DependencyGraph` model, `InstallPaths`, `Product` |
+| `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`), its ports (`ITiaNotifier`, `IGroupNode`, `HierarchyTargets`, `Icons`), and the embedded `assets\` with their `Assets` loader |
 | `UI.Shared` | `Core` + WPF | brand resources (`BrandLogo.xaml`, `Theme.xaml`) and, later, shared windows and the single-instance guard |
 | `AddIn.V20` / `.V21` | anything, including Siemens | `AddInProvider`, `AddInController`, `Adapters/` implementing the ports |
 | `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window | one executable each |
@@ -87,8 +88,9 @@ A useful consequence: **if a project references `UI.Shared`, it has a GUI.** The
 
 Consequences worth remembering:
 
-- **`System.Drawing` must not reach `Core`.** If it did, symmetry would later drag `PresentationCore`/`WindowsBase` in when the satellites need `ImageSource` — and `Core` is loaded inside TIA Portal's process. `Core`'s dependencies are the **intersection** of its consumers' needs, never the union.
+- **`System.Drawing` must not reach `Core`.** `Core` is loaded inside TIA Portal's process, and its dependencies are the **intersection** of its consumers' needs, never the union. With `assets\` now in `AddIn.Shared` nothing in `Core` could pull it in — keep it that way.
 - **Ports live with the layer whose vocabulary they speak.** `IGroupNode` talks about PLC group trees, so it belongs to `AddIn.Shared`, not `Core` — even though it has no Siemens reference.
+- **`assets\` moved from `Core` to `AddIn.Shared` on 2026-09-04.** `Assets` had exactly one caller, `Adapters/Icons`, and no consumer outside the Add-Ins. What would move it back is a satellite or a tool needing an asset **at runtime**: the brand files are consumed at build time instead — `favicon.svg` was hand-converted into `UI.Shared/Resources/BrandLogo.xaml`, `favicon.ico` is the satellites' `ApplicationIcon` — and neither goes through the loader. Moving it back means moving the glob with it.
 - Check the layering with the assembly metadata (`GetReferencedAssemblies`), not by reading `using` statements.
 
 ### Sharing code between `AddIn.V20` and `AddIn.V21`

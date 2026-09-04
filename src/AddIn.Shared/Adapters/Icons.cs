@@ -3,17 +3,15 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 
-using Core;
-
 namespace AddIn.Shared.Adapters
 {
     /// <summary>
-    /// Materialises the assets Core embeds into System.Drawing.Icon, which is what the
-    /// TIA menu API expects.
+    /// Materialises the embedded assets into System.Drawing.Icon, which is what the TIA
+    /// menu API expects.
     ///
-    /// The lookup itself lives in Core.Assets and is shared with the satellite apps;
-    /// only this conversion is host-specific, because a WPF satellite wants an
-    /// ImageSource from the very same stream.
+    /// The lookup itself lives in Assets and returns a plain Stream; only this conversion
+    /// needs System.Drawing, and keeping the two apart is what lets the lookup stay free
+    /// of it.
     /// </summary>
     public static class Icons
     {

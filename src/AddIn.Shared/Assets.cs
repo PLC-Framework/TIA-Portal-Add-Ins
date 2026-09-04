@@ -3,19 +3,21 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 
-namespace Core
+namespace AddIn.Shared
 {
     /// <summary>
     /// Opens the binary assets embedded from the repo-level assets\ folder.
     ///
-    /// This returns a Stream rather than an image type on purpose. The Add-Ins need a
-    /// System.Drawing.Icon and the WPF satellites need an ImageSource, so each host
-    /// materialises its own; what is worth sharing is the lookup, not the type. Keeping
-    /// it a Stream is also what lets Core stay free of System.Drawing.
+    /// This returns a Stream rather than an image type on purpose: what is worth sharing
+    /// is the lookup, not the type. Adapters/Icons materialises a System.Drawing.Icon
+    /// from it for the TIA menu, and that conversion is what keeps System.Drawing out of
+    /// the lookup itself.
     ///
-    /// Assets are embedded in this assembly, so every consumer gets them just by
-    /// referencing Core - embedded resources are scoped to the assembly that carries
-    /// them, and a loader looking at the caller's assembly would find nothing.
+    /// The assets are embedded in this assembly, and they have to be: embedded resources
+    /// are scoped to the assembly that carries them, so a loader looking anywhere else
+    /// finds nothing. Moving this class without moving the EmbeddedResource glob in
+    /// AddIn.Shared.csproj breaks every lookup - and breaks it silently, because Open
+    /// returns null by design so callers can degrade.
     /// </summary>
     public static class Assets
     {
