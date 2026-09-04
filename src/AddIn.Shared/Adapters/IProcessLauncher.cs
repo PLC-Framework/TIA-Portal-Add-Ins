@@ -17,5 +17,15 @@ namespace AddIn.Shared.Adapters
         /// reason it failed, so the caller can report it the way it reports anything else.
         /// </summary>
         string Start(string fileName);
+
+        /// <summary>
+        /// Starts the executable and writes <paramref name="standardInput"/> into it,
+        /// then closes the pipe so the child sees end of input.
+        ///
+        /// This is how a satellite is told what to work on. Nothing touches disk, so there
+        /// is no temporary file to clean up, no permission question about where to put it,
+        /// and no stale handoff left behind by a run that crashed.
+        /// </summary>
+        string Start(string fileName, string standardInput);
     }
 }

@@ -1,9 +1,11 @@
-﻿using System.Drawing;
+﻿using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 
 using Siemens.Engineering;
 using Siemens.Engineering.AddIn.Menu;
 using Siemens.Engineering.HW;
+using Siemens.Engineering.SW.Blocks;
 
 using AddIn.Shared.Actions;
 using AddIn.Shared.Adapters;
@@ -59,6 +61,24 @@ namespace AddIn
                         _notifier,
                         result.Config.ProjectConfig?.Hierarchy,
                         TiaGroupNode.TargetsFor(deviceItem));
+                });
+
+            // On data blocks, and it works on a multiple selection: GetSelection returns
+            // the whole thing, so several blocks travel to the satellite in one run.
+            AddAction<DataBlock>(
+                menuAddInRoot,
+                DataBlockSnapshotAction.Title,
+                null,
+                menuSelectionProvider =>
+                {
+                    List<DataBlock> blocks =
+                        menuSelectionProvider?.GetSelection<DataBlock>().ToList() ?? new List<DataBlock>();
+
+                    DataBlockSnapshotAction.Execute(
+                        _notifier,
+                        _launcher,
+                        ProjectDirectory(),
+                        TiaPlcSelection.From(blocks));
                 });
 
         }

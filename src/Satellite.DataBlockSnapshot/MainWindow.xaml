@@ -215,16 +215,27 @@
             <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                 <TextBlock Text="Data Block snapshot" FontSize="18" FontWeight="SemiBold"
                            Foreground="{StaticResource BrandBrushTop}" />
+                <!-- Which project and which CPU this capture belongs to. Worth keeping:
+                     several of these windows can be open at once, one per PLC. -->
+                <TextBlock x:Name="ProjectLine" FontSize="11" Foreground="#7E8899" />
             </StackPanel>
         </StackPanel>
 
-        <!-- Connection -->
+        <!-- Connection.
+
+             Same arrangement as before - the PLC on its own row, then user, password and
+             timeout side by side - but placed by columns rather than by pixel margins.
+             The designer writes absolute margins, which hold at exactly one window width:
+             this one is resizable down to 660, and the star column grows while a fixed
+             margin does not, so the fields end up overlapping. -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="Auto" />   <!-- PLC / User label -->
+                <ColumnDefinition Width="*" />      <!-- address, user     -->
+                <ColumnDefinition Width="Auto" />   <!-- Password label    -->
+                <ColumnDefinition Width="*" />      <!-- password          -->
+                <ColumnDefinition Width="Auto" />   <!-- Timeout label     -->
+                <ColumnDefinition Width="70" />     <!-- timeout           -->
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -232,17 +243,17 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Grid.Column="0" Text="PLC" Style="{StaticResource FieldLabel}" />
-            <ComboBox  Grid.Row="0" x:Name="AddressBox" IsEditable="True"
-                       Margin="33,0,0,9" Grid.ColumnSpan="4" />
-
-            <TextBlock Grid.Row="1" Grid.Column="3" Text="Timeout (s)" Style="{StaticResource FieldLabel}" Margin="51,0,40,0" />
-            <TextBox   Grid.Row="1" Grid.Column="3" x:Name="TimeoutBox" Text="30" Margin="115,0,0,0" />
+            <ComboBox  Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="5"
+                       x:Name="AddressBox" IsEditable="True" Margin="0,0,0,9" />
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="User" Style="{StaticResource FieldLabel}" />
-            <TextBox   Grid.Row="1" x:Name="UserBox" Margin="33,0,198,0" Grid.ColumnSpan="2" />
+            <TextBox   Grid.Row="1" Grid.Column="1" x:Name="UserBox" Margin="0,0,16,0" />
 
-            <TextBlock Grid.Row="1" Grid.Column="1" Text="Password" Style="{StaticResource FieldLabel}" Margin="364,0,139,0" />
-            <PasswordBox Grid.Row="1" Grid.Column="1" x:Name="PasswordBox" Grid.ColumnSpan="3" Margin="423,0,104,0" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="Password" Style="{StaticResource FieldLabel}" />
+            <PasswordBox Grid.Row="1" Grid.Column="3" x:Name="PasswordBox" Margin="0,0,16,0" />
+
+            <TextBlock Grid.Row="1" Grid.Column="4" Text="Timeout (s)" Style="{StaticResource FieldLabel}" />
+            <TextBox   Grid.Row="1" Grid.Column="5" x:Name="TimeoutBox" Text="30" />
         </Grid>
 
         <TextBlock Grid.Row="2" Text="Data blocks" Margin="0,20,0,6"

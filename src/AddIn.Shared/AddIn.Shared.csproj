@@ -13,6 +13,12 @@
     <ProjectReference Include="..\Core\Core.csproj" />
   </ItemGroup>
 
+  <!-- For writing the satellite handoff. The framework's own serializer, so no JSON
+       package is ever loaded inside TIA Portal's process. -->
+  <ItemGroup>
+    <Reference Include="System.Runtime.Serialization" />
+  </ItemGroup>
+
   <!-- Assets live once in the repo-level assets\ folder, grouped by feature, and are
        embedded here because Assets.cs resolves them against its own assembly: embedded
        resources are scoped to the assembly that carries them, so the loader and the

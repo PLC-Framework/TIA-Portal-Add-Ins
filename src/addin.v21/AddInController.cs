@@ -59,27 +59,22 @@ namespace AddIn
                         TiaGroupNode.TargetsFor(deviceItem));
                 });
 
-            // Test DB
+            // On data blocks, and it works on a multiple selection: GetSelection returns
+            // the whole thing, so several blocks travel to the satellite in one run.
             AddAction<DataBlock>(
                 menuAddInRoot,
-                "Data Block",
+                DataBlockSnapshotAction.Title,
                 null,
                 menuSelectionProvider =>
                 {
-                    List<DataBlock> dbs = menuSelectionProvider?.GetSelection<DataBlock>().ToList() ?? new List<DataBlock>();
+                    List<DataBlock> blocks =
+                        menuSelectionProvider?.GetSelection<DataBlock>().ToList() ?? new List<DataBlock>();
 
-                    if (dbs.Count <= 0)
-                    {
-                        _notifier.Warning("Data Block", "Not found!");
-                        return;
-                    }
-
-                    string l = string.Join("\n", dbs.Select(db =>
-                        $"{db.Namespace}.{db.Name} [DB{db.Number}]"
-                        ));
-
-                    _notifier.Success("Data Block", $"\n\nBlocks: {dbs.Count} Selected:\n\n{l}");
-                    
+                    DataBlockSnapshotAction.Execute(
+                        _notifier,
+                        _launcher,
+                        ProjectDirectory(),
+                        TiaPlcSelection.From(blocks));
                 });
         }
         
