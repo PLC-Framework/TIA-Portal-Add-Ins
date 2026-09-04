@@ -160,6 +160,36 @@ namespace S7PlcWebserverApi
             return new BrowseResult(leaves, truncated);
         }
 
+        /// <summary>
+        /// The data blocks this CPU exposes, by name.
+        ///
+        /// Browsing the program root takes no "var" at all. One call, and it is what lets
+        /// a caller say "that block is not on this CPU" before spending thirty seconds
+        /// finding out one block at a time - the block names come from a TIA project, and
+        /// the operator may well be pointing at a different CPU than the project's.
+        /// </summary>
+        public IReadOnlyList<string> ListDataBlocks()
+        {
+            JToken result = Rpc("PlcProgram.Browse", new JObject { ["mode"] = "children" });
+
+            List<string> blocks = new List<string>();
+            if (!(result is JArray children)) return blocks;
+
+            foreach (JToken child in children)
+            {
+                JObject node = child as JObject;
+                if (node == null) continue;
+
+                if (!string.Equals(node["datatype"]?.Value<string>(), "datablock", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                string name = node["name"]?.Value<string>();
+                if (!string.IsNullOrEmpty(name)) blocks.Add(name);
+            }
+
+            return blocks;
+        }
+
         /// <summary>Wrap a symbol in the double quotes the web API expects.</summary>
         internal static string Quote(string name) => "\"" + Unquote(name) + "\"";
 

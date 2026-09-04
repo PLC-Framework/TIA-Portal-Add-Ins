@@ -1,12 +1,300 @@
-﻿<Window x:Class="Satellite.DataBlockSnapshot.MainWindow"
+<Window x:Class="Satellite.DataBlockSnapshot.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Satellite.DataBlockSnapshot"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
-        
+        Title="Data block snapshot"
+        Icon="{StaticResource BrandLogo}"
+        Height="640" Width="780"
+        MinHeight="540" MinWidth="660"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource DarkThemeGradientBrush}"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <Window.Resources>
+        <!-- One surface for everything the operator types into, a shade lighter than the
+             ground so a field reads as inset rather than as a hole punched in the form. -->
+        <SolidColorBrush x:Key="Field"       Color="#333B47" />
+        <SolidColorBrush x:Key="FieldEdge"   Color="#5A6473" />
+        <SolidColorBrush x:Key="Surface"     Color="#2A313B" />
+        <SolidColorBrush x:Key="SurfaceHead" Color="#3A4350" />
+        <SolidColorBrush x:Key="Ink"         Color="#E8ECF2" />
+        <SolidColorBrush x:Key="InkMuted"    Color="#98A3B2" />
+
+        <Style TargetType="TextBlock" x:Key="FieldLabel">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource Field}" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+            <Setter Property="CaretBrush" Value="{StaticResource Ink}" />
+            <Setter Property="SelectionBrush" Value="{StaticResource BrandBrushTop}" />
+        </Style>
+
+        <Style TargetType="PasswordBox">
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Background" Value="{StaticResource Field}" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+            <Setter Property="CaretBrush" Value="{StaticResource Ink}" />
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrandBrushBottom}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- An editable ComboBox needs its own template. The stock chrome paints the text
+             area and the drop-down button from its own brushes and ignores Background,
+             which is exactly what leaves a white box sitting on a dark form. -->
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource Field}" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Height" Value="27" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="22" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.ColumnSpan="2"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" />
+
+                            <TextBox x:Name="PART_EditableTextBox"
+                                     Grid.Column="0" Margin="5,0,0,0"
+                                     Background="Transparent" BorderThickness="0"
+                                     Foreground="{TemplateBinding Foreground}"
+                                     CaretBrush="{TemplateBinding Foreground}"
+                                     SelectionBrush="{StaticResource BrandBrushTop}"
+                                     VerticalContentAlignment="Center" />
+
+                            <ToggleButton Grid.Column="1" Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                                      RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="Transparent">
+                                            <Path Data="M 0 0 L 4 4 L 8 0 Z"
+                                                  Fill="{StaticResource InkMuted}"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+
+                            <Popup x:Name="PART_Popup" AllowsTransparency="True"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom" PopupAnimation="Slide">
+                                <Border Background="{StaticResource Surface}"
+                                        BorderBrush="{StaticResource FieldEdge}" BorderThickness="1"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <ScrollViewer>
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="GridViewColumnHeader">
+            <Setter Property="Background" Value="{StaticResource SurfaceHead}" />
+            <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
+            <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="Padding" Value="6,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="FontWeight" Value="Normal" />
+        </Style>
+
+        <Style TargetType="ListViewItem">
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="0,4" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <GridViewRowPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#39424F" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3F4A5A" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Flat, so the stock grey gradient does not reappear in the middle of a dark form. -->
+        <Style TargetType="Button" x:Key="Quiet">
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="Background" Value="{StaticResource Field}" />
+            <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E4756" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#6C7686" />
+                                <Setter TargetName="Bd" Property="Background" Value="#2B323C" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#454E5B" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Button" x:Key="Primary" BasedOn="{StaticResource Quiet}">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Background" Value="{StaticResource BrandBrushTop}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BrandBrushBottom}" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,18">
+            <Image Source="{StaticResource BrandLogo}" Width="38" Height="38"
+                   VerticalAlignment="Center" />
+            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="Data Block snapshot" FontSize="18" FontWeight="SemiBold"
+                           Foreground="{StaticResource BrandBrushTop}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Connection -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="150" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="PLC" Style="{StaticResource FieldLabel}" />
+            <ComboBox  Grid.Row="0" x:Name="AddressBox" IsEditable="True"
+                       Margin="33,0,0,9" Grid.ColumnSpan="4" />
+
+            <TextBlock Grid.Row="1" Grid.Column="3" Text="Timeout (s)" Style="{StaticResource FieldLabel}" Margin="51,0,40,0" />
+            <TextBox   Grid.Row="1" Grid.Column="3" x:Name="TimeoutBox" Text="30" Margin="115,0,0,0" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="User" Style="{StaticResource FieldLabel}" />
+            <TextBox   Grid.Row="1" x:Name="UserBox" Margin="33,0,198,0" Grid.ColumnSpan="2" />
+
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="Password" Style="{StaticResource FieldLabel}" Margin="364,0,139,0" />
+            <PasswordBox Grid.Row="1" Grid.Column="1" x:Name="PasswordBox" Grid.ColumnSpan="3" Margin="423,0,104,0" />
+        </Grid>
+
+        <TextBlock Grid.Row="2" Text="Data blocks" Margin="0,20,0,6"
+                   Foreground="{StaticResource InkMuted}" FontWeight="SemiBold" />
+
+        <Border Grid.Row="3" BorderBrush="{StaticResource FieldEdge}" BorderThickness="1"
+                Background="{StaticResource Surface}">
+            <ListView x:Name="BlockList" BorderThickness="0" Background="Transparent"
+                      Foreground="{StaticResource Ink}">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Width="30">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}"
+                                              VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Block" Width="200" DisplayMemberBinding="{Binding Name}" />
+                        <GridViewColumn Header="State" Width="110" DisplayMemberBinding="{Binding Status}" />
+                        <GridViewColumn Header="Detail" Width="380" DisplayMemberBinding="{Binding Detail}" />
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </Border>
+
+        <!-- Destination -->
+        <Grid Grid.Row="4" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="Folder" Style="{StaticResource FieldLabel}" />
+            <TextBox   Grid.Column="1" x:Name="FolderBox" />
+            <Button    Grid.Column="2" x:Name="BrowseButton" Content="..." Width="34"
+                       Margin="8,0,0,0" Padding="0,4" Style="{StaticResource Quiet}"
+                       Click="OnBrowseFolder" />
+        </Grid>
+
+        <!-- Actions -->
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+            <Button x:Name="CancelButton" Content="Cancel" Width="130" Padding="0,7"
+                    Margin="0,0,10,0" IsEnabled="False"
+                    Style="{StaticResource Quiet}" Click="OnCancel" />
+            <Button x:Name="CaptureButton" Content="Capture" Width="130" Padding="0,7"
+                    Style="{StaticResource Primary}" Click="OnCapture" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="6" x:Name="StatusLine" Margin="0,14,0,0"
+                   TextWrapping="Wrap" Foreground="{StaticResource Ink}" />
     </Grid>
 </Window>

@@ -40,9 +40,10 @@ namespace S7PlcWebserverApi
     {
         private const string JsonRpcPath = "/api/jsonrpc";
 
-        // A POST carrying fifty envelopes is more work for the CPU than a single call,
-        // so this is not the ten seconds a one-shot request would need.
-        private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
+        // A POST carrying fifty envelopes is more work for the CPU than a single call, so
+        // this is not the ten seconds a one-shot request would need. Overridable, because
+        // a loaded CPU or a slow link is a field problem and not a code one.
+        public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
 
         // The web API has no dedicated code for an expired token, so the message
         // text is all there is to go on. This list is empirical.
@@ -62,6 +63,11 @@ namespace S7PlcWebserverApi
         public bool IsLoggedIn => _token != null;
 
         public PlcClient(string ip, string user, string password)
+            : this(ip, user, password, DefaultTimeout)
+        {
+        }
+
+        public PlcClient(string ip, string user, string password, TimeSpan timeout)
         {
             if (string.IsNullOrWhiteSpace(ip))
                 throw new ArgumentException("An IP address is required.", nameof(ip));
@@ -80,7 +86,10 @@ namespace S7PlcWebserverApi
                 ServerCertificateCustomValidationCallback = (m, certificate, chain, errors) => true
             };
 
-            _http = new HttpClient(handler) { Timeout = RequestTimeout };
+            _http = new HttpClient(handler)
+            {
+                Timeout = timeout > TimeSpan.Zero ? timeout : DefaultTimeout
+            };
         }
 
         public void Login()

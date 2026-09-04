@@ -1,9 +1,8 @@
-﻿<Application x:Class="Satellite.DataBlockSnapshot.App"
+<Application x:Class="Satellite.DataBlockSnapshot.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:Satellite.DataBlockSnapshot">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
-         <ResourceDictionary>
+        <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <!-- The URI carries the AssemblyName, not the project name. -->
                 <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/Theme.xaml" />
