@@ -3,4 +3,5 @@
   <Project Path="src/AddIn.V20/AddIn.V20.csproj" />
   <Project Path="src/AddIn.V21/AddIn.V21.csproj" Id="2df26466-bf86-49f0-9739-22f866dbaeaa" />
   <Project Path="src/Core/Core.csproj" Id="79efcd26-b240-41de-95b8-4a553c1e2358" />
+  <Project Path="src/Satellite.About/Satellite.About.csproj" Id="b79d7afe-f267-4aa1-a347-b6d1494acd06" />
 </Solution>
