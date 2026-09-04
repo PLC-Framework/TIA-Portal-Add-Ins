@@ -38,13 +38,48 @@ namespace AddIn.Shared.Actions
                        + Ensure(targets.TagTables, hierarchy.TagTables)
                        + Ensure(targets.Types, hierarchy.Types);
 
-            if (groups == 0)
+            int unitCount = targets.SoftwareUnits?.Count ?? 0;
+            int unitGroups = EnsureSoftwareUnits(hierarchy.SoftwareUnits, targets.SoftwareUnits);
+
+            if (groups + unitGroups == 0)
             {
                 notifier.Warning(Title, $"'{ConfigPaths.File}' declares no groups under 'projectConfig.hierarchy'.");
                 return;
             }
 
-            notifier.Success(Title, $"Hierarchy ready: {groups} group(s).");
+            string message = $"Hierarchy ready: {groups} group(s).";
+
+            if (unitCount > 0)
+                message += $"\nSoftware units: {unitGroups} group(s) across {unitCount} unit(s).";
+
+            notifier.Success(Title, message);
+        }
+
+        /// <summary>
+        /// Applies the same declared structure inside every existing software unit.
+        ///
+        /// Units are never created here: they are named by the user according to the
+        /// plant's architecture. An S7-1200 has none, so the list is empty and this
+        /// contributes nothing — which is not an error.
+        /// </summary>
+        private static int EnsureSoftwareUnits(
+            SoftwareUnitHierarchy desired,
+            IReadOnlyList<HierarchySoftwareUnitTargets> units)
+        {
+            if (desired == null || units == null) return 0;
+
+            int count = 0;
+
+            foreach (HierarchySoftwareUnitTargets unit in units)
+            {
+                if (unit == null) continue;
+
+                count += Ensure(unit.Blocks, desired.Blocks);
+                count += Ensure(unit.TagTables, desired.TagTables);
+                count += Ensure(unit.Types, desired.Types);
+            }
+
+            return count;
         }
 
         /// <summary>

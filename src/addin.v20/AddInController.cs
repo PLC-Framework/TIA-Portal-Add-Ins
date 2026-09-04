@@ -60,7 +60,7 @@ namespace AddIn
                         result.Config.ProjectConfig?.Hierarchy,
                         TiaGroupNode.TargetsFor(deviceItem));
                 });
-
+            /*
             AddAction<PlcUnitSystemGroup>(
                 menuAddInRoot,
                 "Sw Units",
@@ -95,7 +95,7 @@ namespace AddIn
 
                     _notifier.Info("PLC Unit", unitNames);
                 });
-
+                */
         }
 
         /// <summary>

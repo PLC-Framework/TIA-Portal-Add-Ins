@@ -16,6 +16,10 @@ namespace AddIn.Shared.Adapters
         public IGroupNode TagTables { get; set; }
         public IGroupNode Types { get; set; }
 
+        /// <summary>
+        /// One entry per existing software unit. Empty on an S7-1200, which has none.
+        /// The Add-In never creates units: it only fills the ones already there.
+        /// </summary>
         public List<HierarchySoftwareUnitTargets> SoftwareUnits { get; set; }
     }
 }

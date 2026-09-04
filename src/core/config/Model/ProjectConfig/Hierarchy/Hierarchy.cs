@@ -18,5 +18,11 @@ namespace Core.Config
         [DataMember(Name = "types")]
         public List<Group> Types { get; set; }
 
+        /// <summary>
+        /// Applied inside every existing software unit. Only S7-1500 has them; on an
+        /// S7-1200 there are none and this section is simply ignored.
+        /// </summary>
+        [DataMember(Name = "softwareUnits")]
+        public SoftwareUnitHierarchy SoftwareUnits { get; set; }
     }
 }
