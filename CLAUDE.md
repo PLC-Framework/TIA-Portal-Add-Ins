@@ -27,11 +27,15 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 
 ## Naming convention (settled 2026-08-29)
 
-| Item | `Core` | `AddIn.Shared` | `AddIn.V20` | `AddIn.V21` |
-|---|---|---|---|---|
-| Project / folder | `Core` | `AddIn.Shared` | `AddIn.V20` | `AddIn.V21` |
-| `AssemblyName` | `PLC-Framework.Core` | `PLC-Framework.AddIn.Shared` | `PLC-Framework.V20` | `PLC-Framework.V21` |
-| `RootNamespace` | `Core` | `AddIn.Shared` | `AddIn` | `AddIn` |
+| Project / folder | `AssemblyName` | `RootNamespace` |
+|---|---|---|
+| `Core` | `PLC-Framework.Core` | `Core` |
+| `AddIn.Shared` | `PLC-Framework.AddIn.Shared` | `AddIn.Shared` |
+| `UI.Shared` | `PLC-Framework.UI.Shared` | `UI.Shared` |
+| `S7PlcWebserverApi` | `PLC-Framework.S7PlcWebserverApi` | `S7PlcWebserverApi` |
+| `AddIn.V20` | `PLC-Framework.V20` | `AddIn` |
+| `AddIn.V21` | `PLC-Framework.V21` | `AddIn` |
+| `Satellite.<Name>` | `PLC-Framework.Satellite.<Name>` | `Satellite.<Name>` |
 
 The namespace says which layer a type is in: `AddIn.Shared.*` is version-agnostic, `AddIn.*` is version-specific.
 
@@ -57,8 +61,8 @@ Do not relitigate without new information:
 3. **Satellites are separate `.exe` files, and cannot be otherwise.** Verified: the Publisher **silently drops** any `.exe` listed under `AdditionalAssemblies` — no error, no warning, the package is just built without it. The filter is purely by extension (the same PE renamed to `.dll` is packaged), but that is no workaround: the part lands in `LocalAssemblyCache/` and TIA loads it as an assembly inside its own process, never as a file on disk. Siemens' own `Siemens.Engineering.AddIn.Utilities.Process` wrapper plus `ProcessStartPermission` confirm launching an external executable is the sanctioned path.
 4. **Install location** — `%ProgramData%\PLC-Framework\`, exposed by `Core.InstallPaths`, holding `.env` and a single `tools\` folder for **every** executable shipped, satellites included. **Per machine, not per user.** **Not** next to the `.addin`: `UserAddIns` is per TIA version (V20 and V21 would each need a copy) and belongs to Siemens. **Not** derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be trusted. `PLC_FRAMEWORK_HOME` overrides it for staging. Installing needs elevation once; reading does not.
    - **"Satellite" is a role, not a location.** A satellite is a WPF app the Add-In launches from the menu; it lives in `tools\` next to any command-line helper. Splitting the folder by role was tried and reverted — it only invited arguments about which half a new executable belonged in.
-5. **Add-In ↔ satellite communication**: JSON snapshot through a temp file when data at open time is enough. Two live options exist: Siemens' `Process` wrapper supports **redirected stdin/stdout** with `OutputDataReceived` and `Exited`, which is simpler than named pipes and needs no `IPC` project. Reach for named pipes only if stdio proves insufficient. **Prefer the snapshot** until hitting a real limitation.
-6. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup.
+5. **Add-In → satellite handoff: a JSON document over stdin** (chosen 2026-09-04). Siemens' `Process` wrapper exposes `RedirectStandardInput`, so the Add-In writes the payload straight into the child and no file is ever created — nothing to clean up, no permissions question, no stale handoff from a crashed run. **Not yet verified inside TIA's permission sandbox**: the wrapper offering the property is not proof the redirection survives it. The satellite must therefore read the payload behind a small abstraction rather than straight from `Console.In`, so the fallback — a `%TEMP%` file whose path arrives as an argument — is a swap and not a rewrite. Not the TIA project folder: those are under version control, and tying the handoff to project writability makes a read-only project fail before the window even opens.
+6. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup — **except `Satellite.DataBlockSnapshot`**, which may run several times at once. Each of its runs is a job with its own PLC, its own blocks and its own destination; a single instance would either refuse the second launch or silently discard the selection that came with it. The rule stands for satellites that show *state*; it does not for one that performs a *job*.
 7. **No Siemens API exposes the Add-In's own path or the running TIA version.** Checked `TiaPortal` and the whole `Siemens.Engineering.AddIn` root namespace. Anything needing a location must derive it from a well-known folder.
 8. **Satellites stay multi-file and stay on `net48` — for now.** A single-file `.exe` was considered on 2026-09-04 and deferred. ILRepack / ILMerge is ruled out outright: `App.xaml` merges its dictionaries by **pack URI, which carries the assembly name**, so merging breaks resource resolution at runtime with no build error. Costura.Fody does work and stays available. Worth knowing: **nothing binds a satellite to `net48`** — that constraint comes from Openness, which a satellite never touches — so multi-targeting `Core` and `UI.Shared` would give `PublishSingleFile` for free, at the price of a .NET runtime on the station. The real cost is the manual copy, not the file count, and the deployment automation already on the pending list fixes that for the `.addin` and the satellite at once.
 
@@ -71,17 +75,21 @@ A type's layer is decided by **what it depends on**, not by who happens to call 
 | `Core` | only what **every** consumer needs | `Config` model + loader, `DependencyGraph` model, `InstallPaths`, `Product` |
 | `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`), its ports (`ITiaNotifier`, `IGroupNode`, `IProcessLauncher`, `HierarchyTargets`, `Icons`), and the embedded `assets\` with their `Assets` loader |
 | `UI.Shared` | `Core` + WPF | brand resources (`BrandLogo.xaml`, `Theme.xaml`) and, later, shared windows and the single-instance guard |
+| `S7PlcWebserverApi` | the network, and nothing of ours | the JSON-RPC client for a CPU's web server: `PlcClient`, `PlcVariable`, `PlcValue`, `PlcLimits` |
 | `AddIn.V20` / `.V21` | anything, including Siemens | `AddInProvider`, `AddInController`, `Adapters/` implementing the ports |
 | `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window | one executable each |
 
 Verified from the compiled assemblies:
 
 ```
-PLC-Framework.Core          -> mscorlib, System.Core, System.Runtime.Serialization
-PLC-Framework.AddIn.Shared  -> + PLC-Framework.Core, System.Drawing
-PLC-Framework.UI.Shared     -> WPF only (today it is pure XAML, so it emits almost nothing)
-PLC-Framework.V20           -> + Siemens.Engineering.AddIn
+PLC-Framework.Core                -> mscorlib, System.Core, System.Runtime.Serialization
+PLC-Framework.AddIn.Shared        -> + PLC-Framework.Core, System.Drawing
+PLC-Framework.UI.Shared           -> WPF only (today it is pure XAML, so it emits almost nothing)
+PLC-Framework.S7PlcWebserverApi   -> System.Net.Http, Newtonsoft.Json  (no reference to Core)
+PLC-Framework.V20                 -> + Siemens.Engineering.AddIn
 ```
+
+**`S7PlcWebserverApi` deliberately does not reference `Core`.** It knows nothing about `Product`, `InstallPaths` or the config model, and keeping it that way is what lets it be exercised from PowerShell against a real CPU without dragging the rest of the framework in — which is how every one of its behaviours was verified. It is also why it must never go **into** `Core`: it pulls `System.Net.Http`, and `Core` is loaded inside TIA Portal's process.
 
 **`UI.Shared` is named after the concern, not the consumer.** Anything with a window wants the logo and the palette, whether it is a satellite the Add-In launches or a command-line tool that shows a dialog. Naming it `Satellite.Shared` would have broken the rule above in the name itself. `AddIn.Shared` keeps its consumer-shaped name because its contents genuinely are Add-In vocabulary.
 
@@ -93,6 +101,41 @@ Consequences worth remembering:
 - **Ports live with the layer whose vocabulary they speak.** `IGroupNode` talks about PLC group trees, so it belongs to `AddIn.Shared`, not `Core` — even though it has no Siemens reference.
 - **`assets\` moved from `Core` to `AddIn.Shared` on 2026-09-04, because the transformation only ever serves the Add-Ins.** `Assets` sat in `Core` on the prediction that a WPF satellite would build an `ImageSource` from the same `.ico` stream. `Satellite.About` disproved it: it takes the logo from `UI.Shared/Resources/BrandLogo.xaml` as a vector for both the window and `Window.Icon`, and its executable icon is an `ApplicationIcon` resolved at build time — two uses of the same brand asset, neither through the loader. Turning a `.ico` into an image at runtime is TIA menu vocabulary, because `AddActionItemWithIcon` takes a `System.Drawing.Icon`; WPF wants vectors or Win32 resources. Moving it back means moving the glob with it, and would need a windowed app that genuinely reads an arbitrary asset at runtime — even then a XAML resource in `UI.Shared` is the likelier answer.
 - Check the layering with the assembly metadata (`GetReferencedAssemblies`), not by reading `using` statements.
+
+### `Satellite.DataBlockSnapshot` — settled 2026-09-04
+
+Captures the current value of every variable in the selected data blocks, over the CPU's
+web server, and writes them to a workbook. **It is for settings and configuration that do
+not change**, not for live process values — which is what makes a sweep lasting tens of
+seconds an acceptable way to take a "snapshot".
+
+- **Reliability beats speed, and they are mostly the same axis.** The read window *is* a
+  data-quality property; shortening it was never about impatience.
+- **Every variable that was browsed gets a row**, holding its value or the reason it could
+  not be read. The Python app this was ported from drops the failures, which turns a
+  partial capture into one that looks complete — the worst possible outcome here.
+- **One file per data block**, named `<ip>-<DB>-snapshot-<timestamp>.xlsx`. A collision
+  gets ` (n)` appended rather than overwriting.
+- **A file is written only when the block read completely.** An incomplete read is
+  reported in the window, with its reason, and leaves nothing on disk to be mistaken for
+  a good capture.
+- **Destination defaults to `<TIA project>\.plc-framework\exports\`**, editable. The
+  project directory arrives in the handoff; `Core.Config.ConfigPaths` owns the literals so
+  the Add-In and the satellite cannot drift apart. Check the folder exists and is writable
+  *before* reading, not after thirty seconds of work.
+- **Credentials are typed on every launch and never persisted.** The PLC address is an
+  editable combo box filled from the project's own addresses.
+- **One PLC per instance**; several blocks of it per run. Several PLCs means several
+  windows, which decision 6 now allows.
+- **The blocks are only the ones the Add-In passed.** The satellite does not offer to
+  browse for more, even though one call to the program root would list them.
+- **Existence is always checked before capturing.** The block names come from the TIA
+  project, and the operator may point the window at a different CPU.
+- **Cancel acts between blocks.** Fine-grained cancellation would mean threading a
+  `CancellationToken` through `BrowseDb` and `Read`; not worth it while a block is seconds.
+- **The request timeout is a field in the window**, not a constant.
+- Running with no handoff at all must keep working, with everything typed by hand. That
+  mode is how every layer below the window was verified without TIA installed.
 
 ### Sharing code between `AddIn.V20` and `AddIn.V21`
 
@@ -125,7 +168,23 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
 - [x] `UI.Shared` created: `BrandLogo.xaml` (the SVG as a vector `DrawingImage`), `Theme.xaml`, and the `SingleInstance` guard.
 - [x] **First satellite complete**: `Satellite.About` — window, single-instance guard and `ApplicationIcon`, each verified by running the real binary here, not by inspecting XAML.
 - [x] `AboutAction` launches it from the menu through `IProcessLauncher`. All four paths exercised with fakes plus one real launch — **but never yet run inside TIA**, which is the only untested link.
-- [ ] `IPC` — not started, and possibly never needed: see decision 5.
+- [x] `S7PlcWebserverApi` created and **validated against two real CPUs** — an S7-1500 and an S7-1200 G2 — reading a data block of 8,910 variables with zero failures. Session, browse with array expansion, and batched reads.
+- [x] The XLSX exporter in `Satellite.DataBlockSnapshot`, checked with the OpenXML SDK's own validator (0 errors) and by inspecting the package XML: typed cells, invariant numbers, and no omitted cell that could pass for an unread value.
+- [ ] `IPC` — not started, and now unlikely ever to be: decision 5 settles the handoff on stdio.
+- [ ] `Satellite.DataBlockSnapshot`'s window, and the Add-In action that launches it.
+
+### The first NuGet dependencies (2026-09-04)
+
+The repo went without packages until the web API client. Two were taken, both confined to
+projects that never load inside TIA Portal:
+
+| Package | Where | Why |
+|---|---|---|
+| `Newtonsoft.Json` 13.0.4 | `S7PlcWebserverApi` | the JSON-RPC `result` is a different shape per method and a variable's `value` arrives as bool, integer, real or string. `DataContractJsonSerializer`, which `Core` uses, is the wrong tool for a document whose type is only known at runtime |
+| `DocumentFormat.OpenXml` 3.5.1 | `Satellite.DataBlockSnapshot` | writing a real `.xlsx` by hand is five XML parts in a zip whose only true test is whether Excel opens it. Microsoft's own SDK, MIT, and it ships a validator that can be run in the build loop |
+
+**Neither may reach `Core`, `AddIn.Shared` or a version project.** What loads into TIA's
+process stays on the framework's own assemblies.
 
 ### Known V20/V21 divergence
 
@@ -153,6 +212,7 @@ A different kind of divergence, and easier to miss because the source is identic
 
 - [ ] **Run "About us" inside TIA on the VM.** Copy the satellite's whole build output to `%ProgramData%\PLC-Framework\tools\` first — the `.exe` alone will not run, it needs `PLC-Framework.Core.dll` and `PLC-Framework.UI.Shared.dll` beside it. What this actually tests is whether Siemens' `Process` wrapper works under the Add-In's declared permission set; everything upstream of it is already verified here
 - [ ] **Fix the paths git still records in lower case**: `src/core/`, `src/addin.v20/`, `src/addin.v21/` (and `core.csproj`, `config/`, `dependencyGraph/`, `adapters/` inside them). On disk they are PascalCase; the index kept the pre-rename names because Windows cannot tell the difference. A clone on a case-sensitive filesystem gets `src/core/core.csproj` while the `.slnx` points at `src/Core/Core.csproj`, and nothing builds. Only `AddIn.Shared`, `UI.Shared` and `Satellite.About` are clean, being newer than the rename
+- [ ] **Verify on the VM that `RedirectStandardInput` survives TIA's permission sandbox.** Decision 5 rests on it. If it does not, the fallback is a `%TEMP%` file whose path arrives as an argument — which is why the satellite must read its handoff behind an abstraction from the start
 - [ ] Structural validator per concern, then the environmental one
 - [ ] `config.schema.json` referenced from the file itself via `$schema`
 - [ ] `.env` reader over `InstallPaths.EnvFile` + `${VAR}` expansion, both in `Core`. The `ISecretLookup` port is probably unnecessary now: with a deterministic path, the Add-In and the satellites read the same file with the same code
