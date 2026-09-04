@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Newtonsoft.Json;
@@ -8,9 +8,9 @@ namespace S7PlcWebserverApi
 {
     public sealed partial class PlcClient
     {
-        // Firmware V2 refuses a list in "var" with "Invalid params". Learned once per
-        // client, so the rest of the run goes straight to single reads instead of
-        // paying one doomed request per batch.
+        // Dropped to false the first time a batch POST fails outright, so the rest of
+        // the run goes straight to single calls instead of paying a doomed round trip
+        // per chunk. A CPU that rejects one batch rejects them all.
         private bool _batchReads = true;
 
         /// <summary>
@@ -38,10 +38,22 @@ namespace S7PlcWebserverApi
         {
             if (!_batchReads) return ReadIndividually(chunk);
 
-            JToken result;
+            // One envelope per variable, all of them in a single POST. See RpcBatch
+            // for why this is not the "var": [list] form Siemens documents.
+            List<JObject> envelopes = new List<JObject>(chunk.Count);
+            int[] ids = new int[chunk.Count];
+
+            for (int i = 0; i < chunk.Count; i++)
+            {
+                JObject envelope = Envelope("PlcProgram.Read", new JObject { ["var"] = chunk[i] });
+                ids[i] = envelope["id"].Value<int>();
+                envelopes.Add(envelope);
+            }
+
+            Dictionary<int, RpcResult> answers;
             try
             {
-                result = Rpc("PlcProgram.Read", new JObject { ["var"] = new JArray(chunk) });
+                answers = RpcBatch(envelopes);
             }
             catch (PlcAuthException)
             {
@@ -53,22 +65,27 @@ namespace S7PlcWebserverApi
                 return ReadIndividually(chunk);
             }
 
-            // A CPU answering anything other than one entry per requested path is not
-            // doing a batch read either, whatever it claims.
-            if (!(result is JArray entries) || entries.Count != chunk.Count)
+            if (answers.Count == 0)
             {
                 _batchReads = false;
                 return ReadIndividually(chunk);
             }
 
             List<PlcValue> values = new List<PlcValue>(chunk.Count);
+
             for (int i = 0; i < chunk.Count; i++)
             {
-                if (entries[i] is JObject item)
+                RpcResult answer;
+                if (!answers.TryGetValue(ids[i], out answer))
+                {
                     values.Add(new PlcValue(
-                        item["var"]?.Value<string>() ?? chunk[i], ToClr(item["value"]), null));
-                else
-                    values.Add(new PlcValue(chunk[i], ToClr(entries[i]), null));
+                        chunk[i], null, "The PLC did not answer this variable in the batch."));
+                    continue;
+                }
+
+                values.Add(answer.Succeeded
+                    ? new PlcValue(chunk[i], ToClr(answer.Value), null)
+                    : new PlcValue(chunk[i], null, answer.Error));
             }
 
             return values;
@@ -82,7 +99,8 @@ namespace S7PlcWebserverApi
             {
                 try
                 {
-                    values.Add(new PlcValue(path, ToClr(Rpc("PlcProgram.Read", new JObject { ["var"] = path })), null));
+                    values.Add(new PlcValue(
+                        path, ToClr(Rpc("PlcProgram.Read", new JObject { ["var"] = path })), null));
                 }
                 catch (PlcAuthException)
                 {
@@ -105,8 +123,9 @@ namespace S7PlcWebserverApi
         private static object ToClr(JToken token)
         {
             if (token == null || token.Type == JTokenType.Null) return null;
-            if (token is JValue value) return value.Value;
-            return token.ToString(Formatting.None);
+
+            JValue value = token as JValue;
+            return value != null ? value.Value : token.ToString(Formatting.None);
         }
     }
 }
