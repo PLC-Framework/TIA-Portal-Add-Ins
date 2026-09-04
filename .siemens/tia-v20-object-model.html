@@ -555,9 +555,10 @@ DataBlock &lt;|-- ArrayDB
   </div>
 
   <p>
-    Five of the six bases are <span class="badge">abstract</span>, split into a system group and a
-    user group. <span class="t">TechnologicalInstanceDBGroup</span> is the exception: it is a
-    concrete class, so the pattern you rely on for the other five does not hold there. Every
+    <b>All six split into a system group and a user group</b> &mdash; the pattern holds without
+    exception. What differs is only the modifier: five bases are
+    <span class="badge">abstract</span> and <span class="t">TechnologicalInstanceDBGroup</span> is
+    concrete, which changes nothing about how you walk it. Every
     contents property is named after what it holds, and no two are named alike &mdash;
     <span class="t">Blocks</span>, <span class="t">Types</span>, <span class="t">TagTables</span>,
     <span class="t">ExternalSources</span>, <span class="t">TechnologicalObjects</span> &mdash;

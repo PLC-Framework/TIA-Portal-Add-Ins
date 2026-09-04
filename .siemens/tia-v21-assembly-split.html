@@ -229,13 +229,13 @@ flowchart TB
 subgraph BASE["Siemens.Engineering.Base &nbsp;&mdash;&nbsp; 1,382 types"]
   direction TB
   TP["TiaPortal"]
-  PB["ProjectBase (abstract)"]
+  PB["ProjectBase (base)"]
   PR["Project"]
-  HO["HardwareObject (abstract)"]
-  DEV["Device (abstract)"]
-  DI["DeviceItem (abstract)"]
+  HO["HardwareObject (base)"]
+  DEV["Device"]
+  DI["DeviceItem"]
   SC["SoftwareContainer (service)"]
-  SW["Software (abstract)"]
+  SW["Software (base)"]
   IEO["IEngineeringObject"]
   NI["NotificationIcon"]
 end
@@ -243,8 +243,8 @@ end
 subgraph STEP7["Siemens.Engineering.Step7 &nbsp;&mdash;&nbsp; 228 types"]
   direction TB
   PS["PlcSoftware"]
-  PBG["PlcBlockGroup (abstract)"]
-  PBK["PlcBlock (abstract)"]
+  PBG["PlcBlockGroup (base)"]
+  PBK["PlcBlock (base)"]
   PUP["PlcUnitProvider (service)"]
   PU["PlcUnit"]
 end
@@ -333,6 +333,82 @@ CMA --> CIF
 </section>
 
 <section>
+  <h2>How the sixteen depend on each other</h2>
+  <p class="sub">
+    Every Siemens-to-Siemens reference, read from each assembly's own
+    <span class="t">GetReferencedAssemblies()</span>. <span class="t">Contract</span> is drawn
+    separately because thirteen of the sixteen reference it and the edges would bury everything else.
+  </p>
+
+  <figure>
+    <div class="plate">
+<pre class="mermaid">
+%%{init: {'theme':'neutral', 'themeVariables': {'fontFamily':'IBM Plex Mono, monospace','fontSize':'13px'}}}%%
+flowchart LR
+
+BASE["Base<br/>1,382"]
+STEP7["Step7<br/>228"]
+SAFETY["Safety<br/>18"]
+SAFEVAL["SafetyValidation<br/>19"]
+STARTDRIVE["Startdrive<br/>64"]
+CFC["CFC<br/>2"]
+DCC["DCC<br/>66"]
+TCG["TeamcenterGateway<br/>20"]
+WCC["WinCC<br/>65"]
+WCCEXT["WinCC.Extension<br/>4"]
+WCCU["WinCCUnified<br/>536"]
+
+ADDINBASE["AddIn.Base<br/>71"]
+ADDINSTEP7["AddIn.Step7<br/>10"]
+ADDINSAFETY["AddIn.Safety<br/>6"]
+ADDINUTIL["AddIn.Utilities<br/>2"]
+ADDINPERM["AddIn.Permissions<br/>2"]
+
+STEP7 --> BASE
+SAFEVAL --> BASE
+CFC --> BASE
+DCC --> BASE
+TCG --> BASE
+WCCU --> BASE
+WCC --> BASE
+SAFETY --> BASE
+STARTDRIVE --> BASE
+ADDINBASE --> BASE
+
+SAFETY --> STEP7
+STARTDRIVE --> STEP7
+WCC --> WCCEXT
+
+ADDINSTEP7 --> ADDINBASE
+ADDINSAFETY --> ADDINBASE
+ADDINSTEP7 --> BASE
+ADDINSAFETY --> BASE
+ADDINUTIL --> ADDINPERM
+</pre>
+    </div>
+    <figcaption>
+      Arrows point at what an assembly depends on. <b><span class="t">Base</span> is the hub</b> &mdash;
+      ten of the fifteen others reference it directly &mdash; and only three second-level dependencies
+      exist in the whole product: <span class="t">Safety</span> and <span class="t">Startdrive</span>
+      on <span class="t">Step7</span>, and <span class="t">WinCC</span> on
+      <span class="t">WinCC.Extension</span>.
+    </figcaption>
+  </figure>
+
+  <div class="note">
+    <span class="tag">The island worth noticing</span>
+    <p>
+      <span class="t">AddIn.Utilities</span> depends on <span class="t">AddIn.Permissions</span> and
+      on <b>nothing else</b> &mdash; not on <span class="t">Base</span>, not even on
+      <span class="t">Contract</span>. Those two assemblies form a closed pair, which is why
+      <span class="t">Process</span> can be used without dragging the object model in, and why the
+      public-key-token trap further down is so easy to walk into: the type has no other coupling to
+      betray which version you are compiling against.
+    </p>
+  </div>
+</section>
+
+<section>
   <h2>What to reference</h2>
   <p class="sub">The practical consequence, and it inverts between the two versions.</p>
 
@@ -360,6 +436,176 @@ CMA --> CIF
       opposite instinct.
     </p>
   </div>
+</section>
+
+<section>
+  <h2>Inside Step7: what a block actually is</h2>
+  <p class="sub">
+    The full inheritance tree under <span class="t">PlcBlock</span>, with the members each level
+    contributes. Two branches, four levels, and one of them exists purely to classify.
+  </p>
+
+  <figure>
+    <div class="plate">
+<pre class="mermaid">
+%%{init: {'theme':'neutral', 'themeVariables': {'fontFamily':'IBM Plex Mono, monospace','fontSize':'13px'}}}%%
+classDiagram
+direction TB
+
+class PlcBlock {
+  +String Name
+  +Int32 Number
+  +String Namespace
+  +ProgrammingLanguage ProgrammingLanguage
+  +MemoryLayout MemoryLayout
+  +Boolean AutoNumber
+  +Boolean IsConsistent
+  +Boolean IsKnowHowProtected
+  +MultilingualText Title
+  +Version HeaderVersion
+  +Int64 LoadMemoryLength
+  +Int64 WorkMemoryLength
+  +DateTime CompileDate
+}
+
+class CodeBlock
+class OB {
+  +String SecondaryType
+}
+class FB
+class FC
+
+class DataBlock {
+  +PlcBlockInterface Interface
+}
+class GlobalDB
+class InstanceDB {
+  +String InstanceOfName
+}
+class ArrayDB
+class TechnologicalInstanceDB
+
+PlcBlock &lt;|-- CodeBlock
+PlcBlock &lt;|-- DataBlock
+CodeBlock &lt;|-- OB
+CodeBlock &lt;|-- FB
+CodeBlock &lt;|-- FC
+DataBlock &lt;|-- GlobalDB
+DataBlock &lt;|-- InstanceDB
+DataBlock &lt;|-- ArrayDB
+InstanceDB &lt;|-- TechnologicalInstanceDB
+</pre>
+    </div>
+    <figcaption>
+      <b><span class="t">CodeBlock</span> declares no members of its own.</b> It exists to separate
+      executable code from data, and nothing more &mdash; every property you use on an
+      <span class="t">FB</span> is inherited straight from <span class="t">PlcBlock</span>.
+      <span class="t">DataBlock</span> earns its place by adding exactly one thing,
+      <span class="t">Interface</span>.
+    </figcaption>
+  </figure>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Type</th><th>Derives from</th><th>Adds</th><th>Is</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="t">PlcBlock</span></td><td><span class="t">Object</span></td><td>25 properties &mdash; everything common to every block</td><td>the root</td></tr>
+      <tr><td><span class="t">CodeBlock</span></td><td><span class="t">PlcBlock</span></td><td>nothing</td><td>a classification only</td></tr>
+      <tr><td><span class="t">OB</span></td><td><span class="t">CodeBlock</span></td><td><span class="t">SecondaryType</span></td><td>organisation block</td></tr>
+      <tr><td><span class="t">FB</span></td><td><span class="t">CodeBlock</span></td><td>nothing declared</td><td>function block</td></tr>
+      <tr><td><span class="t">FC</span></td><td><span class="t">CodeBlock</span></td><td>nothing declared</td><td>function</td></tr>
+      <tr><td><span class="t">DataBlock</span></td><td><span class="t">PlcBlock</span></td><td><span class="t">Interface</span> &mdash; a <span class="t">PlcBlockInterface</span></td><td>the DB branch</td></tr>
+      <tr><td><span class="t">GlobalDB</span></td><td><span class="t">DataBlock</span></td><td>nothing declared</td><td>global DB</td></tr>
+      <tr><td><span class="t">InstanceDB</span></td><td><span class="t">DataBlock</span></td><td><span class="t">InstanceOfName</span></td><td>instance DB</td></tr>
+      <tr><td><span class="t">ArrayDB</span></td><td><span class="t">DataBlock</span></td><td>nothing declared</td><td>array DB</td></tr>
+      <tr><td><span class="t">TechnologicalInstanceDB</span></td><td><span class="t">InstanceDB</span></td><td>&mdash;</td><td><b>a technology object is an instance DB</b></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <span class="tag">The one that surprises people</span>
+    <p>
+      <span class="t">TechnologicalInstanceDB</span> is <b>not</b> a sibling of the other DB kinds:
+      it derives from <span class="t">InstanceDB</span>, one level deeper. So a
+      <span class="t">is InstanceDB</span> test matches technology objects too, and any code that
+      means "instance DBs but not technology objects" has to say so explicitly. It also lives in a
+      different namespace, <span class="t">SW.TechnologicalObjects</span>, while staying in the same
+      assembly.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>The group families, all seven</h2>
+  <p class="sub">
+    The same shape repeats for every kind of content a PLC holds, and once for devices up in
+    <span class="t">Base</span>. Learn it once and six more come free.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Concern</th><th>Base class</th><th>The fixed root</th><th>The engineer's folders</th><th>Assembly</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Blocks</td><td><span class="t">PlcBlockGroup</span></td><td><span class="t">PlcBlockSystemGroup</span></td><td><span class="t">PlcBlockUserGroup</span></td><td><span class="t">Step7</span></td></tr>
+      <tr><td>Types</td><td><span class="t">PlcTypeGroup</span></td><td><span class="t">PlcTypeSystemGroup</span></td><td><span class="t">PlcTypeUserGroup</span></td><td><span class="t">Step7</span></td></tr>
+      <tr><td>Tag tables</td><td><span class="t">PlcTagTableGroup</span></td><td><span class="t">PlcTagTableSystemGroup</span></td><td><span class="t">PlcTagTableUserGroup</span></td><td><span class="t">Step7</span></td></tr>
+      <tr><td>External sources</td><td><span class="t">PlcExternalSourceGroup</span></td><td><span class="t">PlcExternalSourceSystemGroup</span></td><td><span class="t">PlcExternalSourceUserGroup</span></td><td><span class="t">Step7</span></td></tr>
+      <tr><td>Watch &amp; force</td><td><span class="t">PlcWatchAndForceTableGroup</span></td><td><span class="t">PlcWatchAndForceTableSystemGroup</span></td><td><span class="t">PlcWatchAndForceTableUserGroup</span></td><td><span class="t">Step7</span></td></tr>
+      <tr><td>Technology objects</td><td><span class="t">TechnologicalInstanceDBGroup</span></td><td><span class="t">TechnologicalInstanceDBSystemGroup</span></td><td><span class="t">TechnologicalInstanceDBUserGroup</span></td><td><span class="t">Step7</span></td></tr>
+      <tr><td>Devices</td><td><span class="t">DeviceGroup</span></td><td><span class="t">DeviceSystemGroup</span></td><td><span class="t">DeviceUserGroup</span></td><td><span class="t">Base</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    Seven for seven, with no exceptions in V21 &mdash; the split into a system group and a user
+    group holds every time, and the recursion (<span class="t">Groups</span>) always sits on the
+    base class, so one recursive walk serves both kinds.
+  </p>
+</section>
+
+<section>
+  <h2>Inheritance that crosses assemblies</h2>
+  <p class="sub">
+    Where the split is stitched back together: 64 public types derive from a base living in a
+    different DLL.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>From</th><th>Into</th><th class="num">Types</th><th>Examples</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="t">Step7</span></td><td><span class="t">Base</span></td><td class="num">27</td><td><span class="t">PlcSoftware : Software</span>, <span class="t">CodeBlockLibraryType : LibraryType</span>, the download configurations</td></tr>
+      <tr><td><span class="t">WinCC</span></td><td><span class="t">Base</span></td><td class="num">15</td><td><span class="t">HmiTarget : Software</span>, the faceplate and script library types</td></tr>
+      <tr><td><span class="t">Startdrive</span></td><td><span class="t">Base</span></td><td class="num">10</td><td><span class="t">DriveObjectContainer : DeviceItemFeature</span></td></tr>
+      <tr><td><span class="t">DCC</span></td><td><span class="t">Base</span></td><td class="num">3</td><td><span class="t">DccException : EngineeringTargetInvocationException</span></td></tr>
+      <tr><td><span class="t">Startdrive</span></td><td><span class="t">Step7</span></td><td class="num">3</td><td><span class="t">EncoderHardwareConnectionSDRProvider</span></td></tr>
+      <tr><td><span class="t">WinCCUnified</span></td><td><span class="t">Base</span></td><td class="num">2</td><td><span class="t">HmiSoftware : Software</span></td></tr>
+      <tr><td><span class="t">Safety</span></td><td><span class="t">Base</span></td><td class="num">1</td><td><span class="t">SafetyProgram : DownloadSelectionConfiguration</span></td></tr>
+      <tr><td><span class="t">TeamcenterGateway</span></td><td><span class="t">Base</span></td><td class="num">1</td><td><span class="t">TcGatewayException</span></td></tr>
+      <tr><td><span class="t">AddIn.Step7</span></td><td><span class="t">AddIn.Base</span></td><td class="num">1</td><td><span class="t">CaxWorkflowContext : WorkflowContext</span></td></tr>
+      <tr><td><span class="t">AddIn.Safety</span></td><td><span class="t">AddIn.Base</span></td><td class="num">1</td><td><span class="t">SafetyCompileContext : WorkflowContext</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    The three <span class="t">Software</span> subclasses are the clearest case:
+    <span class="t">Software</span> is declared in <span class="t">Base</span>, and its three
+    implementations land in three <em>different</em> assemblies &mdash;
+    <span class="t">PlcSoftware</span> in <span class="t">Step7</span>,
+    <span class="t">HmiTarget</span> in <span class="t">WinCC</span>,
+    <span class="t">HmiSoftware</span> in <span class="t">WinCCUnified</span>. That is why
+    <span class="t">SoftwareContainer.Software</span> can hand you back a type from an assembly you
+    never referenced, and why the cast has to be guarded.
+  </p>
 </section>
 
 <section>
@@ -392,6 +638,55 @@ CMA --> CIF
     version costs so little: the adapters end up nearly identical, and the difference is an
     assembly reference rather than a rewrite.
   </p>
+
+  <h2 style="margin-top:44px">The members stayed &mdash; <span class="t" style="font-size:.8em">abstract</span> did not</h2>
+  <p class="sub">
+    Same properties, same base classes, and yet the object model is declared differently. This one
+    is invisible in a member-by-member comparison, which is exactly why it is worth stating.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Type</th><th>V20</th><th>V21</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="t">ProjectBase</span></td><td><span class="badge">abstract</span></td><td>concrete</td></tr>
+      <tr><td><span class="t">HardwareObject</span></td><td><span class="badge">abstract</span></td><td>concrete</td></tr>
+      <tr><td><span class="t">Device</span></td><td><span class="badge">abstract</span></td><td>concrete</td></tr>
+      <tr><td><span class="t">DeviceItem</span></td><td><span class="badge">abstract</span></td><td>concrete</td></tr>
+      <tr><td><span class="t">DeviceGroup</span></td><td><span class="badge">abstract</span></td><td>concrete</td></tr>
+      <tr><td><span class="t">Software</span></td><td><span class="badge">abstract</span></td><td>concrete</td></tr>
+      <tr><td><span class="t">DeviceItemFeature</span></td><td><span class="badge">abstract</span></td><td>concrete</td></tr>
+      <tr><td><span class="t">PlcBlock</span>, <span class="t">CodeBlock</span>, <span class="t">DataBlock</span></td><td><span class="badge">abstract</span></td><td>concrete</td></tr>
+      <tr><td><span class="t">PlcBlockGroup</span>, <span class="t">PlcTypeGroup</span></td><td><span class="badge">abstract</span></td><td>concrete</td></tr>
+      <tr><td><span class="t">PlcUnitBase</span></td><td><span class="badge">abstract</span></td><td>concrete</td></tr>
+      <tr class="core"><td><span class="t">ProjectTreeAddInProvider</span>, <span class="t">ContextMenuAddIn</span>, <span class="t">MenuSelectionProvider</span>, <span class="t">ActionItem</span></td><td><span class="badge">abstract</span></td><td><span class="badge">abstract</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    It is not a handful of types. Counting every public class:
+    <b>V20 declares 90 abstract classes out of 1,128; V21 declares 35 out of 1,254.</b>
+    The modifier was dropped across the object model while the class count went up.
+  </p>
+
+  <div class="note">
+    <span class="tag">The line the change respects</span>
+    <p>
+      The Add-In infrastructure kept every one of its abstract classes &mdash; the highlighted row
+      above. So this is not a blanket edit: <b>the types you inherit from are still abstract, and the
+      types you receive are no longer</b>. Which is coherent, since nothing was ever meant to
+      subclass <span class="t">Device</span> from outside.
+    </p>
+    <p>
+      Practically it changes little, because you never construct these anyway: there are no public
+      constructors and objects come from compositions. It matters if you reflect over the API, if
+      you generate code from it, or if you wrote a test double by deriving from
+      <span class="t">Device</span> &mdash; which V20 forbade and V21 quietly allows.
+    </p>
+  </div>
 
   <h2 style="margin-top:44px">&hellip; except <span class="t" style="font-size:.8em">ProjectBase</span></h2>
   <p class="sub">Four properties leave, one arrives. None of this is a rename.</p>
