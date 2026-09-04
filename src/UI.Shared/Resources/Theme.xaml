@@ -8,10 +8,27 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Color x:Key="BrandColor">#E22D50</Color>
-    <Color x:Key="BrandDarkColor">#B11A39</Color>
+    <Color x:Key="BrandColorTop">#E22D50</Color>
+    <Color x:Key="BrandColorBottom">#B11A39</Color>
+    <Color x:Key="DarkThemeColorTop">#4D576C</Color>
+    <Color x:Key="DarkThemeColorBottom">#1E232A</Color>
+    
+    <SolidColorBrush x:Key="BrandBrushTop" Color="{StaticResource BrandColorTop}" />
+    <SolidColorBrush x:Key="BrandBrushBottom" Color="{StaticResource BrandColorBottom}" />
 
-    <SolidColorBrush x:Key="BrandBrush" Color="{StaticResource BrandColor}" />
-    <SolidColorBrush x:Key="BrandDarkBrush" Color="{StaticResource BrandDarkColor}" />
+    <SolidColorBrush x:Key="DarkThemeBrushTop" Color="{StaticResource DarkThemeColorTop}" />
+    <SolidColorBrush x:Key="DarkThemeBrushBottom" Color="{StaticResource DarkThemeColorBottom}" />
+
+    <!--
+        Window background. Vertical on purpose: StartPoint and EndPoint are relative to the
+        bounding box by default, so 0,0 to 0,1 is top to bottom whatever the window's size.
+
+        Lighter at the top, which is where the logo sits, so the mark keeps its contrast
+        while the text below settles onto the darker end.
+    -->
+    <LinearGradientBrush x:Key="DarkThemeGradientBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="{StaticResource DarkThemeColorTop}" />
+        <GradientStop Offset="1" Color="{StaticResource DarkThemeColorBottom}" />
+    </LinearGradientBrush>
 
 </ResourceDictionary>

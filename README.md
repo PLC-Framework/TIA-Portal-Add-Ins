@@ -30,6 +30,7 @@ The **VM** does require TIA Portal and the user to belong to the local **"Siemen
 ```
 tia-portal-addins.slnx
 ├── assets/                   shared binary assets, grouped by feature (see below)
+├── .siemens/                 reflected reference for the Openness API (see below)
 └── src/
     ├── Core/                 (net48, AnyCPU) — model, no host types at all          ← EXISTS
     ├── AddIn.Shared/         (net48, AnyCPU) — the Add-In layer, NO Siemens          ← EXISTS
@@ -257,9 +258,43 @@ The path is parameterized in the `.csproj` through `$(SiemensPublicApi)`, so it 
 dotnet build src\AddIn.V20\AddIn.V20.csproj -p:SiemensPublicApi=D:\some\other\path
 ```
 
+### The reflected reference in `.siemens\`
+
+Two self-contained HTML pages, generated from the assemblies themselves rather than from documentation, and kept in the repo precisely because the assemblies cannot be:
+
+| File | Covers |
+|---|---|
+| `tia-v20-object-model.html` | the V20 object model as `Siemens.Engineering.AddIn.dll` declares it — the spine from `TiaPortal` down to a block group, the system/user group pattern, software units, and the Add-In surface |
+| `tia-v21-assembly-split.html` | which of the sixteen V21 assemblies declares what, what an Add-In has to reference, and every shape difference found against V20 |
+
+They open in any browser and render their class diagrams from a pinned mermaid build. **Neither contains Siemens code** — only type names, member names and counts read with `GetExportedTypes()`, which is what lets them live in the repo when the DLLs they describe may not.
+
+Both record where Siemens' own published object-model diagram is incomplete: it omits `ProjectBase` and `HardwareObject` entirely, and attributes their properties to `Project` and `Device` instead.
+
 ### V17–V20 vs V21
 
-V17 through V20 share the same Openness API and are binary compatible. **V21 introduces breaking changes**: up to V20 the API is monolithic (`Siemens.Engineering.dll`, `Siemens.Engineering.AddIn.dll`), whereas in V21 the assemblies are split apart (`Siemens.Engineering.Base.dll`, `.Step7.dll`, `.WinCC.dll`, `.WinCCUnified.dll`, `.Safety.dll`, `.CFC.dll`, `.DCC.dll`, `.Startdrive.dll`, `.TeamcenterGateway.dll`, and on the Add-In side `Siemens.Engineering.AddIn.Base.dll` / `.Step7.dll` / `.Safety.dll`).
+V17 through V20 share the same Openness API and are binary compatible. **V21 introduces breaking changes**: up to V20 the API is monolithic, whereas V21 splits it into **sixteen assemblies**. Read from `V21\net48\` with `GetExportedTypes()`:
+
+| Assembly | Types | Carries |
+|---|---:|---|
+| `Base` | 1,382 | the whole object model: `TiaPortal`, `Project`, `Device`, `DeviceItem`, `Software`, `IEngineeringObject`, `NotificationIcon`, `ExclusiveAccess` |
+| `WinCCUnified` | 536 | Unified HMI, including `HmiSoftware` |
+| `Step7` | 228 | everything under `SW.*` — `PlcSoftware`, blocks, types, tags, software units |
+| `AddIn.Base` | 71 | Add-In infrastructure only: providers, menus, `MessageBoxProvider` |
+| `DCC` | 66 | drive control charts |
+| `WinCC` | 65 | classic HMI, including `HmiTarget` |
+| `Startdrive` | 64 | drive commissioning |
+| `TeamcenterGateway` | 20 | PLM integration |
+| `SafetyValidation` | 19 | safety validation reports |
+| `Safety` | 18 | F-programs |
+| `AddIn.Step7` | 10 | Add-In hooks specific to STEP 7 |
+| `AddIn.Safety` | 6 | Add-In hooks specific to safety |
+| `WinCC.Extension` | 4 | HMI extension points |
+| `AddIn.Utilities` | 2 | `Process` and `ProcessStartInfo` |
+| `AddIn.Permissions` | 2 | the permission attributes |
+| `CFC` | 2 | continuous function charts |
+
+**2,495 public types and not one name collision** — every full type name appears in exactly one assembly, which is the structural reason V21 never needs an `extern alias`. All sixteen are version `21.0.0.0` with public key token `29bfe5fdf4ba5d3b`.
 
 **There is no `Siemens.Engineering.dll` in V21.** Hence the need for two separate projects.
 
@@ -305,7 +340,7 @@ Since `Siemens.Engineering.AddIn.dll` already carries the whole object model, re
 
 `IEngineeringObject` exists exactly once, in `Siemens.Engineering.Base.dll`. Nothing is duplicated, so referencing both assemblies is not only safe but required, and the `extern alias` problem simply does not arise.
 
-> Watch out: `Siemens.Engineering.AddIn.Base.dll` declares a dependency on `Siemens.Engineering.Contract`, and that DLL is **not present** in the local `V21\net48\` copy. It has not blocked anything so far, but a *"is defined in an assembly that is not referenced"* error would mean it needs copying from a TIA V21 installation.
+> **Two referenced assemblies are missing from `V21\net48\`.** `Siemens.Engineering.Contract` is referenced by **13 of the 16** — not only by `AddIn.Base` — and `Siemens.Engineering.ClientAdapter.Interfaces` by `Base`. Neither has blocked a build so far, because the compiler only needs a referenced assembly when one of its types appears in a signature the code actually touches. The failure to recognise is *"is defined in an assembly that is not referenced"*, and the fix is to copy the DLL out of a TIA V21 installation — Openness does not ship it.
 
 ## Packaging and deployment
 
@@ -552,6 +587,18 @@ _tiaPortal.GetService<MessageBoxProvider>()
 `GetService<T>()` returns `null` when the service is unavailable — worth guarding in real actions.
 
 This is precisely the kind of difference that justifies a port in `AddIn.Shared` — `ITiaNotifier.Info(caption, message)` — implemented once per version, so the rest of the code never learns that the difference exists.
+
+**`ProjectBase` lost four properties and gained one.** Compared declared property by declared property, seven of the eight spine types are identical across versions — `TiaPortal`, `HardwareObject`, `DeviceItem`, `SoftwareContainer`, `PlcSoftware`, `PlcBlockGroup` and `PlcUnitBase` all keep the same surface *and* the same base class. `ProjectBase` is the exception:
+
+| Property | In V21 |
+|---|---|
+| `Graphics` | **removed** — `MultiLingualGraphic` and its composition exist nowhere in the sixteen assemblies |
+| `PlantViews` | **removed** — likewise, no `PlantView` and no `PlantViewComposition` |
+| `IsSimulationDuringBlockCompilationEnabled` | **removed** |
+| `IsVirtualPlcDuringBlockCompilationEnabled` | **removed** |
+| `TextCategories` | **added** — returns `TextCategoryComposition`, declared in `Base` |
+
+These are removals rather than relocations: the types themselves are gone. Code touching `project.Graphics` or `project.PlantViews` fails to compile against V21, which is the good outcome; the bad one is a V20 Add-In still shipping those calls and nobody noticing until someone opens V21.
 
 **Assembly identity, where the source is identical.** This one is easy to miss, because there is nothing to see in the code. `Siemens.Engineering.AddIn.Utilities` exposes the very same `Process` wrapper in both versions — same namespace, same type, same members, verified by reflection — but the assembly is signed with a **different public key token**:
 

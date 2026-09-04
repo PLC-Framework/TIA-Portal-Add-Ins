@@ -5,3 +5,4 @@ obj/
 .example/
 .claude/
 .tmp/
+.vscode/

@@ -133,6 +133,10 @@ The menu and provider API is identical across versions, but the two are **not so
 
 A different kind of divergence, and easier to miss because the source is identical, is the public key token of `Siemens.Engineering.AddIn.Utilities` — see *Sharing code between `AddIn.V20` and `AddIn.V21`* above.
 
+**The class shapes barely moved.** Seven of the eight spine types are identical across versions, base class included; only `ProjectBase` differs, having **lost `Graphics`, `PlantViews` and the two block-compilation flags** and gained `TextCategories`. Those are removals, not relocations — `MultiLingualGraphic` and `PlantView` exist nowhere in V21. Any migrated V20 code touching them stops compiling.
+
+**`.siemens\` holds the reflected reference** for both versions, generated from the assemblies with `GetExportedTypes()`. Consult it before asserting anything about the Openness API, and regenerate rather than hand-edit. It carries type names and counts only, no Siemens code, which is why it can be committed when the DLLs cannot.
+
 ### `config.json` pipeline — designed, not yet built
 
 `config.json` has **two producers** (a future WPF satellite with a UI, and the user editing by hand) and **one consumer** (the Add-In). Decisions taken:

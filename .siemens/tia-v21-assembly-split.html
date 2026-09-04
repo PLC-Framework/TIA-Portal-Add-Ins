@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html { color-scheme: light dark; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>TIA V21 Assembly Split</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@600;700&display=swap">
+<style>
+  :root {
+    --ground:      #F6F7FA;
+    --surface:     #FFFFFF;
+    --plate:       #FBFAF6;
+    --plate-edge:  #CFD3DC;
+    --ink:         #10151F;
+    --ink-soft:    #4B566B;
+    --ink-faint:   #7B8699;
+    --rule:        #D8DDE7;
+    --accent:      #2C5F8A;
+    --accent-soft: #E4EDF5;
+    --abstract:    #8A5A16;
+    --abstract-bg: #F6EEE1;
+    --warn:        #A5342C;
+    --warn-bg:     #F9E9E7;
+    --gone:        #6E4B8A;
+    --gone-bg:     #F0EAF6;
+    --shadow:      0 1px 2px rgba(16,21,31,.06), 0 8px 24px -12px rgba(16,21,31,.2);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0D1117;
+      --surface:     #161C26;
+      --plate:       #FBFAF6;
+      --plate-edge:  #333C4A;
+      --ink:         #E4E9F1;
+      --ink-soft:    #A4AEC0;
+      --ink-faint:   #78849A;
+      --rule:        #242D3A;
+      --accent:      #6FA9D6;
+      --accent-soft: #14232F;
+      --abstract:    #D5A053;
+      --abstract-bg: #2B2415;
+      --warn:        #E8867B;
+      --warn-bg:     #2E1A18;
+      --gone:        #B394D6;
+      --gone-bg:     #241C30;
+      --shadow:      0 1px 2px rgba(0,0,0,.45), 0 8px 24px -12px rgba(0,0,0,.65);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:      #0D1117;
+    --surface:     #161C26;
+    --plate:       #FBFAF6;
+    --plate-edge:  #333C4A;
+    --ink:         #E4E9F1;
+    --ink-soft:    #A4AEC0;
+    --ink-faint:   #78849A;
+    --rule:        #242D3A;
+    --accent:      #6FA9D6;
+    --accent-soft: #14232F;
+    --abstract:    #D5A053;
+    --abstract-bg: #2B2415;
+    --warn:        #E8867B;
+    --warn-bg:     #2E1A18;
+    --gone:        #B394D6;
+    --gone-bg:     #241C30;
+    --shadow:      0 1px 2px rgba(0,0,0,.45), 0 8px 24px -12px rgba(0,0,0,.65);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px; line-height: 1.6;
+    margin: 0; padding: 0 20px 96px;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+
+  header {
+    display: flex; flex-direction: column; gap: 20px;
+    padding: 56px 0 28px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; font-weight: 500;
+    letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 {
+    font-family: "IBM Plex Serif", Georgia, serif;
+    font-size: clamp(30px, 5vw, 46px);
+    font-weight: 700; line-height: 1.1;
+    margin: 0; text-wrap: balance;
+  }
+  .standfirst { font-size: 18px; color: var(--ink-soft); max-width: 62ch; margin: 0; }
+
+  .provenance {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 1px; background: var(--rule);
+    border: 1px solid var(--rule); margin: 32px 0 0;
+  }
+  .provenance div { background: var(--surface); padding: 12px 14px; }
+  .provenance dt {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 4px;
+  }
+  .provenance dd {
+    margin: 0; font-size: 13.5px; font-weight: 500;
+    font-variant-numeric: tabular-nums; overflow-wrap: break-word;
+  }
+  @media (max-width: 620px) { .provenance { grid-template-columns: repeat(2, 1fr); } }
+
+  section { padding-top: 52px; }
+  h2 {
+    font-family: "IBM Plex Serif", Georgia, serif;
+    font-size: 26px; font-weight: 600; line-height: 1.2;
+    margin: 0 0 6px; text-wrap: balance;
+  }
+  .sub { color: var(--ink-soft); max-width: 68ch; margin: 0 0 20px; font-size: 15.5px; }
+  p { max-width: 68ch; }
+
+  code, .t { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .88em; }
+  .t { color: var(--accent); font-weight: 500; }
+  code { background: var(--accent-soft); padding: 1px 5px; border-radius: 3px; }
+
+  figure { margin: 0 0 8px; }
+  .plate {
+    background: var(--plate); border: 1px solid var(--plate-edge);
+    box-shadow: var(--shadow); overflow-x: auto; padding: 22px 18px;
+  }
+  .plate pre.mermaid { margin: 0; min-width: min-content; }
+  figcaption { font-size: 13px; color: var(--ink-faint); padding-top: 10px; max-width: 72ch; }
+  figcaption b { color: var(--ink-soft); font-weight: 600; }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    padding: 14px 18px; margin: 24px 0;
+  }
+  .note.trap { border-left-color: var(--warn); background: var(--warn-bg); }
+  .note p { margin: 0; max-width: 66ch; }
+  .note p + p { margin-top: 10px; }
+  .note .tag {
+    display: block; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 6px; font-weight: 600;
+  }
+  .note.trap .tag { color: var(--warn); }
+
+  .scroll { overflow-x: auto; margin: 20px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td {
+    text-align: left; padding: 9px 14px 9px 0;
+    border-bottom: 1px solid var(--rule); vertical-align: top;
+  }
+  th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 500;
+    border-bottom-color: var(--ink-soft); white-space: nowrap;
+  }
+  td:first-child { white-space: nowrap; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; padding-right: 24px; }
+  tr.core td { background: var(--accent-soft); }
+
+  .badge {
+    display: inline-block; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .05em; padding: 1px 6px;
+    border-radius: 2px; font-weight: 600;
+    background: var(--abstract-bg); color: var(--abstract);
+  }
+  .badge.gone { background: var(--gone-bg); color: var(--gone); }
+  .badge.new  { background: var(--accent-soft); color: var(--accent); }
+
+  ul { max-width: 68ch; padding-left: 20px; }
+  li { margin-bottom: 8px; }
+  li::marker { color: var(--accent); }
+
+  footer {
+    margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--rule);
+    font-size: 13px; color: var(--ink-faint); max-width: 72ch;
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">Siemens Openness &middot; extracted by reflection</span>
+  <h1>Sixteen assemblies where V20 had one</h1>
+  <p class="standfirst">
+    V21 keeps almost every class shape intact and moves nearly all of them to a different file.
+    That makes the interesting question not <em>what exists</em> but <em>what declares it</em> &mdash;
+    which is what decides your references, and what breaks a binary that compiled fine.
+  </p>
+
+  <dl class="provenance">
+    <div><dt>Folder</dt><dd>PublicAPI\V21\net48\</dd></div>
+    <div><dt>Assemblies</dt><dd>16</dd></div>
+    <div><dt>Public types</dt><dd>2,495</dd></div>
+    <div><dt>Name collisions</dt><dd>0</dd></div>
+    <div><dt>Version / token</dt><dd>21.0.0.0 &middot; 29bfe5fdf4ba5d3b</dd></div>
+    <div><dt>Read on</dt><dd>2026-09-04</dd></div>
+  </dl>
+</header>
+
+<section>
+  <h2>Where the spine went</h2>
+  <p class="sub">
+    Same objects, same navigation, three different files. Nothing below changed shape in the move
+    &mdash; only its address did.
+  </p>
+
+  <figure>
+    <div class="plate">
+<pre class="mermaid">
+%%{init: {'theme':'neutral', 'themeVariables': {'fontFamily':'IBM Plex Mono, monospace','fontSize':'13px'}}}%%
+flowchart TB
+
+subgraph BASE["Siemens.Engineering.Base &nbsp;&mdash;&nbsp; 1,382 types"]
+  direction TB
+  TP["TiaPortal"]
+  PB["ProjectBase (abstract)"]
+  PR["Project"]
+  HO["HardwareObject (abstract)"]
+  DEV["Device (abstract)"]
+  DI["DeviceItem (abstract)"]
+  SC["SoftwareContainer (service)"]
+  SW["Software (abstract)"]
+  IEO["IEngineeringObject"]
+  NI["NotificationIcon"]
+end
+
+subgraph STEP7["Siemens.Engineering.Step7 &nbsp;&mdash;&nbsp; 228 types"]
+  direction TB
+  PS["PlcSoftware"]
+  PBG["PlcBlockGroup (abstract)"]
+  PBK["PlcBlock (abstract)"]
+  PUP["PlcUnitProvider (service)"]
+  PU["PlcUnit"]
+end
+
+subgraph WCC["WinCC / WinCCUnified"]
+  direction TB
+  HT["HmiTarget"]
+  HS["HmiSoftware"]
+end
+
+subgraph ADDIN["Siemens.Engineering.AddIn.Base &nbsp;&mdash;&nbsp; 71 types"]
+  direction TB
+  PTAP["ProjectTreeAddInProvider"]
+  CMA["ContextMenuAddIn"]
+  CIF["ChildItemFactory"]
+  MBP["MessageBoxProvider"]
+end
+
+TP --> PR
+PB -.-> PR
+PR --> DEV
+HO -.-> DEV
+HO -.-> DI
+DEV --> DI
+DI --> SC
+SC --> SW
+SW -.-> PS
+SW -.-> HT
+SW -.-> HS
+PS --> PBG
+PBG --> PBK
+PS --> PUP
+PUP --> PU
+PTAP --> CMA
+CMA --> CIF
+</pre>
+    </div>
+    <figcaption>
+      Solid arrows are navigation, dashed are inheritance. <b>The whole object model sits in
+      <span class="t">Base</span>; everything PLC-shaped sits in <span class="t">Step7</span>.</b>
+      That boundary is the one to remember: the moment your code touches a
+      <span class="t">PlcBlock</span> or a software unit, you need a second reference.
+    </figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>The sixteen assemblies</h2>
+  <p class="sub">
+    Counted with <span class="t">GetExportedTypes()</span> across every DLL in the folder.
+    The four an Add-In is likely to reference are highlighted.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Assembly</th><th class="num">Types</th><th>Carries</th></tr>
+    </thead>
+    <tbody>
+      <tr class="core"><td><span class="t">Base</span></td><td class="num">1,382</td><td>the entire object model &mdash; <span class="t">TiaPortal</span>, <span class="t">Project</span>, <span class="t">Device</span>, <span class="t">DeviceItem</span>, <span class="t">Software</span>, <span class="t">IEngineeringObject</span>, <span class="t">NotificationIcon</span>, <span class="t">ExclusiveAccess</span></td></tr>
+      <tr><td><span class="t">WinCCUnified</span></td><td class="num">536</td><td>the Unified HMI world, including <span class="t">HmiSoftware</span></td></tr>
+      <tr class="core"><td><span class="t">Step7</span></td><td class="num">228</td><td>everything under <span class="t">SW.*</span> &mdash; <span class="t">PlcSoftware</span>, blocks, types, tags, software units</td></tr>
+      <tr class="core"><td><span class="t">AddIn.Base</span></td><td class="num">71</td><td>the Add-In infrastructure and nothing else: providers, menus, <span class="t">MessageBoxProvider</span></td></tr>
+      <tr><td><span class="t">DCC</span></td><td class="num">66</td><td>drive control charts</td></tr>
+      <tr><td><span class="t">WinCC</span></td><td class="num">65</td><td>classic HMI, including <span class="t">HmiTarget</span></td></tr>
+      <tr><td><span class="t">Startdrive</span></td><td class="num">64</td><td>drive commissioning</td></tr>
+      <tr><td><span class="t">TeamcenterGateway</span></td><td class="num">20</td><td>PLM integration</td></tr>
+      <tr><td><span class="t">SafetyValidation</span></td><td class="num">19</td><td>safety validation reports</td></tr>
+      <tr><td><span class="t">Safety</span></td><td class="num">18</td><td>F-programs</td></tr>
+      <tr><td><span class="t">AddIn.Step7</span></td><td class="num">10</td><td>Add-In hooks specific to STEP 7</td></tr>
+      <tr><td><span class="t">AddIn.Safety</span></td><td class="num">6</td><td>Add-In hooks specific to safety</td></tr>
+      <tr><td><span class="t">WinCC.Extension</span></td><td class="num">4</td><td>HMI extension points</td></tr>
+      <tr class="core"><td><span class="t">AddIn.Utilities</span></td><td class="num">2</td><td><span class="t">Process</span> and <span class="t">ProcessStartInfo</span> &mdash; two types, and one of the sharpest edges in the API</td></tr>
+      <tr><td><span class="t">AddIn.Permissions</span></td><td class="num">2</td><td>the permission attributes</td></tr>
+      <tr><td><span class="t">CFC</span></td><td class="num">2</td><td>continuous function charts</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    <b>2,495 public types, and not one name collision.</b> Every full type name appears in exactly
+    one assembly. That is the structural reason V21 never needs an <span class="t">extern alias</span>,
+    where V20 does the moment you add <span class="t">Siemens.Engineering.dll</span> alongside the
+    Add-In assembly and end up with two incompatible <span class="t">IEngineeringObject</span> types.
+  </p>
+</section>
+
+<section>
+  <h2>What to reference</h2>
+  <p class="sub">The practical consequence, and it inverts between the two versions.</p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>To use</th><th>V20 reference</th><th>V21 reference</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Menus, providers</td><td><span class="t">AddIn</span></td><td><span class="t">AddIn.Base</span></td></tr>
+      <tr><td><span class="t">TiaPortal</span>, <span class="t">Project</span>, <span class="t">Device</span></td><td><span class="t">AddIn</span> &mdash; already inside it</td><td><span class="t">Base</span> &mdash; a second reference</td></tr>
+      <tr><td><span class="t">PlcSoftware</span>, <span class="t">PlcBlock</span>, units</td><td><span class="t">AddIn</span> &mdash; already inside it</td><td><span class="t">Step7</span> &mdash; a third reference</td></tr>
+      <tr><td>Launching an executable</td><td><span class="t">AddIn.Utilities</span></td><td><span class="t">AddIn.Utilities</span></td></tr>
+      <tr><td>HMI</td><td><span class="t">Hmi</span></td><td><span class="t">WinCC</span> or <span class="t">WinCCUnified</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <span class="tag">The inversion, in one line</span>
+    <p>
+      In V20 the Add-In assembly is <b>fat</b>: 2,269 types, the object model bundled in, and adding
+      a second reference is what breaks you. In V21 it is <b>thin</b>: 71 types of pure
+      infrastructure, and you <em>must</em> add more references or nothing compiles. Same goal,
+      opposite instinct.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>The shapes did not change</h2>
+  <p class="sub">
+    Declared properties compared member by member between the V20 assembly and the V21 one that
+    now owns each type.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Type</th><th>Base class</th><th>Declared properties</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="t">TiaPortal</span></td><td>Object</td><td>identical</td></tr>
+      <tr><td><span class="t">HardwareObject</span></td><td>Object</td><td>identical</td></tr>
+      <tr><td><span class="t">DeviceItem</span></td><td><span class="t">HardwareObject</span></td><td>identical</td></tr>
+      <tr><td><span class="t">SoftwareContainer</span></td><td><span class="t">DeviceItemFeature</span></td><td>identical</td></tr>
+      <tr><td><span class="t">PlcSoftware</span></td><td><span class="t">Software</span></td><td>identical</td></tr>
+      <tr><td><span class="t">PlcBlockGroup</span></td><td>Object</td><td>identical</td></tr>
+      <tr><td><span class="t">PlcUnitBase</span></td><td>Object</td><td>identical</td></tr>
+      <tr><td><span class="t">ProjectBase</span></td><td>Object</td><td><b>differs &mdash; see below</b></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    Seven of eight are byte-for-byte the same surface. This is why a port with one adapter per
+    version costs so little: the adapters end up nearly identical, and the difference is an
+    assembly reference rather than a rewrite.
+  </p>
+
+  <h2 style="margin-top:44px">&hellip; except <span class="t" style="font-size:.8em">ProjectBase</span></h2>
+  <p class="sub">Four properties leave, one arrives. None of this is a rename.</p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Property</th><th>Status</th><th>Detail</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="t">Graphics</span></td>
+        <td><span class="badge gone">removed</span></td>
+        <td><span class="t">MultiLingualGraphic</span> and its composition do not exist anywhere in V21 &mdash; the type is gone, not relocated.</td>
+      </tr>
+      <tr>
+        <td><span class="t">PlantViews</span></td>
+        <td><span class="badge gone">removed</span></td>
+        <td>Likewise: no <span class="t">PlantView</span>, no <span class="t">PlantViewComposition</span> in any of the sixteen assemblies.</td>
+      </tr>
+      <tr>
+        <td><span class="t">IsSimulationDuringBlockCompilationEnabled</span></td>
+        <td><span class="badge gone">removed</span></td>
+        <td rowspan="2">Both compilation flags are gone from <span class="t">ProjectBase</span>.</td>
+      </tr>
+      <tr>
+        <td><span class="t">IsVirtualPlcDuringBlockCompilationEnabled</span></td>
+        <td><span class="badge gone">removed</span></td>
+      </tr>
+      <tr>
+        <td><span class="t">TextCategories</span></td>
+        <td><span class="badge new">added</span></td>
+        <td>Returns <span class="t">TextCategoryComposition</span>, declared in <span class="t">Base</span>.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note trap">
+    <span class="tag">Silent at compile time only if you are lucky</span>
+    <p>
+      Code touching <span class="t">project.Graphics</span> or <span class="t">project.PlantViews</span>
+      fails to compile against V21 &mdash; which is the good outcome. The bad one is a V20 Add-In
+      still shipping those calls and nobody noticing until someone opens V21.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>The message box</h2>
+  <p class="sub">
+    The one divergence that actually bites in day-one code, because both versions have a message box
+    and neither reaches it the same way.
+  </p>
+
+  <figure>
+    <div class="plate">
+<pre class="mermaid">
+%%{init: {'theme':'neutral', 'themeVariables': {'fontFamily':'IBM Plex Mono, monospace','fontSize':'13px'}}}%%
+classDiagram
+direction LR
+
+class TiaPortal {
+  +GetService() T
+}
+class IEngineeringServiceProvider {
+  &lt;&lt;interface&gt;&gt;
+}
+class MessageBoxProvider {
+  +ShowNotification(NotificationIcon, String, String)
+  +ShowNotification(NotificationIcon, String, String, String)
+  +ShowConfirmation(ConfirmationIcon, String, String, ConfirmationChoices, ConfirmationResult)
+  +Dispose()
+}
+class IEngineeringService {
+  &lt;&lt;interface&gt;&gt;
+}
+
+IEngineeringServiceProvider &lt;|.. TiaPortal
+IEngineeringService &lt;|.. MessageBoxProvider
+TiaPortal ..&gt; MessageBoxProvider : GetService()
+</pre>
+    </div>
+    <figcaption>
+      V20 has an extension method, <span class="t">tiaPortal.GetMessageBox()</span>, returning a type
+      called <span class="t">MessageBox</span>. <b>Neither exists in V21.</b> The replacement goes
+      through the service mechanism, and <span class="t">GetService</span> can return
+      <span class="t">null</span> &mdash; so the V21 path needs a guard the V20 path never did.
+    </figcaption>
+  </figure>
+
+  <div class="note">
+    <span class="tag">Why this argues for a port</span>
+    <p>
+      Two lines of difference, in a call every action makes. Hidden behind one interface
+      &mdash; <span class="t">Info(caption, message)</span> &mdash; with one implementation per
+      version, and no other file in the codebase ever learns that the versions disagree.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>Two references that are not in the folder</h2>
+  <p class="sub">Read from every assembly's own reference list, then checked against the directory.</p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Missing assembly</th><th class="num">Referenced by</th><th>Which</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="t">Siemens.Engineering.Contract</span></td>
+        <td class="num">13 of 16</td>
+        <td><span class="t">AddIn.Base</span>, <span class="t">AddIn.Safety</span>, <span class="t">AddIn.Step7</span>, <span class="t">Base</span>, <span class="t">CFC</span>, <span class="t">DCC</span>, <span class="t">Safety</span>, <span class="t">SafetyValidation</span>, <span class="t">Startdrive</span>, <span class="t">Step7</span>, <span class="t">TeamcenterGateway</span>, <span class="t">WinCC</span>, <span class="t">WinCCUnified</span></td>
+      </tr>
+      <tr>
+        <td><span class="t">Siemens.Engineering.ClientAdapter.Interfaces</span></td>
+        <td class="num">1 of 16</td>
+        <td><span class="t">Base</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    Neither has blocked a build so far, because the compiler only needs a referenced assembly when a
+    type from it appears in a signature you actually touch. The failure mode to recognise, if it
+    ever comes, is <em>"is defined in an assembly that is not referenced"</em> &mdash; and the fix is
+    to copy the missing DLL out of a TIA V21 installation, not to hunt for it in the Openness folder,
+    where it is not shipped.
+  </p>
+</section>
+
+<section>
+  <h2>Same name, same members, incompatible binary</h2>
+  <p class="sub">
+    The sharpest edge in the whole comparison, and the one with nothing in the source to warn you.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead>
+      <tr><th></th><th>V20</th><th>V21</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Assembly name</td><td><span class="t">Siemens.Engineering.AddIn.Utilities</span></td><td><span class="t">Siemens.Engineering.AddIn.Utilities</span></td></tr>
+      <tr><td>Type</td><td><span class="t">Utilities.Process</span></td><td><span class="t">Utilities.Process</span></td></tr>
+      <tr><td>Members</td><td colspan="2">identical &mdash; <span class="t">Start</span> in four overloads, redirected stdio, <span class="t">Exited</span>, <span class="t">WaitForExit</span></td></tr>
+      <tr><td>Public key token</td><td><span class="t">65b871d8372d6a8f</span></td><td><span class="t">29bfe5fdf4ba5d3b</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note trap">
+    <span class="tag">Compiles once, loads once</span>
+    <p>
+      Everything about this type matches except the signature on the file that holds it. A single
+      compiled binary binds to one identity and fails to load in the other host, so
+      <b>source-identical code still has to be compiled twice</b>.
+    </p>
+    <p>
+      The token is uniform across V21: all sixteen assemblies are
+      <span class="t">21.0.0.0</span> / <span class="t">29bfe5fdf4ba5d3b</span>. It is the version
+      boundary that separates identities, not the assembly boundary.
+    </p>
+  </div>
+</section>
+
+<footer>
+  Read from the sixteen assemblies in
+  <span class="t">.lib\Siemens\PublicAPI\V21\net48\</span> and, for comparison, from
+  <span class="t">V20.addIn\Siemens.Engineering.AddIn.dll</span>, on 2026-09-04 via
+  <span class="t">GetExportedTypes()</span>, <span class="t">GetProperties()</span> and
+  <span class="t">GetReferencedAssemblies()</span>. Type counts fall back to the loadable subset
+  where a missing dependency prevents a full load. Property comparisons are declared-only, so an
+  inherited member is attributed to the class that declares it. Siemens assemblies require an
+  Openness licence and are not redistributable.
+</footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.6.0/mermaid.min.js"></script>
+<script>
+  // The artifact viewer renders mermaid natively; a plain browser does not, so the
+  // standalone copy loads and starts it itself. Everything else is identical.
+  mermaid.initialize({ startOnLoad: true, securityLevel: 'loose' });
+</script>
+</body>
+</html>

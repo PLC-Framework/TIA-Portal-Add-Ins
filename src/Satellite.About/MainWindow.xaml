@@ -7,7 +7,7 @@
         Height="360" Width="420"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
-        Background="White"
+        Background="{StaticResource DarkThemeGradientBrush}"
         SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display">
 
@@ -26,7 +26,7 @@
 
         <TextBlock Grid.Row="1"
                    Text="{x:Static core:Product.Title}"
-                   Foreground="{StaticResource BrandBrush}"
+                   Foreground="{StaticResource BrandBrushTop}"
                    FontSize="30"
                    FontWeight="SemiBold"
                    HorizontalAlignment="Center"
@@ -34,7 +34,7 @@
 
         <TextBlock Grid.Row="2"
                    Text="A very Platypus-like framework for designing modern PLC programs!"
-                   Foreground="#555555"
+                   Foreground="#FFFFFFFF"
                    FontSize="14"
                    TextWrapping="Wrap"
                    TextAlignment="Center"
