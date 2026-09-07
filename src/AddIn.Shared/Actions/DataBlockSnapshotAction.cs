@@ -73,8 +73,12 @@ namespace AddIn.Shared.Actions
         /// Windows paths, and a project directory is full of backslashes - exactly what a
         /// hand-rolled writer gets wrong. This also keeps the Add-In free of the JSON
         /// package the satellite uses, which must never load inside TIA's process.
+        ///
+        /// Public so it can be exercised on its own, including inside a restricted
+        /// AppDomain: TIA runs Add-Ins in partial trust, and that is not something to
+        /// find out about from a crash report.
         /// </summary>
-        internal static string Payload(string projectDirectory, PlcSelection selection)
+        public static string Payload(string projectDirectory, PlcSelection selection)
         {
             HandoffPayload payload = new HandoffPayload
             {
@@ -101,29 +105,6 @@ namespace AddIn.Shared.Actions
             string[] copy = new string[values.Count];
             for (int i = 0; i < values.Count; i++) copy[i] = values[i];
             return copy;
-        }
-
-        [DataContract]
-        internal sealed class HandoffPlc
-        {
-            [DataMember(Name = "name")]
-            public string Name { get; set; }
-
-            [DataMember(Name = "addresses")]
-            public string[] Addresses { get; set; }
-        }
-
-        [DataContract]
-        internal sealed class HandoffPayload
-        {
-            [DataMember(Name = "projectDirectory")]
-            public string ProjectDirectory { get; set; }
-
-            [DataMember(Name = "plc")]
-            public HandoffPlc Plc { get; set; }
-
-            [DataMember(Name = "dataBlocks")]
-            public string[] DataBlocks { get; set; }
         }
     }
 }

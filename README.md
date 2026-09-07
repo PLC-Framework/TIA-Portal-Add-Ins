@@ -540,6 +540,64 @@ robocopy "src\Satellite.About\bin\Debug\net48" "C:\ProgramData\PLC-Framework\too
 
 Creating `C:\ProgramData\PLC-Framework\` needs elevation once. To test without it, point `PLC_FRAMEWORK_HOME` at any folder holding a `tools\`, and **restart TIA Portal afterwards** — a running process does not see an environment variable created after it started.
 
+### Partial trust, and what it forbids
+
+**TIA runs an Add-In in a restricted sandbox.** That is not a footnote: it decides what the
+Add-In half of the framework may do, and it fails at run time with no hint at compile time.
+
+It surfaced as a `System.Security.SecurityException` out of
+`DataContractJsonSerializer.WriteObject`:
+
+```
+The data contract type 'AddIn.Shared.Actions.DataBlockSnapshotAction+HandoffPayload'
+is not serializable in partial trust because it is not public.
+```
+
+The types were `internal`, nested inside the action. Serialization in partial trust needs
+a **visible** type — public, and public all the way out of any nesting. Moving them to
+top-level public types in their own file fixed it.
+
+The lesson generalises past serialization: **anything reflective is likelier to be denied
+inside TIA than outside it**, and the failure arrives as a crash report from the field
+rather than a red squiggle. It can be reproduced here, though, which is much cheaper than a
+round trip to the VM:
+
+```csharp
+PermissionSet permissions = new PermissionSet(PermissionState.None);
+permissions.AddPermission(new SecurityPermission(SecurityPermissionFlag.Execution));
+AppDomain sandbox = AppDomain.CreateDomain("partial-trust", null, setup, permissions);
+```
+
+That is the tightest partial trust there is, so code that survives it survives TIA.
+
+> **Building fails while TIA has the Add-In loaded.** If the VM reaches `bin\Debug\net48`
+> through a shared folder, the Publisher cannot overwrite the `.addin` and the build stops
+> with `MSB3073`. The Restart Manager names `vmware-vmx.exe` as the owner. Close TIA, or
+> copy the package somewhere else before loading it.
+
+### Reading a CPU's addresses out of the project
+
+The satellite cannot ask TIA anything, so the Add-In gathers the addresses and hands them
+over. Two things about that walk are not obvious, and both are verified on the VM:
+
+**The interface is not on the item that owns the software.** A CPU's network interface is a
+separate child device item — "PROFINET interface_1" and the like — so the whole device has
+to be walked. Asking `GetService<NetworkInterface>()` on the item that carries the
+`PlcSoftware` finds nothing.
+
+**The IP is an attribute of the node, not a typed property.** `HW.Address` is a different
+thing entirely — an I/O address, with a start and a length — and reaching for it here is
+the obvious wrong turn. The path is:
+
+```csharp
+DeviceItem.GetService<NetworkInterface>()   // per device item, walking the whole device
+    .Nodes                                   // NodeComposition
+    .GetAttribute("Address")                 // confirmed: the attribute is called "Address"
+```
+
+Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are filtered out
+by shape, so the drop-down only offers things worth pointing a browser at.
+
 ### How the Add-In launches one
 
 `AboutAction` is the worked example and the shape generalises:
