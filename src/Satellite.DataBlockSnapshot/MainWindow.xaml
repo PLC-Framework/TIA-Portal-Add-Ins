@@ -287,6 +287,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <TextBlock Grid.Column="0" Text="Folder" Style="{StaticResource FieldLabel}" />
@@ -294,6 +295,12 @@
             <Button    Grid.Column="2" x:Name="BrowseButton" Content="..." Width="34"
                        Margin="8,0,0,0" Padding="0,4" Style="{StaticResource Quiet}"
                        Click="OnBrowseFolder" />
+            <!-- Stays enabled during a capture: it only looks, and watching the files
+                 appear is exactly when an operator wants it. -->
+            <Button    Grid.Column="3" x:Name="OpenFolderButton" Content="Open" Width="70"
+                       Margin="8,0,0,0" Padding="0,4" Style="{StaticResource Quiet}"
+                       ToolTip="Open the destination folder in Explorer"
+                       Click="OnOpenFolder" />
         </Grid>
 
         <!-- Actions -->

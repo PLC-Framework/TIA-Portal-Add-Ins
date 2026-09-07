@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -66,6 +68,42 @@ namespace Satellite.DataBlockSnapshot
 
                 if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                     FolderBox.Text = dialog.SelectedPath;
+            }
+        }
+
+        /// <summary>
+        /// Show the destination in Explorer.
+        ///
+        /// The folder is not created here, on purpose: an "open" that silently makes a
+        /// directory is a surprise, and before the first capture there is nothing in it
+        /// to look at anyway. Creating it is the capture's job, and it does that before
+        /// reading rather than after.
+        /// </summary>
+        private void OnOpenFolder(object sender, RoutedEventArgs e)
+        {
+            string folder = FolderBox.Text.Trim();
+
+            if (string.IsNullOrEmpty(folder))
+            {
+                StatusLine.Text = "Choose a destination folder first.";
+                return;
+            }
+
+            if (!Directory.Exists(folder))
+            {
+                StatusLine.Text = "That folder does not exist yet: " + folder;
+                return;
+            }
+
+            try
+            {
+                // UseShellExecute is what makes this open a window rather than try to
+                // run the directory as a program.
+                Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
+            }
+            catch (Exception exception)
+            {
+                StatusLine.Text = "The folder could not be opened: " + exception.Message;
             }
         }
 
