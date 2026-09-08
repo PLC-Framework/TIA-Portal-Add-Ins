@@ -60,6 +60,8 @@ src/S7PlcWebserverApi/
 ```
 src/Satellite.DataBlockSnapshot/
 ├── Satellite.DataBlockSnapshot.csproj   references Core, UI.Shared, S7PlcWebserverApi
+├── Credentials/
+│   └── CredentialStore.cs    per-user, DPAPI-protected, keyed by project + PLC name
 └── Export/
     ├── Snapshot.cs           one capture: rows, read window, truncation
     ├── XlsxExporter.cs       typed cells, one sheet of values plus one of provenance
@@ -819,6 +821,66 @@ default. The rules it follows are all about the file being trustworthy later:
 
 Verified with the OpenXML SDK's own validator — zero errors — and by reading the package
 XML back: 990 numeric cells, 499 boolean, 126 string, none omitted.
+
+### Remembering the web server credentials
+
+Capturing settings across a plant means launching this window many times in an afternoon,
+and the CPU's web server wants a user and a password every time. They are therefore
+remembered — but where, and under what rule, is the whole of the design:
+
+```
+%LOCALAPPDATA%\PLC-Framework\credentials.json
+```
+
+```jsonc
+{
+  "entries": [
+    { "project":  "E:\\proyectos\\Planta1",
+      "plc":      "PLC_1",
+      "address":  "192.168.0.20",
+      "user":     "webclient",
+      "password": "AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAA…" }   // DPAPI, CurrentUser
+  ]
+}
+```
+
+**Keyed by project directory plus PLC name, because one TIA project routinely holds ten
+CPUs and each has its own user and password.** Any design keyed by project alone — a pair
+in `.env`, a pair in `config.json` — has ten CPUs overwriting each other, and two open
+projects overwriting each other again. Both keys already arrive in the handoff, so the
+Add-In needed no change. The device name is the key rather than the address because a CPU
+can be readdressed and has several addresses anyway; the address is the fallback for a
+window started by hand, where no project handed a name over.
+
+**Not inside the TIA project.** That was the first instinct — next to the exports, in
+`.plc-framework\` — and it is wrong for one reason: TIA projects are under version control,
+`.version-control\` sitting right beside it, so a credential file there reaches a commit or
+a zipped copy eventually. Per user, outside the project, is what makes that impossible.
+
+**The password is DPAPI-protected at `CurrentUser` scope**, with application entropy so a
+protected blob from some other program cannot be pasted in and decrypted. State the
+consequence plainly: **the file does not travel.** Another user, or the same project on
+another station, gets nothing back and the credentials are typed once more. That is the
+price of not having a shared key — and a key baked into the executable would not be
+encryption but obfuscation, which is worse than plaintext because it looks safe.
+
+**Nothing is stored until the CPU has accepted the credentials.** `CaptureRunner.Run` takes
+an `authenticated` callback and invokes it on the line after `client.Login()`, so a wrong
+password never reaches disk and never has to be removed from it. The runner itself knows
+nothing about credential storage; it only reports that the login went through.
+
+A *Remember* checkbox sits on the same row as the user and the password, ticked already
+when something is stored for that CPU; its tooltip carries the full sentence the label has
+no room for. Unticking it and capturing **forgets** the entry, which is what unticking
+means. It starts unticked on a CPU never captured before: storing a password nobody asked
+to store is not a good default. The timeout moved down to a row of its own, right-aligned —
+it is a setting one touches once, and giving it a column beside the credentials was what
+squeezed the two fields that matter.
+
+**The store never throws.** A corrupt file, a blob written by another Windows user, a
+missing folder — every one of them degrades to "nothing remembered" and the window opens
+normally. A credential cache that breaks the application it exists to smooth would be worse
+than no cache.
 
 ## Prior reference project
 

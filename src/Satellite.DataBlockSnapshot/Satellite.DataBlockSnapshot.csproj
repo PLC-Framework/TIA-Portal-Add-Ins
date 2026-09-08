@@ -32,6 +32,9 @@
        an SDK-style net48 project does not reference the framework assemblies on its own. -->
   <ItemGroup>
     <Reference Include="System.Windows.Forms" />
+    <!-- ProtectedData - DPAPI - for the remembered web server passwords. Same story:
+         System.Security is not part of the default net48 reference set. -->
+    <Reference Include="System.Security" />
   </ItemGroup>
   
 </Project>

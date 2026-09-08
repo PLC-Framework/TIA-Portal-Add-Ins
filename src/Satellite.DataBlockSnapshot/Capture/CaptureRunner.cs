@@ -53,15 +53,23 @@ namespace Satellite.DataBlockSnapshot.Capture
     /// </summary>
     public static class CaptureRunner
     {
+        /// <param name="authenticated">
+        /// Called once, on this thread, the moment the CPU has accepted the credentials -
+        /// and never if it has not. That distinction is the whole point: it is what lets
+        /// the caller remember a password only when it is known to be the right one. The
+        /// runner itself stays ignorant of what the caller does with the news.
+        /// </param>
         public static void Run(
             CaptureSettings settings,
             IProgress<CaptureProgress> progress,
-            CancellationToken cancellation)
+            CancellationToken cancellation,
+            Action authenticated = null)
         {
             using (PlcClient client = new PlcClient(
                        settings.Address, settings.User, settings.Password, settings.Timeout))
             {
                 client.Login();
+                authenticated?.Invoke();
 
                 // One call, before anything long starts. The block names came out of a TIA
                 // project and the operator may be pointing at a different CPU entirely;

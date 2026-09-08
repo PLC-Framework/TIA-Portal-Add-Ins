@@ -124,8 +124,11 @@ seconds an acceptable way to take a "snapshot".
   project directory arrives in the handoff; `Core.Config.ConfigPaths` owns the literals so
   the Add-In and the satellite cannot drift apart. Check the folder exists and is writable
   *before* reading, not after thirty seconds of work.
-- **Credentials are typed on every launch and never persisted.** The PLC address is an
-  editable combo box filled from the project's own addresses.
+- **Credentials are remembered per Windows user, keyed by project directory + PLC name,**
+  in `%LOCALAPPDATA%\PLC-Framework\credentials.json`, with the password protected by DPAPI
+  at `CurrentUser` scope. Written **only after the CPU has accepted them**, so a typo is
+  never stored. The PLC address is an editable combo box filled from the project's own
+  addresses. See the credential note below.
 - **One PLC per instance**; several blocks of it per run. Several PLCs means several
   windows, which decision 6 now allows.
 - **The blocks are only the ones the Add-In passed.** The satellite does not offer to
@@ -137,6 +140,57 @@ seconds an acceptable way to take a "snapshot".
 - **The request timeout is a field in the window**, not a constant.
 - Running with no handoff at all must keep working, with everything typed by hand. That
   mode is how every layer below the window was verified without TIA installed.
+
+#### Remembering credentials — settled 2026-09-07
+
+A capture session is an hour of launches, and retyping a web server password per launch is
+the friction that made this necessary. Four designs were rejected before this one, and the
+reasons are worth keeping because each looks reasonable until one fact lands on it:
+
+| Rejected | Why |
+|---|---|
+| Windows Credential Manager | a second store to manage, and nothing else in the framework uses it |
+| `.env` with `PLC_USER` / `PLC_PASSWORD` | **one TIA project holds N CPUs, each with its own user and password.** Two open projects, or ten CPUs in one, and a single pair is overwritten |
+| the same pair in `config.json` | same defect, and `config.json` is versioned |
+| reusing one window for several captures | decision 6 deliberately allows several instances; one window per PLC is the point |
+
+**The mechanism came from the operator, and it is the better half of the design: the
+credentials are learned from use, not written by hand.** What changed was the location.
+The first proposal put `tmp.json` inside the TIA project, at
+`.plc-framework\tmp\` — but a TIA project is under version control (`.version-control\`
+sits right next to `.plc-framework\`), so a credential file there reaches a commit or a
+zipped copy sooner or later. Hence:
+
+```
+%LOCALAPPDATA%\PLC-Framework\credentials.json     per user, never versioned
+```
+
+- **Keyed by project directory + PLC name.** Both already arrive in the handoff, so the
+  Add-In needed no change at all. The device name is the key rather than the address
+  because a CPU can be readdressed and has several addresses anyway; the address is the
+  fallback for a window started by hand, where no project handed a name over.
+- **The password is DPAPI-protected at `CurrentUser` scope**, with application entropy so a
+  blob from another program cannot be dropped in and decrypted. The blunt consequence:
+  **it does not travel.** Another user, or another machine, gets nothing back and types the
+  credentials again. That is the price of not having a shared key, and **a key baked into
+  the `.exe` is not encryption but obfuscation — worse than plaintext, because it looks
+  safe.**
+- **Saved only after `client.Login()` succeeds**, never on clicking Capture. `CaptureRunner`
+  takes an `authenticated` callback it invokes on the line after the login and nowhere
+  else; the runner stays ignorant of credential storage. A wrong password is therefore
+  never persisted, and never has to be un-persisted.
+- **A *Remember* checkbox next to the password**, pre-ticked when something is already
+  stored for that CPU. Unticking it and capturing **forgets** the stored entry — that is
+  what unticking means. It starts unticked on a CPU never captured before: storing a
+  password nobody asked to store is not a default worth having.
+- **Nothing in the store throws.** A corrupt file, a blob written by another user, a
+  missing directory: all return "nothing remembered" and the window opens normally. A
+  credential cache that breaks the application it exists to smooth is worse than none.
+- **The fields stay editable and show exactly what was loaded**, so the window looks the
+  same as if the operator had typed it.
+
+This leaves `.env` and `${VAR}` expansion untouched as pending work — they are still what
+`${GITHUB_TOKEN}` in `config.json` needs, and that one genuinely is a shared team secret.
 
 ### Sharing code between `AddIn.V20` and `AddIn.V21`
 
@@ -173,6 +227,15 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
 - [x] The XLSX exporter in `Satellite.DataBlockSnapshot`, checked with the OpenXML SDK's own validator (0 errors) and by inspecting the package XML: typed cells, invariant numbers, and no omitted cell that could pass for an unread value.
 - [x] `Satellite.DataBlockSnapshot` complete: window, handoff, capture and export. Its layers were each verified against two real CPUs from PowerShell, without TIA.
 - [x] **The whole chain validated in TIA on the VM (2026-09-04)**: menu entry on a multiple selection of data blocks → `TiaPlcSelection` gathers the CPU and its addresses → JSON over the child's standard input → the satellite opens with everything filled in. This is what proves `RedirectStandardInput` survives partial trust.
+- [x] **Credentials remembered per user and per CPU** (2026-09-07), so an hour of captures
+      is not an hour of typing. Exercised here: ten CPUs of one project each keeping their
+      own pair, the same CPU name in two projects not colliding, re-saving not duplicating,
+      passwords with quotes and newlines surviving the round trip, a corrupt file and a
+      foreign DPAPI blob both degrading to "nothing remembered", and the window itself
+      opening pre-filled with the box ticked. **Not yet verified against a CPU that
+      *rejects* the credentials** — both test PLCs were off the network that day, so only
+      the connection-failure path was seen to skip the save. Same code path either way, but
+      it deserves one run when the network is back.
 - [ ] `IPC` — not started, and now unlikely ever to be: decision 5 settles the handoff on stdio.
 
 ### The first NuGet dependencies (2026-09-04)

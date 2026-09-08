@@ -234,16 +234,16 @@
                 <ColumnDefinition Width="*" />      <!-- address, user     -->
                 <ColumnDefinition Width="Auto" />   <!-- Password label    -->
                 <ColumnDefinition Width="*" />      <!-- password          -->
-                <ColumnDefinition Width="Auto" />   <!-- Timeout label     -->
-                <ColumnDefinition Width="70" />     <!-- timeout           -->
+                <ColumnDefinition Width="Auto" />   <!-- Remember          -->
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Grid.Column="0" Text="PLC" Style="{StaticResource FieldLabel}" />
-            <ComboBox  Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="5"
+            <ComboBox  Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="4"
                        x:Name="AddressBox" IsEditable="True" Margin="0,0,0,9" />
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="User" Style="{StaticResource FieldLabel}" />
@@ -252,8 +252,23 @@
             <TextBlock Grid.Row="1" Grid.Column="2" Text="Password" Style="{StaticResource FieldLabel}" />
             <PasswordBox Grid.Row="1" Grid.Column="3" x:Name="PasswordBox" Margin="0,0,16,0" />
 
-            <TextBlock Grid.Row="1" Grid.Column="4" Text="Timeout (s)" Style="{StaticResource FieldLabel}" />
-            <TextBox   Grid.Row="1" Grid.Column="5" x:Name="TimeoutBox" Text="30" />
+            <!-- Beside the password, because that is what it is about. Ticking it only
+                 states an intention: nothing is stored until the CPU has actually
+                 accepted the credentials, so a typo is never remembered. -->
+            <CheckBox Grid.Row="1" Grid.Column="4" x:Name="RememberBox"
+                      VerticalAlignment="Center"
+                      Content="Remember"
+                      Foreground="{StaticResource InkMuted}"
+                      ToolTip="Remember this user and password for this PLC. Kept for this Windows user only, in %LOCALAPPDATA%\PLC-Framework, and saved only after a successful login." />
+
+            <!-- Its own row, right-aligned: the timeout is a setting one touches once, not
+                 part of the credentials, and giving it a fixed column of its own was what
+                 squeezed the two fields that matter. -->
+            <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="5"
+                        Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,9,0,0">
+                <TextBlock Text="Timeout (s)" Style="{StaticResource FieldLabel}" />
+                <TextBox x:Name="TimeoutBox" Text="30" Width="70" />
+            </StackPanel>
         </Grid>
 
         <TextBlock Grid.Row="2" Text="Data blocks" Margin="0,20,0,6"

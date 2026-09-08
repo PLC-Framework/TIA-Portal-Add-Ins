@@ -14,6 +14,7 @@ using Core.Config;
 using S7PlcWebserverApi;
 
 using Satellite.DataBlockSnapshot.Capture;
+using Satellite.DataBlockSnapshot.Credentials;
 using Satellite.DataBlockSnapshot.Export;
 using Satellite.DataBlockSnapshot.Handoff;
 
@@ -24,11 +25,16 @@ namespace Satellite.DataBlockSnapshot
         private readonly ObservableCollection<DataBlockItem> _blocks =
             new ObservableCollection<DataBlockItem>();
 
+        /// <summary>Kept because the credential store is keyed by project and CPU.</summary>
+        private readonly SnapshotRequest _request;
+
         private CancellationTokenSource _cancellation;
 
         public MainWindow(SnapshotRequest request)
         {
             InitializeComponent();
+
+            _request = request;
 
             BlockList.ItemsSource = _blocks;
 
@@ -43,9 +49,39 @@ namespace Satellite.DataBlockSnapshot
 
             ProjectLine.Text = Describe(request);
 
-            StatusLine.Text = _blocks.Count == 0
+            string blocks = _blocks.Count == 0
                 ? "No data blocks were handed over. Start this from the Add-In, with the blocks selected in the project tree."
                 : string.Format(CultureInfo.CurrentCulture, "{0} data block(s) ready.", _blocks.Count);
+
+            StatusLine.Text = Recall() ? blocks + "  Credentials remembered." : blocks;
+        }
+
+        /// <summary>
+        /// Fill in what was last used successfully against this CPU.
+        ///
+        /// The fields stay editable and show exactly what was loaded, so nothing is being
+        /// done behind the operator's back - the window looks the same as if they had
+        /// typed it. A capture session is an hour of these, and retyping a password per
+        /// launch is the friction this removes.
+        /// </summary>
+        private bool Recall()
+        {
+            Credential stored = CredentialStore.Find(
+                _request.ProjectDirectory, _request.PlcName, AddressBox.Text);
+
+            if (stored == null) return false;
+
+            UserBox.Text = stored.User ?? string.Empty;
+            PasswordBox.Password = stored.Password;
+            RememberBox.IsChecked = true;
+
+            // The address that last worked, but only if the project still offers it. An
+            // address the CPU no longer has is worse than the project's own first choice.
+            if (!string.IsNullOrWhiteSpace(stored.Address) &&
+                AddressBox.Items.Contains(stored.Address))
+                AddressBox.SelectedItem = stored.Address;
+
+            return true;
         }
 
         private static string Describe(SnapshotRequest request)
@@ -151,6 +187,20 @@ namespace Satellite.DataBlockSnapshot
                 item.Detail = update.Detail;
             });
 
+            // Read here, on the dispatcher thread: the callback below runs on a worker,
+            // where touching a control would throw.
+            bool remember = RememberBox.IsChecked == true;
+            string project = _request.ProjectDirectory;
+            string plc = _request.PlcName;
+
+            Action authenticated = () =>
+            {
+                if (remember)
+                    CredentialStore.Save(project, plc, settings.Address, settings.User, settings.Password);
+                else
+                    CredentialStore.Forget(project, plc, settings.Address);
+            };
+
             _cancellation = new CancellationTokenSource();
             Working(true);
             StatusLine.Text = "Connecting...";
@@ -159,7 +209,8 @@ namespace Satellite.DataBlockSnapshot
             {
                 // PlcClient blocks and a capture runs for tens of seconds; on the
                 // dispatcher thread that would freeze the window solid.
-                await Task.Run(() => CaptureRunner.Run(settings, progress, _cancellation.Token));
+                await Task.Run(() =>
+                    CaptureRunner.Run(settings, progress, _cancellation.Token, authenticated));
 
                 StatusLine.Text = Summarise(chosen);
             }
@@ -211,6 +262,7 @@ namespace Satellite.DataBlockSnapshot
             AddressBox.IsEnabled = !busy;
             UserBox.IsEnabled = !busy;
             PasswordBox.IsEnabled = !busy;
+            RememberBox.IsEnabled = !busy;
             TimeoutBox.IsEnabled = !busy;
             FolderBox.IsEnabled = !busy;
             BrowseButton.IsEnabled = !busy;
