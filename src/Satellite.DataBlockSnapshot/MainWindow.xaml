@@ -26,14 +26,61 @@
             <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
         </Style>
 
+        <SolidColorBrush x:Key="FieldEdgeHover" Color="#7A8494" />
+
+        <!-- The chrome every typed-into field wears.
+             A plain Setter cannot reach this: the stock template repaints the border from
+             its own hardcoded brushes on hover and on focus - the Windows blue - so those
+             two states are the one part of a field that a palette cannot touch without
+             replacing the template. Same story as the editable ComboBox above.
+
+             TargetType is Control rather than TextBox so the identical chrome serves the
+             PasswordBox too. Both derive from TextBoxBase, which finds its editing surface
+             by the name PART_ContentHost, and every TemplateBinding here is to a property
+             Control already declares. -->
+        <ControlTemplate x:Key="FieldChrome" TargetType="Control">
+            <Border x:Name="Bd"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+                <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                              HorizontalScrollBarVisibility="Hidden"
+                              VerticalScrollBarVisibility="Hidden" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource FieldEdgeHover}" />
+                </Trigger>
+                <!-- The focused field is marked in the brand colour instead. It is the
+                     same brush the selection already uses, so a field being edited reads
+                     as one thing rather than two. -->
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BrandBrushTop}" />
+                </Trigger>
+                <!-- Border and text only, deliberately not the background: this same
+                     template lands on the ComboBox's own PART_EditableTextBox, which is
+                     transparent by design, and repainting it would put a solid patch
+                     inside the drop-down whenever the form is busy. -->
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter TargetName="Bd" Property="BorderBrush" Value="#454E5B" />
+                    <Setter Property="Foreground" Value="#6C7686" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
         <Style TargetType="TextBox">
             <Setter Property="Padding" Value="6,4" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Background" Value="{StaticResource Field}" />
             <Setter Property="Foreground" Value="{StaticResource Ink}" />
             <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CaretBrush" Value="{StaticResource Ink}" />
             <Setter Property="SelectionBrush" Value="{StaticResource BrandBrushTop}" />
+            <Setter Property="Template" Value="{StaticResource FieldChrome}" />
         </Style>
 
         <Style TargetType="PasswordBox">
@@ -42,7 +89,10 @@
             <Setter Property="Background" Value="{StaticResource Field}" />
             <Setter Property="Foreground" Value="{StaticResource Ink}" />
             <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CaretBrush" Value="{StaticResource Ink}" />
+            <Setter Property="SelectionBrush" Value="{StaticResource BrandBrushTop}" />
+            <Setter Property="Template" Value="{StaticResource FieldChrome}" />
         </Style>
 
         <Style TargetType="ComboBoxItem">
@@ -82,13 +132,17 @@
                                 <ColumnDefinition Width="22" />
                             </Grid.ColumnDefinitions>
 
-                            <Border Grid.ColumnSpan="2"
+                            <Border x:Name="Bd" Grid.ColumnSpan="2"
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}" />
 
+                            <!-- Padding zero on purpose. The implicit TextBox style carries
+                                 6,4 and its template now applies that inside the border,
+                                 which does not fit the fixed height above and clips the
+                                 text. The row's own margin already spaces it. -->
                             <TextBox x:Name="PART_EditableTextBox"
-                                     Grid.Column="0" Margin="5,0,0,0"
+                                     Grid.Column="0" Margin="5,0,0,0" Padding="0"
                                      Background="Transparent" BorderThickness="0"
                                      Foreground="{TemplateBinding Foreground}"
                                      CaretBrush="{TemplateBinding Foreground}"
@@ -122,6 +176,22 @@
                                 </Border>
                             </Popup>
                         </Grid>
+
+                        <!-- The same three states as a plain field, so the row of controls
+                             answers to the pointer and the keyboard as one set. -->
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource FieldEdgeHover}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BrandBrushTop}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="#2B323C" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#454E5B" />
+                                <Setter Property="Foreground" Value="#6C7686" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>

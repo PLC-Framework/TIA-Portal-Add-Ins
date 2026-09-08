@@ -916,6 +916,40 @@ Exercised through UI Automation against the running binary: the plain field is a
 the accessibility tree while collapsed, revealing shows the password the store handed back,
 and a value typed while revealed survives the round trip out to the `PasswordBox` and back.
 
+### Theming a WPF field: Setters cannot reach hover and focus
+
+Worth knowing before the next satellite repeats it. A `Style` full of `Setter`s gets a
+`TextBox` most of the way onto a dark palette — background, foreground, caret, selection —
+and then the control **repaints its own border Windows-blue on hover and on focus**, from
+brushes hardcoded inside the stock template. No `Setter` reaches those two states, because
+they are template triggers rather than properties.
+
+Replacing the `ControlTemplate` is the only fix, and one template serves every field:
+
+```xml
+<ControlTemplate x:Key="FieldChrome" TargetType="Control">
+```
+
+`TargetType="Control"` rather than `TextBox` is what lets the `PasswordBox` share it: both
+derive from `TextBoxBase`, which finds its editing surface by the name `PART_ContentHost`,
+and every `TemplateBinding` needed is to a property `Control` already declares. The focused
+field is then marked in the brand colour — the same brush the text selection already uses.
+
+Two traps came out of doing it:
+
+- **An implicit `TextBox` style reaches inside other templates.** An editable `ComboBox`
+  builds its edit area from a real `TextBox` named `PART_EditableTextBox`, so it inherits
+  the implicit style — padding included. Against the combo's fixed height that padding
+  clipped the text. `Padding="0"` on that part fixes it.
+- **For the same reason, the disabled trigger must not repaint the background.** That part
+  is transparent by design, and a solid colour there puts a patch inside the drop-down
+  whenever the form is busy. Dimming the border and the text says "disabled" perfectly
+  well.
+
+Verified by driving the real window through UI Automation — focus set per control, the
+pointer parked off-window so hover could not be confused with focus, and a capture started
+so the whole form could be seen disabled.
+
 ## Prior reference project
 
 `E:\PlcFramework\add-in-for-tia-portal\` holds an earlier Add-In with its own git repo. It is not part of this solution. Its value today is the **domain logic**, not the scaffolding — the csproj, the `Config.xml` and the Publisher cycle are solved better here:
