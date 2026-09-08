@@ -195,6 +195,59 @@
             <Setter Property="Background" Value="{StaticResource BrandBrushTop}" />
             <Setter Property="BorderBrush" Value="{StaticResource BrandBrushBottom}" />
         </Style>
+
+        <!-- The eye that reveals the password. Drawn rather than loaded: it is two paths
+             and an ellipse, and an .ico would have to be embedded, resolved and themed,
+             which is a great deal of machinery for sixteen pixels. Transparent background
+             so it reads as part of the field it floats over, and the stroke follows the
+             same brushes as everything else, so it stays right in either mood. -->
+        <Style TargetType="ToggleButton" x:Key="Reveal">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="Transparent">
+                            <Canvas Width="16" Height="14"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path x:Name="Eye"
+                                      Data="M 1,7 C 4,2.5 12,2.5 15,7 C 12,11.5 4,11.5 1,7 Z"
+                                      Stroke="{StaticResource InkMuted}" StrokeThickness="1.2" />
+                                <Ellipse x:Name="Pupil" Canvas.Left="6" Canvas.Top="5"
+                                         Width="4" Height="4" Fill="{StaticResource InkMuted}" />
+                                <!-- The strike-through, shown only while the password is
+                                     on screen: the icon states what is true now, not what
+                                     clicking would do. -->
+                                <Path x:Name="Strike" Data="M 2,12.5 L 14,1.5"
+                                      Stroke="{StaticResource InkMuted}" StrokeThickness="1.2"
+                                      Visibility="Collapsed" />
+                            </Canvas>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Strike" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Eye" Property="Stroke" Value="{StaticResource Ink}" />
+                                <Setter TargetName="Pupil" Property="Fill" Value="{StaticResource Ink}" />
+                                <Setter TargetName="Strike" Property="Stroke" Value="{StaticResource Ink}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Eye" Property="Stroke" Value="#6C7686" />
+                                <Setter TargetName="Pupil" Property="Fill" Value="#6C7686" />
+                                <Setter TargetName="Strike" Property="Stroke" Value="#6C7686" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="ToolTip" Value="Hide the password" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="20">
@@ -250,7 +303,21 @@
             <TextBox   Grid.Row="1" Grid.Column="1" x:Name="UserBox" Margin="0,0,16,0" />
 
             <TextBlock Grid.Row="1" Grid.Column="2" Text="Password" Style="{StaticResource FieldLabel}" />
-            <PasswordBox Grid.Row="1" Grid.Column="3" x:Name="PasswordBox" Margin="0,0,16,0" />
+
+            <!-- Two controls in one cell, one of them always hidden.
+                 A PasswordBox cannot reveal what it holds and its Password is not even a
+                 dependency property, so a twin TextBox is the only way; the eye swaps which
+                 one is visible and carries the text across. Both reserve room on the right
+                 for the eye, which floats over the field rather than sitting beside it. -->
+            <Grid Grid.Row="1" Grid.Column="3" Margin="0,0,16,0">
+                <PasswordBox x:Name="PasswordBox" Padding="6,4,26,4" />
+                <TextBox     x:Name="PasswordPlain" Padding="6,4,26,4" Visibility="Collapsed" />
+
+                <ToggleButton x:Name="RevealButton" Style="{StaticResource Reveal}"
+                              HorizontalAlignment="Right" Margin="0,1,2,1"
+                              ToolTip="Show the password"
+                              Checked="OnRevealChanged" Unchecked="OnRevealChanged" />
+            </Grid>
 
             <!-- Beside the password, because that is what it is about. Ticking it only
                  states an intention: nothing is stored until the CPU has actually

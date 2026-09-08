@@ -882,6 +882,40 @@ missing folder — every one of them degrades to "nothing remembered" and the wi
 normally. A credential cache that breaks the application it exists to smooth would be worse
 than no cache.
 
+### Showing the password
+
+An eye inside the password field reveals it, and that matters more once credentials are
+remembered rather than typed: when a password arrives pre-filled from the store, revealing
+it is the only way to check *which* one came back.
+
+WPF gives no help here. `PasswordBox` cannot display what it holds, and `Password` is not
+even a dependency property, so there is nothing to bind a "reveal" flag to. The shape that
+works is **twin controls in one grid cell** — the `PasswordBox` and a plain `TextBox` — with
+one of the two always `Collapsed`:
+
+```csharp
+private string CurrentPassword() =>
+    RevealButton.IsChecked == true ? PasswordPlain.Text : PasswordBox.Password;
+```
+
+Three details are what make it feel like one control rather than two:
+
+- **The text is carried across on every toggle**, in both directions, so editing while
+  revealed and then hiding does not lose the change.
+- **Focus and caret follow.** Without that, the operator carries on typing into a control
+  that is no longer on screen, which is indistinguishable from a dead keyboard.
+- **Everything else asks `CurrentPassword()`**, never either control directly, so no caller
+  has to know the value lives in two places.
+
+The icon is drawn in XAML — two paths and an ellipse — rather than loaded from an asset: an
+`.ico` would have to be embedded, resolved and themed for sixteen pixels' worth of picture.
+It shows a **struck-through eye while the password is visible**, stating what is true now
+rather than what clicking would do.
+
+Exercised through UI Automation against the running binary: the plain field is absent from
+the accessibility tree while collapsed, revealing shows the password the store handed back,
+and a value typed while revealed survives the round trip out to the `PasswordBox` and back.
+
 ## Prior reference project
 
 `E:\PlcFramework\add-in-for-tia-portal\` holds an earlier Add-In with its own git repo. It is not part of this solution. Its value today is the **domain logic**, not the scaffolding — the csproj, the `Config.xml` and the Publisher cycle are solved better here:

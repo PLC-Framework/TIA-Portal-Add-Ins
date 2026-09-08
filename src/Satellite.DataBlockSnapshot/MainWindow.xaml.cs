@@ -72,7 +72,7 @@ namespace Satellite.DataBlockSnapshot
             if (stored == null) return false;
 
             UserBox.Text = stored.User ?? string.Empty;
-            PasswordBox.Password = stored.Password;
+            SetPassword(stored.Password);
             RememberBox.IsChecked = true;
 
             // The address that last worked, but only if the project still offers it. An
@@ -92,6 +92,47 @@ namespace Satellite.DataBlockSnapshot
             if (!string.IsNullOrWhiteSpace(request.ProjectDirectory)) parts.Add(request.ProjectDirectory);
 
             return parts.Count == 0 ? "Started without a project" : string.Join("  -  ", parts);
+        }
+
+        /// <summary>
+        /// Whichever of the twin fields is on screen holds the truth. Everything else asks
+        /// through here, so no caller has to know the password is kept in two places.
+        /// </summary>
+        private string CurrentPassword() =>
+            RevealButton.IsChecked == true ? PasswordPlain.Text : PasswordBox.Password;
+
+        private void SetPassword(string password)
+        {
+            PasswordBox.Password = password ?? string.Empty;
+            PasswordPlain.Text = password ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Swap which twin is showing. The text moves across first, then the focus and the
+        /// caret - without that last part the operator is left typing into a field that is
+        /// no longer there, which looks exactly like a dead keyboard.
+        /// </summary>
+        private void OnRevealChanged(object sender, RoutedEventArgs e)
+        {
+            bool reveal = RevealButton.IsChecked == true;
+
+            if (reveal)
+            {
+                PasswordPlain.Text = PasswordBox.Password;
+                PasswordBox.Visibility = Visibility.Collapsed;
+                PasswordPlain.Visibility = Visibility.Visible;
+
+                PasswordPlain.Focus();
+                PasswordPlain.CaretIndex = PasswordPlain.Text.Length;
+            }
+            else
+            {
+                PasswordBox.Password = PasswordPlain.Text;
+                PasswordPlain.Visibility = Visibility.Collapsed;
+                PasswordBox.Visibility = Visibility.Visible;
+
+                PasswordBox.Focus();
+            }
         }
 
         private void OnBrowseFolder(object sender, RoutedEventArgs e)
@@ -167,7 +208,7 @@ namespace Satellite.DataBlockSnapshot
             {
                 Address = AddressBox.Text.Trim(),
                 User = UserBox.Text.Trim(),
-                Password = PasswordBox.Password,
+                Password = CurrentPassword(),
                 Folder = FolderBox.Text.Trim(),
                 Timeout = TimeSpan.FromSeconds(ParsedTimeout()),
                 DataBlocks = chosen.Select(block => block.Name).ToList()
@@ -262,6 +303,8 @@ namespace Satellite.DataBlockSnapshot
             AddressBox.IsEnabled = !busy;
             UserBox.IsEnabled = !busy;
             PasswordBox.IsEnabled = !busy;
+            PasswordPlain.IsEnabled = !busy;
+            RevealButton.IsEnabled = !busy;
             RememberBox.IsEnabled = !busy;
             TimeoutBox.IsEnabled = !busy;
             FolderBox.IsEnabled = !busy;

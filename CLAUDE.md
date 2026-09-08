@@ -188,6 +188,15 @@ zipped copy sooner or later. Hence:
   credential cache that breaks the application it exists to smooth is worse than none.
 - **The fields stay editable and show exactly what was loaded**, so the window looks the
   same as if the operator had typed it.
+- **An eye reveals the password.** `PasswordBox` cannot show what it holds and its
+  `Password` is not a dependency property, so the only way is a twin `TextBox` in the same
+  cell with one of the two always collapsed; the eye swaps them and carries the text
+  across, then moves the focus and the caret so typing does not fall into a field that is
+  no longer on screen. Everything else asks `CurrentPassword()` rather than either control,
+  so no caller has to know the value lives in two places. The icon shows a **struck-through
+  eye while the password is on screen** — it states what is true now, not what clicking
+  would do. Worth remembering when a credential is remembered rather than typed: revealing
+  it is the only way to check *which* password came back.
 
 This leaves `.env` and `${VAR}` expansion untouched as pending work — they are still what
 `${GITHUB_TOKEN}` in `config.json` needs, and that one genuinely is a shared team secret.
