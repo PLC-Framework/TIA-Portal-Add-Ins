@@ -65,13 +65,8 @@ namespace Satellite.ConfigEditor
 
             ProjectLine.Text = Describe(request);
 
-            Open(PathFor(request.ProjectDirectory));
+            Open(Resolve(request.ProjectDirectory));
         }
-
-        private static string PathFor(string projectDirectory) =>
-            string.IsNullOrWhiteSpace(projectDirectory)
-                ? null
-                : ConfigLoader.PathFor(projectDirectory);
 
         private static string Describe(EditorRequest request)
         {
@@ -175,14 +170,18 @@ namespace Satellite.ConfigEditor
             using (System.Windows.Forms.FolderBrowserDialog dialog =
                    new System.Windows.Forms.FolderBrowserDialog())
             {
-                dialog.Description = "The folder of the TIA project";
+                dialog.Description =
+                    "The TIA project folder - the one holding " + ConfigPaths.Folder +
+                    ". Picking " + ConfigPaths.Folder + " itself works too.";
 
                 if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
 
                 NavPanel.Visibility = Visibility.Visible;
-                Open(ConfigLoader.PathFor(dialog.SelectedPath));
+                Open(Resolve(dialog.SelectedPath));
             }
         }
+
+        private static string Resolve(string chosen) => ConfigLocation.Resolve(chosen);
 
         // ----------------------------------------------------------------- binding
 

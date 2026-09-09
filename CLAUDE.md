@@ -261,6 +261,14 @@ is exactly how the validator already reports them — per concern.
   select is dimmed. A project often carries both and switches between them, and hiding the
   other one makes it look lost.
 - **Creating from the template writes nothing until Save**, so backing out costs nothing.
+- **`ConfigLocation.Resolve` accepts all three ways of naming a project**: the project
+  folder, the `.plc-framework` inside it, or the `config.json` itself. Appending the
+  convention to whatever was picked is wrong the moment somebody picks one step deeper —
+  which is the natural thing to do, since `.plc-framework` is the folder with the file
+  visibly in it. It produced `…\.plc-framework\.plc-framework\config.json` and a window
+  reporting "no configuration" on a project that had one. It is **shared with `App`** rather
+  than private to the window, because the single-instance guard keys on the same path: two
+  ways of working it out would let two windows open one file each believing it was alone.
 - The token uses the same twin-control eye as the PLC password, and writes to the `.env`
   **before** the JSON: there is no point leaving a `config.json` behind that references a
   variable nobody managed to set.
