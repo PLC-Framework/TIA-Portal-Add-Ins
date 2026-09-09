@@ -1054,6 +1054,13 @@ Two things changed in the move, both deliberate:
   way wherever a remove button appears. It could not be derived from `Quiet` with `BasedOn`:
   the state that differs is a trigger *inside* the template, and `BasedOn` replaces the
   whole template or nothing.
+- **Selectable rows are templated too, and for a reason that is easy to miss.**
+  `ListBoxItem` and `TreeViewItem` paint their selected background from the **system**
+  brushes: blue while focused, and a **pale box when not**, which on a dark form looks like
+  a rendering fault rather than a selection — a first row that appears highlighted before
+  anything has been clicked. Both now use the brand colour in either state, through a
+  `MultiTrigger` on `IsSelectionActive`. Note `ListViewItem` derives from `ListBoxItem` but
+  does **not** inherit its implicit style, because an implicit style matches the exact type.
 - **The eye lost its tooltip.** It used to flip between "Show the password" and "Hide the
   password", which cannot survive a style that also serves a GitHub token — and the
   alternative, a wording vague enough for both, tells nobody anything. The window names its

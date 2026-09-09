@@ -267,6 +267,48 @@
     </Style>
 
     <!--
+        A plain list row. Same story as the tree node below, and it needs its own style
+        because an implicit style matches the exact type: `ListViewItem` derives from
+        `ListBoxItem` but does not inherit its style.
+    -->
+    <Style TargetType="ListBoxItem">
+        <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="2"
+                            Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowHover}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrandBrushBottom}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                        <!-- Selected without focus keeps the same colour, rather than the
+                             pale system brush the stock template switches to. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="True" />
+                                <Condition Property="Selector.IsSelectionActive" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrandBrushBottom}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </MultiTrigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource InkDisabled}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
         A tree node. The stock template paints selection from the **system** brushes, which
         is where the blue comes from — and, worse, from the *inactive* system brush when the
         tree does not have focus, which renders as a pale box on a dark form and reads as

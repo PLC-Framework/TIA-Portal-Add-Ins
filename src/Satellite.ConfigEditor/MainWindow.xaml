@@ -600,11 +600,13 @@
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                                               ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                               SelectedItemChanged="OnGroupSelected">
+                                        <!-- BasedOn the implicit style from Controls.xaml,
+                                             which carries the template; only the binding to
+                                             the model's own expanded state is local. -->
                                         <TreeView.ItemContainerStyle>
-                                            <Style TargetType="TreeViewItem">
+                                            <Style TargetType="TreeViewItem"
+                                                   BasedOn="{StaticResource {x:Type TreeViewItem}}">
                                                 <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
-                                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
-                                                <Setter Property="Padding" Value="2,3" />
                                             </Style>
                                         </TreeView.ItemContainerStyle>
                                         <TreeView.ItemTemplate>
