@@ -66,7 +66,7 @@ Do not relitigate without new information:
 3. **Satellites are separate `.exe` files, and cannot be otherwise.** Verified: the Publisher **silently drops** any `.exe` listed under `AdditionalAssemblies` — no error, no warning, the package is just built without it. The filter is purely by extension (the same PE renamed to `.dll` is packaged), but that is no workaround: the part lands in `LocalAssemblyCache/` and TIA loads it as an assembly inside its own process, never as a file on disk. Siemens' own `Siemens.Engineering.AddIn.Utilities.Process` wrapper plus `ProcessStartPermission` confirm launching an external executable is the sanctioned path.
 4. **Install location** — `%ProgramData%\PLC-Framework\`, exposed by `Core.InstallPaths`, holding a single `tools\` folder for **every** executable shipped, satellites included. **Per machine, not per user.** Its counterpart is `%LOCALAPPDATA%\PLC-Framework\`, `InstallPaths.UserRoot`, and the line between them is a rule: **`%ProgramData%` is what the installer puts there, `%LOCALAPPDATA%` is what the applications write** — `.env`, `credentials.json`, `config.template.json`. `%ProgramData%` grants ordinary users read and execute but **not write**, so getting this backwards passes every test on a developer's machine, where you are an administrator, and fails at a customer's. **Not** next to the `.addin`: `UserAddIns` is per TIA version (V20 and V21 would each need a copy) and belongs to Siemens. **Not** derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be trusted. `PLC_FRAMEWORK_HOME` overrides it for staging. Installing needs elevation once; reading does not.
    - **"Satellite" is a role, not a location.** A satellite is a WPF app the Add-In launches from the menu; it lives in `tools\` next to any command-line helper. Splitting the folder by role was tried and reverted — it only invited arguments about which half a new executable belonged in.
-5. **Add-In → satellite handoff: a JSON document over stdin** (chosen 2026-09-04). Siemens' `Process` wrapper exposes `RedirectStandardInput`, so the Add-In writes the payload straight into the child and no file is ever created — nothing to clean up, no permissions question, no stale handoff from a crashed run. **Verified end to end on the VM (2026-09-04): the redirection does survive the permission sandbox.** The satellite still reads the payload behind a small abstraction, and the fallback — a `%TEMP%` file whose path arrives as an argument — stays wired as reserve rather than as a bet. Not the TIA project folder: those are under version control, and tying the handoff to project writability makes a read-only project fail before the window even opens.
+5. **Add-In â†’ satellite handoff: a JSON document over stdin** (chosen 2026-09-04). Siemens' `Process` wrapper exposes `RedirectStandardInput`, so the Add-In writes the payload straight into the child and no file is ever created — nothing to clean up, no permissions question, no stale handoff from a crashed run. **Verified end to end on the VM (2026-09-04): the redirection does survive the permission sandbox.** The satellite still reads the payload behind a small abstraction, and the fallback — a `%TEMP%` file whose path arrives as an argument — stays wired as reserve rather than as a bet. Not the TIA project folder: those are under version control, and tying the handoff to project writability makes a read-only project fail before the window even opens.
 6. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup, but *what* the name identifies differs by satellite, and the difference is the design:
    - `Satellite.About` — **one, full stop.** It shows the same thing to everyone.
    - `Satellite.DataBlockSnapshot` — **no guard at all.** Each run is a job with its own PLC, its own blocks and its own destination; a single instance would either refuse the second launch or silently discard the selection that came with it. The rule stands for satellites that show *state*; it does not for one that performs a *job*.
@@ -261,9 +261,35 @@ about the application itself:
 - **The validator came first**, and it was the right order: it is `Core`'s, this satellite
   is its first consumer, and the Add-In needs it too.
 
-**Still to build: phase 3, the five `hierarchy` trees.** Add, rename and remove only —
-moving was considered and dropped, because the folder names carry numeric prefixes
-(`00-OB`, `01-FSL`) and the order is decided by the name anyway.
+#### Hierarchy — phase 3 built 2026-09-09
+
+**Seven trees, not four**: the four top-level concerns plus three inside `softwareUnits`.
+One `TreeView` serves all seven — the tab decides which array it is bound to — because seven
+tree views would be seven copies of the same twenty lines.
+
+- **Add, rename and remove. No moving**, decided deliberately: the folder names carry
+  numeric prefixes (`00-OB`, `01-FSL`) and TIA orders them by name, so a reordering gesture
+  would cost real work to change nothing anybody sees.
+- **A duplicated name is marked red on the node itself**, and on *both* offenders, while
+  typing. The validator already reports the path; in a tree the position is what makes the
+  mistake obvious. Case-insensitive, because "core" and "Core" are the same folder to
+  anybody reading it.
+- **`softwareUnits` is optional as a whole**, so the section can be added or removed
+  entire — and it is added with all three of its lists, because the contract requires every
+  one of them once the section exists. Removing it throws away folders somebody built, so it
+  is **the only confirmation prompt in the window**, and it earns it.
+- **Removing the last child drops the `groups` key** rather than leaving `[]`. `groups` is
+  optional and most folders are leaves; an empty array would be noise that means nothing.
+- **`GroupNode.ToString()` returns the name, and that is not decoration.** A `TreeViewItem`
+  takes its **automation name** from the bound object's `ToString()`, so without it every
+  node announced itself as `Satellite.ConfigEditor.Editing.GroupNode` — to a screen reader
+  as much as to a test. The `TextBlock` in the template is what the eye sees; `ToString` is
+  what everything else sees.
+
+Verified against the real config: eleven root folders and their children loaded, renaming
+`03-ALL`, a deliberate duplicate blocking `Save` with `blocks[3].name` named in the footer,
+adding a sub-folder, and both software-unit lists. The saved file kept `codingStyle` and its
+15 rules untouched.
 
 #### The window — phase 1 built 2026-09-09
 
@@ -387,10 +413,10 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
 ## Status (2026-09-09)
 
 - [x] `Core`, `AddIn.V20` and `AddIn.V21` created, all in the `.slnx`.
-- [x] Both Add-Ins **validated end to end**: build → `.addin` containing `Core` → load and run correctly in TIA Portal V20 / V21 on the VM.
+- [x] Both Add-Ins **validated end to end**: build â†’ `.addin` containing `Core` â†’ load and run correctly in TIA Portal V20 / V21 on the VM.
 - [x] `AddIn.Shared` created: the Add-In's version-agnostic layer. Ports `ITiaNotifier` / `IGroupNode` / `IProcessLauncher` implemented per version in `AddIn.VXX/Adapters/`.
 - [x] `ConfigLoader` reading the real `config.json`, and `CreateProjectHierarchyAction` migrated from the old project — the four duplicated recursive walks collapsed into one, exercised with fakes and **no TIA installed**.
-- [x] Icons working end to end: `assets/` by feature → embedded by glob → `Adapters/Icons.cs` → `AddActionItemWithIcon`, verified in TIA on the VM.
+- [x] Icons working end to end: `assets/` by feature â†’ embedded by glob â†’ `Adapters/Icons.cs` â†’ `AddActionItemWithIcon`, verified in TIA on the VM.
 - [x] `config.json` and `core.json` models complete in `Core.Config` / `Core.DependencyGraph`, cross-checked key by key against the real files **and** against the generator's own models in `code/tools/dependency_graph_builder`.
 - [x] `UI.Shared` created: `BrandLogo.xaml` (the SVG as a vector `DrawingImage`), `Theme.xaml`, and the `SingleInstance` guard.
 - [x] **First satellite complete**: `Satellite.About` — window, single-instance guard and `ApplicationIcon`, each verified by running the real binary here, not by inspecting XAML.
@@ -398,7 +424,7 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
 - [x] `S7PlcWebserverApi` created and **validated against two real CPUs** — an S7-1500 and an S7-1200 G2 — reading a data block of 8,910 variables with zero failures. Session, browse with array expansion, and batched reads.
 - [x] The XLSX exporter in `Satellite.DataBlockSnapshot`, checked with the OpenXML SDK's own validator (0 errors) and by inspecting the package XML: typed cells, invariant numbers, and no omitted cell that could pass for an unread value.
 - [x] `Satellite.DataBlockSnapshot` complete: window, handoff, capture and export. Its layers were each verified against two real CPUs from PowerShell, without TIA.
-- [x] **The whole chain validated in TIA on the VM (2026-09-04)**: menu entry on a multiple selection of data blocks → `TiaPlcSelection` gathers the CPU and its addresses → JSON over the child's standard input → the satellite opens with everything filled in. This is what proves `RedirectStandardInput` survives partial trust.
+- [x] **The whole chain validated in TIA on the VM (2026-09-04)**: menu entry on a multiple selection of data blocks â†’ `TiaPlcSelection` gathers the CPU and its addresses â†’ JSON over the child's standard input â†’ the satellite opens with everything filled in. This is what proves `RedirectStandardInput` survives partial trust.
 - [x] **Credentials remembered per user and per CPU** (2026-09-07), so an hour of captures
       is not an hour of typing. Exercised here: ten CPUs of one project each keeping their
       own pair, the same CPU name in two projects not colliding, re-saving not duplicating,
@@ -423,7 +449,7 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
 - [x] `ConfigEditorAction` on the project root of both Add-Ins, with its payload serialised
       **inside a restricted `AppDomain`** — and **confirmed in TIA on the VM**, including the
       one-instance-per-TIA guard, which is what proves the parent process really is TIA.
-- [ ] **`Satellite.ConfigEditor` phase 3**: the five `hierarchy` trees.
+- [x] **`Satellite.ConfigEditor` phase 3** (2026-09-09): the seven `hierarchy` trees — one TreeView, add/rename/remove, duplicates marked on the node, and the optional software-unit section added or removed whole. **The editor is feature-complete.**
 - [ ] `IPC` — not started, and now unlikely ever to be: decision 5 settles the handoff on stdio.
 
 ### The first NuGet dependencies (2026-09-04)
@@ -478,7 +504,7 @@ and **one consumer** (the Add-In). Decisions taken:
 - **Scoped per concern, not per document.** Each action reads only its section, so no section is globally required; "required" belongs to the concern. The satellite runs the composite validator, an action runs only its own.
 - **Structural vs environmental** validation kept apart: closed value sets, required fields, internal references and regex-that-compile are pure; checking a path exists or a `${VAR}` resolves touches disk and belongs in a separate method.
 - `coreSource` is `local | remote`, and it decides which repository section is required.
-- The `.env` lookup is environment-specific (Add-In vs satellite resolve it differently) → it becomes a `Core` port, with `${VAR}` expansion pure in `Core`.
+- The `.env` lookup is environment-specific (Add-In vs satellite resolve it differently) â†’ it becomes a `Core` port, with `${VAR}` expansion pure in `Core`.
 - A **JSON Schema** is the highest-leverage addition for the hand-edit path: it validates while the user types, before any of the above runs.
 
 ### Pending

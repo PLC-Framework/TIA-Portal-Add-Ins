@@ -58,7 +58,7 @@ namespace Satellite.ConfigEditor
 
             _sections.Add(new Section("Metadata", "metadata"));
             _sections.Add(new Section("Repository", "coreRemoteRepositoryConfig", "coreLocalRepositoryConfig"));
-            _sections.Add(new Section("Hierarchy", "projectConfig.hierarchy") { Editable = false });
+            _sections.Add(new Section("Hierarchy", "projectConfig.hierarchy"));
             _sections.Add(new Section("Coding style", "projectConfig.codingStyle"));
 
             Nav.ItemsSource = _sections;
@@ -217,6 +217,7 @@ namespace Satellite.ConfigEditor
             }
 
             FillCodingStyle();
+            FillHierarchy();
             Emphasise();
             Revalidate();
         }
@@ -698,6 +699,226 @@ namespace Satellite.ConfigEditor
             Revalidate();
         }
 
+        // ----------------------------------------------------------------- hierarchy
+
+        private HierarchyEditor _hierarchy;
+        private GroupTree _tree;
+        private GroupNode _group;
+
+        private void FillHierarchy()
+        {
+            _hierarchy = new HierarchyEditor(_document);
+            ShowConcern();
+        }
+
+        /// <summary>Which of the seven trees the single TreeView is showing.</summary>
+        private void ShowConcern()
+        {
+            if (_hierarchy == null) return;
+
+            bool units = UnitsTab.IsChecked == true;
+
+            UnitsBar.Visibility = units ? Visibility.Visible : Visibility.Collapsed;
+
+            if (units)
+            {
+                UnitsToggle.Content = _hierarchy.HasUnits ? "Remove section" : "Add section";
+                UnitsTabs.Visibility = _hierarchy.HasUnits ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            JArray array =
+                !units ? _hierarchy.Groups(SelectedConcern())
+                : _hierarchy.HasUnits ? _hierarchy.UnitGroups(SelectedUnitConcern())
+                : null;
+
+            // The optional section is simply absent: nothing to show, and nothing to edit
+            // until it is added.
+            if (array == null)
+            {
+                _tree = null;
+                GroupsTree.ItemsSource = null;
+                GroupsTree.IsEnabled = false;
+                ShowGroup(null);
+                return;
+            }
+
+            GroupsTree.IsEnabled = true;
+
+            _loading = true;
+            try
+            {
+                _tree = new GroupTree(array, OnHierarchyEdited);
+                GroupsTree.ItemsSource = _tree.Roots;
+            }
+            finally
+            {
+                _loading = false;
+            }
+
+            ShowGroup(null);
+        }
+
+        private string SelectedConcern()
+        {
+            if (TechnologyTab.IsChecked == true) return "technologyObjects";
+            if (TagTablesTab.IsChecked == true) return "tagTables";
+            if (TypesTab.IsChecked == true) return "types";
+
+            return "blocks";
+        }
+
+        private string SelectedUnitConcern()
+        {
+            if (UnitTagTablesTab.IsChecked == true) return "tagTables";
+            if (UnitTypesTab.IsChecked == true) return "types";
+
+            return "blocks";
+        }
+
+        private void OnConcernChanged(object sender, RoutedEventArgs e)
+        {
+            if (UnitsBar == null) return;
+
+            ShowConcern();
+        }
+
+        private void OnUnitConcernChanged(object sender, RoutedEventArgs e)
+        {
+            if (UnitsBar == null || _hierarchy == null) return;
+
+            ShowConcern();
+        }
+
+        /// <summary>
+        /// Creates the software-unit section with all three of its lists, or removes it
+        /// whole. Half a section is worse than none: the contract requires every list once
+        /// the section exists.
+        /// </summary>
+        private void OnToggleUnits(object sender, RoutedEventArgs e)
+        {
+            if (_hierarchy == null) return;
+
+            if (_hierarchy.HasUnits)
+            {
+                // This throws away folders somebody built, so it asks first - the only
+                // confirmation in the window, and it earns it.
+                MessageBoxResult answer = MessageBox.Show(
+                    this,
+                    "Remove the software unit section and every folder in it?",
+                    "Config editor",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning,
+                    MessageBoxResult.No);
+
+                if (answer != MessageBoxResult.Yes) return;
+
+                _hierarchy.RemoveUnits();
+            }
+            else
+            {
+                _hierarchy.AddUnits();
+            }
+
+            ShowConcern();
+            Revalidate();
+        }
+
+        private void OnHierarchyEdited()
+        {
+            if (_loading) return;
+
+            Revalidate();
+        }
+
+        private void OnGroupSelected(object sender, RoutedPropertyChangedEventArgs<object> e)
+        {
+            if (_loading) return;
+
+            ShowGroup(GroupsTree.SelectedItem as GroupNode);
+        }
+
+        private void ShowGroup(GroupNode node)
+        {
+            _group = node;
+
+            bool any = node != null;
+            GroupDetail.IsEnabled = any;
+            RemoveGroupButton.IsEnabled = any;
+            AddChildButton.IsEnabled = any;
+
+            _loading = true;
+            try
+            {
+                GroupNameBox.Text = any ? node.Name : string.Empty;
+            }
+            finally
+            {
+                _loading = false;
+            }
+
+            ShowGroupWarning();
+        }
+
+        private void OnGroupNameChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_loading || _group == null || _tree == null) return;
+
+            _group.Name = GroupNameBox.Text;
+
+            // Recomputed on every keystroke rather than at save: a duplicate marked on the
+            // node while typing is a rule the operator meets at the moment they can act on
+            // it.
+            _tree.MarkDuplicates();
+
+            ShowGroupWarning();
+            Revalidate();
+        }
+
+        private void ShowGroupWarning()
+        {
+            if (_group == null)
+            {
+                GroupWarning.Text = string.Empty;
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_group.Name))
+                GroupWarning.Text = "A folder needs a name.";
+            else if (_group.IsDuplicate)
+                GroupWarning.Text = "Another folder beside this one is already called that.";
+            else
+                GroupWarning.Text = string.Empty;
+        }
+
+        private void OnAddRootGroup(object sender, RoutedEventArgs e) => Added(_tree?.AddRoot());
+
+        private void OnAddChildGroup(object sender, RoutedEventArgs e) =>
+            Added(_tree?.AddChild(GroupsTree.SelectedItem as GroupNode));
+
+        private void Added(GroupNode node)
+        {
+            if (node == null) return;
+
+            ShowGroup(node);
+
+            // Straight into the name box with it selected: a folder called "New group" is
+            // never what anybody wanted, so the next keystroke should replace it.
+            GroupNameBox.Focus();
+            GroupNameBox.SelectAll();
+
+            Revalidate();
+        }
+
+        private void OnRemoveGroup(object sender, RoutedEventArgs e)
+        {
+            GroupNode node = GroupsTree.SelectedItem as GroupNode;
+            if (node == null || _tree == null) return;
+
+            _tree.Remove(node);
+            ShowGroup(null);
+            Revalidate();
+        }
+
         // ----------------------------------------------------------------- validation
 
         private void Revalidate()
@@ -834,13 +1055,15 @@ namespace Satellite.ConfigEditor
 
             if (section.Name == "Metadata") OnlyVisible(MetadataPanel);
             else if (section.Name == "Repository") OnlyVisible(RepositoryPanel);
+            else if (section.Name == "Hierarchy") OnlyVisible(HierarchyPanel);
             else OnlyVisible(CodingStylePanel);
         }
 
         private void OnlyVisible(UIElement panel)
         {
             foreach (UIElement candidate in new UIElement[]
-                     { MetadataPanel, RepositoryPanel, CodingStylePanel, LaterPanel, MissingPanel })
+                     { MetadataPanel, RepositoryPanel, HierarchyPanel, CodingStylePanel,
+                       LaterPanel, MissingPanel })
             {
                 candidate.Visibility = ReferenceEquals(candidate, panel)
                     ? Visibility.Visible

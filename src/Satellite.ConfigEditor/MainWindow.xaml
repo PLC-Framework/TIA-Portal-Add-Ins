@@ -537,6 +537,128 @@
                             </ScrollViewer>
                         </Grid>
 
+                        <!-- ===================== Hierarchy ===================== -->
+                        <Grid x:Name="HierarchyPanel" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="Hierarchy" Style="{StaticResource SectionTitle}" />
+
+                            <!-- Four concerns plus the optional software units. One TreeView
+                                 below serves all seven trees: the tab decides which array it
+                                 is bound to. -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,0">
+                                <RadioButton x:Name="BlocksTab" Content="Blocks" IsChecked="True"
+                                             Style="{StaticResource Tab}" Checked="OnConcernChanged" />
+                                <RadioButton x:Name="TechnologyTab" Content="Technology objects"
+                                             Style="{StaticResource Tab}" Checked="OnConcernChanged" />
+                                <RadioButton x:Name="TagTablesTab" Content="Tag tables"
+                                             Style="{StaticResource Tab}" Checked="OnConcernChanged" />
+                                <RadioButton x:Name="TypesTab" Content="Types"
+                                             Style="{StaticResource Tab}" Checked="OnConcernChanged" />
+                                <RadioButton x:Name="UnitsTab" Content="Software units"
+                                             Style="{StaticResource Tab}" Checked="OnConcernChanged" />
+                            </StackPanel>
+
+                            <!-- Only while Software units is selected: its own three lists,
+                                 and the switch that creates or removes the whole section. -->
+                            <Grid Grid.Row="2" x:Name="UnitsBar" Visibility="Collapsed" Margin="0,8,0,0">
+                                <StackPanel x:Name="UnitsTabs" Orientation="Horizontal">
+                                    <RadioButton x:Name="UnitBlocksTab" Content="Blocks" IsChecked="True"
+                                                 Style="{StaticResource Tab}" Checked="OnUnitConcernChanged" />
+                                    <RadioButton x:Name="UnitTagTablesTab" Content="Tag tables"
+                                                 Style="{StaticResource Tab}" Checked="OnUnitConcernChanged" />
+                                    <RadioButton x:Name="UnitTypesTab" Content="Types"
+                                                 Style="{StaticResource Tab}" Checked="OnUnitConcernChanged" />
+                                </StackPanel>
+
+                                <Button x:Name="UnitsToggle" HorizontalAlignment="Right" Width="150" Padding="0,5"
+                                        Style="{StaticResource Quiet}" Click="OnToggleUnits" />
+                            </Grid>
+
+                            <Grid Grid.Row="3" Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="260" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Scrolls inside itself so the buttons below stay put,
+                                     however deep the tree goes. -->
+                                <Border Grid.Row="0" Grid.Column="0"
+                                        Background="{StaticResource Field}"
+                                        BorderBrush="{StaticResource FieldEdge}" BorderThickness="1">
+                                    <TreeView x:Name="GroupsTree" Background="Transparent" BorderThickness="0"
+                                              Foreground="{StaticResource Ink}"
+                                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                              SelectedItemChanged="OnGroupSelected">
+                                        <TreeView.ItemContainerStyle>
+                                            <Style TargetType="TreeViewItem">
+                                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                                                <Setter Property="Padding" Value="2,3" />
+                                            </Style>
+                                        </TreeView.ItemContainerStyle>
+                                        <TreeView.ItemTemplate>
+                                            <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                                <!-- TextBlock, not a string: a folder called
+                                                     0-Containers is fine, but one with an
+                                                     underscore would lose it to accelerator
+                                                     parsing. -->
+                                                <TextBlock x:Name="Label" Text="{Binding Name}"
+                                                           Foreground="{StaticResource Ink}" />
+                                                <HierarchicalDataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDuplicate}" Value="True">
+                                                        <Setter TargetName="Label" Property="Foreground"
+                                                                Value="{StaticResource BrandBrushTop}" />
+                                                        <Setter TargetName="Label" Property="ToolTip"
+                                                                Value="Another folder beside this one has the same name." />
+                                                    </DataTrigger>
+                                                </HierarchicalDataTemplate.Triggers>
+                                            </HierarchicalDataTemplate>
+                                        </TreeView.ItemTemplate>
+                                    </TreeView>
+                                </Border>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Button x:Name="AddRootButton" Content="+ Folder" Width="90" Padding="0,5"
+                                            Style="{StaticResource Quiet}"
+                                            ToolTip="Add a folder at the top of this list"
+                                            Click="OnAddRootGroup" />
+                                    <Button x:Name="AddChildButton" Content="+ Sub-folder" Width="110" Padding="0,5"
+                                            Margin="8,0,0,0" Style="{StaticResource Quiet}"
+                                            ToolTip="Add a folder inside the selected one"
+                                            Click="OnAddChildGroup" />
+                                    <Button x:Name="RemoveGroupButton" Content="✕" Width="32" Padding="0,5"
+                                            Margin="8,0,0,0" Style="{StaticResource Destructive}"
+                                            ToolTip="Remove the selected folder and everything inside it"
+                                            Click="OnRemoveGroup" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                                            x:Name="GroupDetail" Margin="16,0,0,0">
+                                    <TextBlock Text="Folder" Style="{StaticResource SectionTitle}" FontSize="13" />
+                                    <TextBlock Style="{StaticResource SectionNote}" Margin="0,0,0,10"
+                                               Text="The name TIA Portal gives the group." />
+
+                                    <TextBlock Text="Name" Style="{StaticResource FieldLabel}"
+                                               HorizontalAlignment="Left" Margin="0,0,0,4" />
+                                    <TextBox x:Name="GroupNameBox" TextChanged="OnGroupNameChanged" />
+
+                                    <TextBlock x:Name="GroupWarning" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Foreground="{StaticResource BrandBrushTop}" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+
                         <!-- ============== Not editable here yet ============== -->
                         <StackPanel x:Name="LaterPanel" Visibility="Collapsed">
                             <TextBlock x:Name="LaterTitle" Style="{StaticResource SectionTitle}" />
