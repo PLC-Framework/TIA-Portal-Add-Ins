@@ -105,8 +105,13 @@ src/UI.Shared/
 ├── SingleInstance.cs         named Mutex + bring the running window to the front
 └── Resources/
     ├── BrandLogo.xaml        favicon.svg converted to a vector DrawingImage
-    └── Theme.xaml            the brand palette as Colors and Brushes
+    ├── Theme.xaml            brand colours, dark surfaces and ink — every brush named
+    └── Controls.xaml         the dark-theme control styles; merges Theme.xaml itself
 ```
+
+> **Merging `Controls.xaml` is enough.** It pulls `Theme.xaml` in, so a consumer cannot get
+> the order wrong or take half of it. Listing both would just load the palette twice.
+> `Satellite.About` merges `Theme.xaml` alone, because it has no form.
 
 ```
 src/Satellite.About/
@@ -986,6 +991,37 @@ the accessibility tree while collapsed, revealing shows the password the store h
 and a value typed while revealed survives the round trip out to the `PasswordBox` and back.
 
 ### Theming a WPF field: Setters cannot reach hover and focus
+
+**These styles live in `UI.Shared/Resources/Controls.xaml`.** They were written inside
+`Satellite.DataBlockSnapshot`'s own window and moved out on 2026-09-09, when
+`Satellite.ConfigEditor` turned out to need the same ~290 lines — which would have been the
+third copy of the palette and the second of the templates. Almost everything in there is an
+**implicit** style, so a plain `<TextBox/>` is already themed; only the choices a window has
+to make are keyed (`Quiet` / `Primary` for a button, `FieldLabel`, `Reveal`).
+
+Two things changed in the move, both deliberate:
+
+- **Every colour got a name.** `#454E5B`, `#6C7686`, `#39424F` and three more were literals
+  inside triggers. That is exactly how a "disabled grey" becomes three slightly different
+  greys, so they are now `FieldEdgeDisabled`, `InkDisabled`, `RowHover` and so on in
+  `Theme.xaml`.
+- **The eye lost its tooltip.** It used to flip between "Show the password" and "Hide the
+  password", which cannot survive a style that also serves a GitHub token — and the
+  alternative, a wording vague enough for both, tells nobody anything. The window names its
+  own field, and the struck-through eye already shows the state.
+
+**The move was verified by pixel comparison, not by eye**, and the method is worth
+repeating because the naive version lies. Capturing with `CopyFromScreen` photographs
+whatever is on top at those coordinates — `SetForegroundWindow` is blocked when the caller
+does not already have focus — so it can silently capture another application. `PrintWindow`
+with `PW_RENDERFULLCONTENT` asks the window to draw itself, covered or not.
+
+Even then the first comparison read 12 % of pixels different. The difference map showed
+every fill identical and only glyph and border **outlines** changed: a sub-pixel shift,
+because ClearType renders against the absolute screen position and the window had not
+centred on exactly the same coordinate. The control that settled it was capturing the *same
+build twice* — 12 % again — and then comparing the pre-refactor capture against that
+control run: **0.096 % of pixels, maximum delta 4.** Identical.
 
 Worth knowing before the next satellite repeats it. A `Style` full of `Setter`s gets a
 `TextBox` most of the way onto a dark palette — background, foreground, caret, selection —

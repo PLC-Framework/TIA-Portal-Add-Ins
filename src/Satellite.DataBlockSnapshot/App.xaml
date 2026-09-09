@@ -4,8 +4,11 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!-- The URI carries the AssemblyName, not the project name. -->
-                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/Theme.xaml" />
+                <!-- The URI carries the AssemblyName, not the project name.
+
+                     Controls.xaml pulls Theme.xaml in itself, so listing it here as well
+                     would only load the palette twice. -->
+                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/Controls.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/BrandLogo.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>

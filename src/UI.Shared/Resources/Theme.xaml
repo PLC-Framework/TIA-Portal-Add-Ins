@@ -31,4 +31,33 @@
         <GradientStop Offset="1" Color="{StaticResource DarkThemeColorBottom}" />
     </LinearGradientBrush>
 
+    <!--
+        Surfaces and ink for a form sitting on that gradient.
+
+        One surface for everything the operator types into, a shade lighter than the ground
+        so a field reads as inset rather than as a hole punched in the form.
+
+        Every one of these has a name because every one of them is used in more than one
+        place. They were literals inside triggers until the styles moved here, which is how
+        a "disabled grey" ends up being three slightly different greys.
+    -->
+    <SolidColorBrush x:Key="Field"          Color="#333B47" />
+    <SolidColorBrush x:Key="FieldEdge"      Color="#5A6473" />
+    <SolidColorBrush x:Key="FieldEdgeHover" Color="#7A8494" />
+    <SolidColorBrush x:Key="FieldHover"     Color="#3E4756" />
+    <SolidColorBrush x:Key="Surface"        Color="#2A313B" />
+    <SolidColorBrush x:Key="SurfaceHead"    Color="#3A4350" />
+    <SolidColorBrush x:Key="Ink"            Color="#E8ECF2" />
+    <SolidColorBrush x:Key="InkMuted"       Color="#98A3B2" />
+
+    <!-- Rows in a list: hover and selection, both a step up from the surface they sit on. -->
+    <SolidColorBrush x:Key="RowHover"       Color="#39424F" />
+    <SolidColorBrush x:Key="RowSelected"    Color="#3F4A5A" />
+
+    <!-- Disabled. Dimmer than the enabled set rather than greyer, so a disabled form still
+         reads as the same form. -->
+    <SolidColorBrush x:Key="FieldDisabled"     Color="#2B323C" />
+    <SolidColorBrush x:Key="FieldEdgeDisabled" Color="#454E5B" />
+    <SolidColorBrush x:Key="InkDisabled"       Color="#6C7686" />
+
 </ResourceDictionary>
