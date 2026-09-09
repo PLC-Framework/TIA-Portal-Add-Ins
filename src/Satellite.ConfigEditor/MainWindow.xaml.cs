@@ -406,7 +406,7 @@ namespace Satellite.ConfigEditor
                 _applies.Add(section);
             }
 
-            AppliesArea.ItemsSource = _applies;
+            AppliesList.ItemsSource = _applies;
         }
 
         /// <summary>A tick or a type changed: the document already has it, so just revalidate.</summary>

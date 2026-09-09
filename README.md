@@ -5,7 +5,23 @@ A **TIA Portal Add-In** (Siemens Openness) plus the **satellite apps** with UI t
 - Solution: `tia-portal-addins.slnx` — the new XML format, not the classic `.sln`
 - Target framework: **.NET Framework 4.8** for everything touching TIA Portal / Openness, WPF included
 
-Six projects exist today: `Core`, `AddIn.Shared` and `UI.Shared` as the shared layers, the two Add-Ins `AddIn.V20` and `AddIn.V21`, and the first satellite, `Satellite.About`. Both Add-Ins are validated on the VM against their respective TIA Portal versions. The satellite is built and verified here, by running the real binary; it has **not** yet been launched from inside TIA.
+Eight projects exist today:
+
+| | |
+|---|---|
+| `Core` | the model, the `config.json` loader and its **validators**, `Secrets`, `InstallPaths` |
+| `AddIn.Shared` | the Add-In's version-agnostic layer: use cases, ports, embedded assets |
+| `UI.Shared` | brand resources, the dark-theme control styles, the single-instance guard |
+| `S7PlcWebserverApi` | the JSON-RPC client for a CPU's own web server |
+| `AddIn.V20`, `AddIn.V21` | one per Openness generation |
+| `Satellite.About` | the About window |
+| `Satellite.DataBlockSnapshot` | captures a data block to `.xlsx` |
+| `Satellite.ConfigEditor` | edits `config.json` |
+
+Both Add-Ins are validated on the VM against their respective TIA Portal versions, and all
+three satellites have been launched from the TIA menu there. Everything below the windows
+is verified here, by running the real binaries — against two real CPUs for the web API
+client, and through UI Automation for the windows themselves.
 
 ## Working environment: two machines
 
@@ -40,6 +56,7 @@ tia-portal-addins.slnx
     ├── AddIn.V21/            (net48, x64) — references PublicAPI\V21\net48           ← EXISTS
     ├── Satellite.About/      (net48, WPF) — the About window                         ← EXISTS
     ├── Satellite.DataBlockSnapshot/  (net48, WPF) — captures a DB to .xlsx           ← EXISTS
+    ├── Satellite.ConfigEditor/       (net48, WPF) — edits config.json                ← EXISTS
     ├── Satellite.<Name>/     (net48, WPF) — a UI app the Add-In launches
     └── Tool.<Name>/          (net48) — a command-line helper
 ```
@@ -185,13 +202,22 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
 | Layer | May depend on | Actual references |
 |---|---|---|
 | `Core` | only what **every** consumer needs | `mscorlib`, `System`, `System.Core`, `System.Runtime.Serialization` |
-| `AddIn.Shared` | `Core` + host types that are **not** Siemens | `+ System.Drawing` |
-| `UI.Shared` | `Core` + WPF | WPF only |
-| `S7PlcWebserverApi` | the network, and nothing of ours | `System.Net.Http`, `Newtonsoft.Json` |
+| `AddIn.Shared` | `Core` + host types that are **not** Siemens | `+ PLC-Framework.Core`, `System.Drawing` |
+| `UI.Shared` | `Core` + WPF | `mscorlib`, `System` — see below |
+| `S7PlcWebserverApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |
 | `AddIn.VXX` | anything, Siemens included | `+ Siemens.Engineering.AddIn` |
 | `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window | |
 
 That third column is read from the compiled assemblies, not from the `using` statements — it is the only check that cannot drift.
+
+**And it does surprise.** `UI.Shared` emits **no reference to `Core`** despite declaring one
+in its `.csproj`, and none to WPF either. The only thing it takes from `Core` is
+`Product.Title`, a `const string`, and a constant is **inlined at compile time** — the
+dependency vanishes from the metadata while the project reference stays necessary for the
+compiler and `Core.dll` stays necessary next to the executable. Its WPF content is XAML,
+compiled to BAML resources rather than to code, and `SingleInstance` is a `Mutex` plus two
+`DllImport`s. Neither is a defect to fix; both are the reason to read metadata instead of
+`using` lines.
 
 **Shared projects are named after the concern, not the consumer.** `UI.Shared` holds what anything with a window needs — the logo, the palette — regardless of whether that thing is a satellite or a command-line tool that shows a dialog. Calling it `Satellite.Shared` would have broken the rule above in the name itself. `AddIn.Shared` keeps a consumer-shaped name because its contents genuinely are Add-In vocabulary: a TIA notification, a PLC group tree.
 
@@ -1023,6 +1049,11 @@ Two things changed in the move, both deliberate:
   inside triggers. That is exactly how a "disabled grey" becomes three slightly different
   greys, so they are now `FieldEdgeDisabled`, `InkDisabled`, `RowHover` and so on in
   `Theme.xaml`.
+- **A button that removes something uses `Destructive`**, which is `Quiet` at rest and red
+  under the pointer — so the click announces itself before it happens, and does so the same
+  way wherever a remove button appears. It could not be derived from `Quiet` with `BasedOn`:
+  the state that differs is a trigger *inside* the template, and `BasedOn` replaces the
+  whole template or nothing.
 - **The eye lost its tooltip.** It used to flip between "Show the password" and "Hide the
   password", which cannot survive a style that also serves a GitHub token — and the
   alternative, a wording vague enough for both, tells nobody anything. The window names its
@@ -1301,6 +1332,74 @@ Variables.Expand("Bearer ${GITHUB_TOKEN}", lookup);
 The parser is forgiving because the file is edited by hand — `export` prefixes, quotes,
 blanks around the `=`, `#` comments, and a value containing `=` all behave as a reader would
 expect.
+
+## Editing a configuration
+
+`Satellite.ConfigEditor` opens from **"Config. Editor"** on the project root of both
+Add-Ins. Section navigation down the left rather than tabs — two of the four sections
+subdivide again — and a **dot beside a section** marks where the problems are, which costs
+nothing because the validator already reports per concern.
+
+**The JSON tree is the document.** Editing it in place is what lets a key the model has
+never heard of survive a save, and this file is meant to be hand-edited, so somebody's extra
+key is not a bug to clean up. Every key and its order are preserved; the original whitespace
+is not, because keeping that would mean editing text by character offsets and every edit
+could then corrupt the file.
+
+Three rules the window follows, and each exists because the opposite was worse:
+
+- **Structural problems block `Save`; environmental ones never do.** A configuration
+  prepared here for another station is not wrong because a drive is not mapped on this one.
+- **A file that exists but does not parse is never offered the template button.** That
+  button would overwrite it, and a file somebody broke by hand is still a file somebody
+  wants back. It shows the parser's line and column instead.
+- **Creating from the template writes nothing until `Save`**, so backing out costs nothing.
+
+### The rules, and what a type implements
+
+The `Coding style` section is where the editor stops being a form and starts preventing
+mistakes.
+
+- **`implements` is chosen, never typed.** Each type shows only the rules it implements, as
+  tags with a cross, and a `+` offers the ones it does not have yet. Building the choice
+  from the catalogue makes a dangling reference **impossible** rather than merely
+  detectable — half of what the validator exists to catch, removed at the source. The `type`
+  comes from a drop-down of its section's closed set, which removes the other half.
+- **A reference to a rule that does not exist is shown in red, not hidden**, so the editor
+  can repair a hand-edited file rather than only complain about it. Tick boxes could not:
+  with no box to clear, there was nothing to click.
+- **Renaming a rule carries its references with it**, and refuses to collide. Committed on
+  leaving the field, not per keystroke — an id is a key, and rewriting references on the way
+  from `type` to `typeName` would churn the document through a dozen half-typed names.
+- **The pattern says whether it compiles, and a "Try it" box says whether a sample name
+  matches.** A regex that compiles can still be perfectly wrong, and otherwise that is only
+  discovered once the Add-In has marked half a project.
+- **A type appears at most once per section.** A second row for the same type says nothing
+  the first does not, so a type in use is offered nowhere it could be duplicated.
+
+### The token
+
+`config.json` always carries the literal `${GITHUB_TOKEN}`; the secret goes to the per-user
+`.env`. The field is masked with the same twin-control eye as the PLC password, and the
+`.env` is written **before** the JSON — there is no point leaving a `config.json` behind
+that references a variable nobody managed to set.
+
+### One editor per TIA Portal
+
+The satellite works out which TIA launched it **by itself**, from its own parent process —
+which is TIA because the launcher starts it with `UseShellExecute=false`. The Add-In could
+not tell it: under partial trust `Process.GetCurrentProcess()` throws `SecurityException`,
+measured in a restricted `AppDomain`, and `AddIn.Utilities` holds only `Process` and
+`ProcessStartInfo`. Reading the parent costs ~170 ms once, cannot be forged by editing the
+handoff, and degrades correctly when started by hand: no TIA parent, so the guard falls back
+to one editor per file. Confirmed on the VM.
+
+> **`ConfigLocation.Resolve` accepts all three ways of naming a project** — the project
+> folder, the `.plc-framework` inside it, or the `config.json` itself. Appending the
+> convention to whatever was picked is wrong the moment somebody picks one step deeper,
+> which is the natural thing to do since `.plc-framework` is the folder with the file
+> visibly in it. It produced `…\.plc-framework\.plc-framework\config.json` and a window
+> reporting "no configuration" on a project that had one.
 
 ## Prior reference project
 

@@ -24,7 +24,8 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 - Assets live once in `assets/`, grouped **by feature**, and are embedded **in `AddIn.Shared`** as `EmbeddedResource` (never `Content`: the `.addin` only carries assemblies). Use a glob, not a list.
 - **The loader and the assets cannot be separated.** Embedded resources are scoped to the assembly that carries them, and `Assets` resolves against `typeof(Assets).Assembly`. Moving `Assets.cs` without moving the `EmbeddedResource` glob makes every lookup return `null` — **silently**, because `Open` returns `null` by design so callers degrade.
 - **Never hardcode a resource-name prefix.** Match on the tail of the name — a stale prefix compiles fine and returns `null` at runtime inside TIA.
-- **The dark-theme control styles live in `UI.Shared/Resources/Controls.xaml`, and a windowed app merges that one dictionary** — it pulls `Theme.xaml` in itself. Do not copy styles into a window: they moved out of `Satellite.DataBlockSnapshot` on 2026-09-09 precisely because a second consumer appeared. Most are **implicit**, so a plain `<TextBox/>` is themed already; only real choices are keyed (`Quiet`/`Primary`, `FieldLabel`, `Reveal`). Colours are named in `Theme.xaml` — never write a hex literal into a trigger, which is how one "disabled grey" becomes three.
+- **A button that removes something uses the `Destructive` style, and every one of them does.** Identical to `Quiet` at rest and **red under the pointer**, so the click announces itself before it happens — and announces itself the same way wherever a remove button appears. Its template is spelled out rather than derived from `Quiet` with `BasedOn`, because the state that differs is a trigger *inside* the template and `BasedOn` cannot reach into one.
+- **The dark-theme control styles live in `UI.Shared/Resources/Controls.xaml`, and a windowed app merges that one dictionary** — it pulls `Theme.xaml` in itself. Do not copy styles into a window: they moved out of `Satellite.DataBlockSnapshot` on 2026-09-09 precisely because a second consumer appeared. Most are **implicit**, so a plain `<TextBox/>` is themed already; only real choices are keyed (`Quiet` / `Primary` / `Destructive` for a button, `FieldLabel`, `FieldChrome`, `Reveal`). Colours are named in `Theme.xaml` — never write a hex literal into a trigger, which is how one "disabled grey" becomes three.
 - **A `ComboBox` template must serve both `IsEditable` states.** A template written for the editable case has only `PART_EditableTextBox`, and a read-only `ComboBox` using it renders **empty** — the selection binds fine and nothing is drawn, because the stock template's `ContentPresenter` for `SelectionBoxItem` is missing. `Controls.xaml` now carries both and an `IsEditable` trigger picks one. The `ToggleButton` spans both columns and is declared **before** the editable `TextBox`, so a read-only combo opens from anywhere while an editable one still gets its clicks.
 - **Theming a WPF input control takes a `ControlTemplate`, not `Setter`s.** Background, foreground, caret and selection are properties; **hover and focus are template triggers painting from hardcoded brushes**, so a styled field still flashes Windows-blue when touched. One `ControlTemplate` with `TargetType="Control"` serves `TextBox` and `PasswordBox` alike — both are `TextBoxBase`, which locates its editing surface by the name `PART_ContentHost`. Two consequences bite: an implicit `TextBox` style also lands on an editable `ComboBox`'s `PART_EditableTextBox` (so its padding must be zeroed against the combo's fixed height), and that same part is transparent by design, so a disabled trigger must dim the border and text but **never** repaint the background.
 - **`AddIn.Shared.Assets.Open(path)` returns a `Stream`, never an image type.** The lookup is worth sharing; the type is not. `Adapters/Icons` materialises a `System.Drawing.Icon` for the TIA menu, and a WPF consumer would build an `ImageSource` from the same bytes. Keeping the lookup free of `System.Drawing` is what allows both.
@@ -63,10 +64,13 @@ Do not relitigate without new information:
 1. **Three layers, decided by dependency set** — see below.
 2. **Two Add-In projects**: `AddIn.V20` (valid V17–V20) and `AddIn.V21`. V21 breaks binary compatibility and splits the assemblies.
 3. **Satellites are separate `.exe` files, and cannot be otherwise.** Verified: the Publisher **silently drops** any `.exe` listed under `AdditionalAssemblies` — no error, no warning, the package is just built without it. The filter is purely by extension (the same PE renamed to `.dll` is packaged), but that is no workaround: the part lands in `LocalAssemblyCache/` and TIA loads it as an assembly inside its own process, never as a file on disk. Siemens' own `Siemens.Engineering.AddIn.Utilities.Process` wrapper plus `ProcessStartPermission` confirm launching an external executable is the sanctioned path.
-4. **Install location** — `%ProgramData%\PLC-Framework\`, exposed by `Core.InstallPaths`, holding `.env` and a single `tools\` folder for **every** executable shipped, satellites included. **Per machine, not per user.** **Not** next to the `.addin`: `UserAddIns` is per TIA version (V20 and V21 would each need a copy) and belongs to Siemens. **Not** derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be trusted. `PLC_FRAMEWORK_HOME` overrides it for staging. Installing needs elevation once; reading does not.
+4. **Install location** — `%ProgramData%\PLC-Framework\`, exposed by `Core.InstallPaths`, holding a single `tools\` folder for **every** executable shipped, satellites included. **Per machine, not per user.** Its counterpart is `%LOCALAPPDATA%\PLC-Framework\`, `InstallPaths.UserRoot`, and the line between them is a rule: **`%ProgramData%` is what the installer puts there, `%LOCALAPPDATA%` is what the applications write** — `.env`, `credentials.json`, `config.template.json`. `%ProgramData%` grants ordinary users read and execute but **not write**, so getting this backwards passes every test on a developer's machine, where you are an administrator, and fails at a customer's. **Not** next to the `.addin`: `UserAddIns` is per TIA version (V20 and V21 would each need a copy) and belongs to Siemens. **Not** derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be trusted. `PLC_FRAMEWORK_HOME` overrides it for staging. Installing needs elevation once; reading does not.
    - **"Satellite" is a role, not a location.** A satellite is a WPF app the Add-In launches from the menu; it lives in `tools\` next to any command-line helper. Splitting the folder by role was tried and reverted — it only invited arguments about which half a new executable belonged in.
 5. **Add-In → satellite handoff: a JSON document over stdin** (chosen 2026-09-04). Siemens' `Process` wrapper exposes `RedirectStandardInput`, so the Add-In writes the payload straight into the child and no file is ever created — nothing to clean up, no permissions question, no stale handoff from a crashed run. **Verified end to end on the VM (2026-09-04): the redirection does survive the permission sandbox.** The satellite still reads the payload behind a small abstraction, and the fallback — a `%TEMP%` file whose path arrives as an argument — stays wired as reserve rather than as a bet. Not the TIA project folder: those are under version control, and tying the handoff to project writability makes a read-only project fail before the window even opens.
-6. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup — **except `Satellite.DataBlockSnapshot`**, which may run several times at once. Each of its runs is a job with its own PLC, its own blocks and its own destination; a single instance would either refuse the second launch or silently discard the selection that came with it. The rule stands for satellites that show *state*; it does not for one that performs a *job*.
+6. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup, but *what* the name identifies differs by satellite, and the difference is the design:
+   - `Satellite.About` — **one, full stop.** It shows the same thing to everyone.
+   - `Satellite.DataBlockSnapshot` — **no guard at all.** Each run is a job with its own PLC, its own blocks and its own destination; a single instance would either refuse the second launch or silently discard the selection that came with it. The rule stands for satellites that show *state*; it does not for one that performs a *job*.
+   - `Satellite.ConfigEditor` — **one per open TIA Portal**, keyed on its own parent process, falling back to one per file when started by hand. It edits a document, and two windows over one document lose each other's changes in silence.
 7. **No Siemens API exposes the Add-In's own path or the running TIA version.** Checked `TiaPortal` and the whole `Siemens.Engineering.AddIn` root namespace. Anything needing a location must derive it from a well-known folder.
 8. **Satellites stay multi-file and stay on `net48` — for now.** A single-file `.exe` was considered on 2026-09-04 and deferred. ILRepack / ILMerge is ruled out outright: `App.xaml` merges its dictionaries by **pack URI, which carries the assembly name**, so merging breaks resource resolution at runtime with no build error. Costura.Fody does work and stays available. Worth knowing: **nothing binds a satellite to `net48`** — that constraint comes from Openness, which a satellite never touches — so multi-targeting `Core` and `UI.Shared` would give `PublishSingleFile` for free, at the price of a .NET runtime on the station. The real cost is the manual copy, not the file count, and the deployment automation already on the pending list fixes that for the `.addin` and the satellite at once.
 
@@ -87,11 +91,26 @@ Verified from the compiled assemblies:
 
 ```
 PLC-Framework.Core                -> mscorlib, System, System.Core, System.Runtime.Serialization
-PLC-Framework.AddIn.Shared        -> + PLC-Framework.Core, System.Drawing
-PLC-Framework.UI.Shared           -> WPF only (today it is pure XAML, so it emits almost nothing)
-PLC-Framework.S7PlcWebserverApi   -> System.Net.Http, Newtonsoft.Json  (no reference to Core)
+PLC-Framework.AddIn.Shared        -> mscorlib, PLC-Framework.Core, System.Core, System.Drawing,
+                                     System.Runtime.Serialization
+PLC-Framework.UI.Shared           -> mscorlib, System           (see below)
+PLC-Framework.S7PlcWebserverApi   -> mscorlib, Newtonsoft.Json, System, System.Net.Http
+                                     (no reference to Core)
 PLC-Framework.V20                 -> + Siemens.Engineering.AddIn
 ```
+
+**`UI.Shared` emits no reference to `Core` even though its `.csproj` declares one**, and no
+WPF reference either. Both are worth understanding rather than "fixing":
+
+- The only thing it takes from `Core` is `Product.Title`, a `const string` — and a constant
+  is **inlined at compile time**, so the dependency disappears from the metadata. The
+  project reference still has to be there for the compiler, and `Core.dll` still has to
+  travel next to the executable for everything else.
+- Its WPF content is XAML, compiled to BAML resources rather than to code. `SingleInstance`
+  is plain `Mutex` plus two `DllImport`s, which is `mscorlib` and `System`.
+
+That is exactly why the layering is read from the metadata and not from the `using`
+statements: the answer is sometimes surprising, and only one of the two can be wrong.
 
 **`S7PlcWebserverApi` deliberately does not reference `Core`.** It knows nothing about `Product`, `InstallPaths` or the config model, and keeping it that way is what lets it be exercised from PowerShell against a real CPU without dragging the rest of the framework in — which is how every one of its behaviours was verified. It is also why it must never go **into** `Core`: it pulls `System.Net.Http`, and `Core` is loaded inside TIA Portal's process.
 
@@ -201,10 +220,7 @@ zipped copy sooner or later. Hence:
   would do. Worth remembering when a credential is remembered rather than typed: revealing
   it is the only way to check *which* password came back.
 
-This leaves `.env` and `${VAR}` expansion untouched as pending work — they are still what
-`${GITHUB_TOKEN}` in `config.json` needs, and that one genuinely is a shared team secret.
-
-### `Satellite.ConfigEditor` — decided 2026-09-08, not yet built
+### `Satellite.ConfigEditor` — decided 2026-09-08, phases 1 and 2 built 2026-09-09
 
 Edits `config.json` with a UI. Launched from the menu by `ConfigEditorAction`, labelled
 **"Config. Editor"**. The contract it enforces is the README table; these are the decisions
@@ -242,8 +258,12 @@ about the application itself:
   `%ProgramData%` is not writable by ordinary users, so an editor saving there would work
   here and fail on a real station. The field is masked with the same show/hide twin-control
   as the PLC password.
-- **The validator comes first.** It is `Core`'s, this satellite is its first consumer, and
-  the Add-In needs it too.
+- **The validator came first**, and it was the right order: it is `Core`'s, this satellite
+  is its first consumer, and the Add-In needs it too.
+
+**Still to build: phase 3, the five `hierarchy` trees.** Add, rename and remove only —
+moving was considered and dropped, because the folder names carry numeric prefixes
+(`00-OB`, `01-FSL`) and the order is decided by the name anyway.
 
 #### The window — phase 1 built 2026-09-09
 
@@ -308,6 +328,15 @@ Two tabs inside the section: the **rule catalogue**, and the **types that implem
   rule, `ob_main` and `OB_` do not.
 - **A new rule gets `^$`, which matches nothing.** An empty pattern matches *everything* —
   a naming rule that approves every name ever written.
+- **No `ScrollViewer` wraps the whole section, and that is deliberate.** One there hands
+  every panel infinite height, so a `*` row inside behaves like `Auto`: the rule list grew
+  without end and pushed its own Add/Remove buttons off screen. Each panel now brings the
+  scrolling it needs — the list scrolls inside itself, the description takes what height is
+  left and scrolls, and the buttons stay put. Checked at the window's minimum size, where
+  the list drops from 556 px to 345 and nothing goes off screen.
+- **A hint under a `*` field competes with it for the last of the height, and wins.** The
+  "one line each" note left the description two lines tall with the note overlapping it;
+  beside the heading it costs nothing.
 - **Tick-box labels are a `TextBlock`, not `Content`.** WPF reads `_` as a keyboard
   accelerator and hides it, so `data_container` rendered as "datacontainer". An id is an
   exact key; it has to read exactly. Same for a `MenuItem` header.
@@ -355,7 +384,7 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
 
 `Core` and `AddIn.Shared` travel inside each `.addin` via `AdditionalAssemblies` in `Config.xml` — **one entry per assembly; transitive project references are not packaged automatically**. **Do not propose merging the DLLs** with ILRepack or Costura.Fody: the `.addin` is already a single deployable file, `AdditionalAssemblies` is the vendor-supported mechanism, and the satellites will need `Core` as an assembly with one identity anyway.
 
-## Status (2026-09-04)
+## Status (2026-09-09)
 
 - [x] `Core`, `AddIn.V20` and `AddIn.V21` created, all in the `.slnx`.
 - [x] Both Add-Ins **validated end to end**: build → `.addin` containing `Core` → load and run correctly in TIA Portal V20 / V21 on the VM.
@@ -379,6 +408,22 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
       *rejects* the credentials** — both test PLCs were off the network that day, so only
       the connection-failure path was seen to skip the save. Same code path either way, but
       it deserves one run when the network is back.
+- [x] **`Core` finished** (2026-09-09): the structural validator per concern plus
+      `ConfigValidator`, the environmental one, `Core/Secrets/` (`DotEnv` + `${VAR}`), and
+      `InstallPaths.UserRoot` / `UserFile`. Exercised against the real `config.json` and
+      against thirty-odd deliberately broken variants, with no UI in sight.
+- [x] **The dark theme moved to `UI.Shared/Resources/Controls.xaml`** (2026-09-09) when the
+      second windowed consumer appeared, and the move was verified by **pixel comparison**
+      rather than by eye: pre-refactor against a control run, 0.096 % of pixels different,
+      maximum delta 4.
+- [x] **`Satellite.ConfigEditor`, phases 1 and 2** (2026-09-09): window, navigation, the
+      empty-project and broken-file states, creating from the template, saving, `Metadata`,
+      `Repository` with the token in the `.env`, and the whole of `Coding style`. Every
+      state driven through UI Automation against the running binary.
+- [x] `ConfigEditorAction` on the project root of both Add-Ins, with its payload serialised
+      **inside a restricted `AppDomain`** — and **confirmed in TIA on the VM**, including the
+      one-instance-per-TIA guard, which is what proves the parent process really is TIA.
+- [ ] **`Satellite.ConfigEditor` phase 3**: the five `hierarchy` trees.
 - [ ] `IPC` — not started, and now unlikely ever to be: decision 5 settles the handoff on stdio.
 
 ### The first NuGet dependencies (2026-09-04)
@@ -404,7 +449,7 @@ A different kind of divergence, and easier to miss because the source is identic
 
 **`.siemens\` holds the reflected reference** for both versions, generated from the assemblies with `GetExportedTypes()`. Consult it before asserting anything about the Openness API, and regenerate rather than hand-edit. It carries type names and counts only, no Siemens code, which is why it can be committed when the DLLs cannot.
 
-### `config.json` pipeline — contract settled 2026-09-08, code not yet built
+### `config.json` pipeline — contract settled 2026-09-08, validators built 2026-09-09
 
 **The field-by-field contract lives in the README, under *The `config.json` contract*** —
 required, type and meaning for every key, plus the closed sets, the internal references and
@@ -439,23 +484,9 @@ and **one consumer** (the Add-In). Decisions taken:
 ### Pending
 
 - [ ] **Building while TIA has the Add-In loaded fails.** The Publisher cannot overwrite a `.addin` that the VM holds open through a shared folder — `vmware-vmx.exe` shows up as the owner. Harmless once understood, but it looks like a build error: close TIA, or stop deploying straight out of `bin\Debug\net48`
-- [x] **Structural validator built** (2026-09-09), in `Core/Config/Validation/`: one
-      validator per concern plus `ConfigValidator` for the whole document. Exercised against
-      the real `config.json` in `.example\` — clean — and against thirty-odd deliberately
-      broken variants. `System` joined `Core`'s references for `Regex` and `Uri`; harmless,
-      but the layering table was updated rather than left to drift
-- [x] **The environmental validator** (2026-09-09): local repository path, its folder and
-      its dependency file, plus every `${VAR}` resolving. Separate pass, separate type — it
-      touches disk. Deliberately does **not** reach the network
-- [x] **`Core.InstallPaths` gained `UserRoot` and `UserFile(name)`** (2026-09-09), and
-      `EnvFile` now hangs off them. `CredentialStore` stopped building the path itself.
-      `PLC_FRAMEWORK_HOME` moves `Root` only, **not** `UserRoot` — verified — because the
-      two answer different questions and the variable exists for elevation, which the
-      per-user folder never needs
-- [x] **`.env` reader + `${VAR}` expansion in `Core`** (2026-09-09), as `Core/Secrets/`.
-      `ISecretLookup` was indeed unnecessary. `Variables` is pure and takes a lookup;
-      `DotEnv` owns the file and writes it **surgically**, preserving comments and order
-- [ ] `config.schema.json` referenced from the file itself via `$schema`
+- [ ] `config.schema.json` referenced from the file itself via `$schema`. The last piece of
+      the config pipeline still missing, and the one that helps the hand-edit path: it
+      validates while the file is being typed, before any of `Core`'s validators run
 - [ ] Verify on the VM what `Assembly.GetExecutingAssembly().Location` returns for a loaded `.addin`. No longer blocking anything, but worth knowing — the old project assumed `UserAddIns` and may well get an empty string
 - [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
 - [ ] Automate deployment to the VM — now two copies, the `.addin` into `UserAddIns\` and the satellite into `tools\`. Both are manual today, and this is the item that makes a single-file satellite unnecessary (decision 8)

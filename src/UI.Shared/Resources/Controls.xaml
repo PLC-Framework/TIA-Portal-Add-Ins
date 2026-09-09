@@ -335,6 +335,43 @@
         <Setter Property="BorderBrush" Value="{StaticResource BrandBrushBottom}" />
     </Style>
 
+    <!--
+        A button that removes something. Identical to Quiet at rest, and **red under the
+        pointer** - which is the whole point: it says what the click will do before it
+        happens, and it says it the same way wherever a remove button appears.
+
+        The template is spelled out rather than derived from Quiet with BasedOn: the state
+        that changes is a trigger *inside* the template, and BasedOn cannot reach into one.
+    -->
+    <Style TargetType="Button" x:Key="Destructive">
+        <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        <Setter Property="Background" Value="{StaticResource Field}" />
+        <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrandBrushTop}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BrandBrushBottom}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource InkDisabled}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource FieldDisabled}" />
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource FieldEdgeDisabled}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- The eye that reveals a secret - a PLC password, a GitHub token. Drawn rather than
          loaded: it is two paths and an ellipse, and an .ico would have to be embedded,
          resolved and themed, which is a great deal of machinery for sixteen pixels.
