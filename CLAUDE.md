@@ -272,9 +272,55 @@ is exactly how the validator already reports them — per concern.
 - The token uses the same twin-control eye as the PLC password, and writes to the `.env`
   **before** the JSON: there is no point leaving a `config.json` behind that references a
   variable nobody managed to set.
-- `Hierarchy` and `Coding style` show a panel saying they are not editable here yet, and
-  that saving leaves them untouched — which is true, and is what the JSON-tree editing
-  buys.
+- `Hierarchy` still shows a panel saying it is not editable here yet, and that saving
+  leaves it untouched — which is true, and is what the JSON-tree editing buys.
+
+#### Coding style — phase 2 built 2026-09-09
+
+Two tabs inside the section: the **rule catalogue**, and the **types that implement them**.
+
+- **`implements` shows only what the type implements, as tags with a cross**, and a `+`
+  offers the rules it does not have yet. Never a text field: building the choice from the
+  catalogue makes a dangling reference *impossible* rather than merely detectable — half of
+  what the validator exists to catch, removed at the source. The `type` comes from a
+  drop-down of its section's closed set, which removes the other half.
+  - Tick boxes were tried first and were wrong: fifteen rules across ten types is a hundred
+    and fifty controls, nearly all empty, and the noise hides the one thing worth reading.
+    A tick box that *disappears* when cleared would also behave like nothing else in Windows.
+  - **A reference to a rule that does not exist is shown in red, not hidden.** With boxes
+    built from the catalogue there was no box to clear, so the editor could report that
+    problem and not repair it — which is the wrong half. As a tag, removing it is one click,
+    and `Save` unblocks itself. Verified against a file doctored to hold one.
+  - Written back in **catalogue order, with anything unrecognised kept at the end**: the
+    file must not change because two people clicked in a different sequence, and a dangling
+    reference has to survive a save so it can be seen and removed rather than silently
+    dropped.
+- **Renaming a rule carries its references with it.** `CodingStyleEditor.RenameRule` rewrites
+  every `implements` entry; without that, renaming breaks four places silently and at a
+  distance. It also refuses to collide, appending `_2` rather than leaving the validator to
+  complain afterwards. Committed on **leaving the field**, not per keystroke: an id is a
+  key, and rewriting references on the way from `type` to `typeName` would churn the
+  document through a dozen half-typed names.
+- **Removing a rule removes its references too**, for the same reason.
+- **The pattern reports whether it compiles, and a "Try it" box says whether a sample name
+  matches.** A regex that compiles can still be perfectly wrong, and today that is only
+  discovered when the Add-In marks half a project. Verified: `OB_MAIN` matches the interrupt
+  rule, `ob_main` and `OB_` do not.
+- **A new rule gets `^$`, which matches nothing.** An empty pattern matches *everything* —
+  a naming rule that approves every name ever written.
+- **Tick-box labels are a `TextBlock`, not `Content`.** WPF reads `_` as a keyboard
+  accelerator and hides it, so `data_container` rendered as "datacontainer". An id is an
+  exact key; it has to read exactly. Same for a `MenuItem` header.
+- **A type appears at most once per section.** A second row for the same `type` says
+  nothing the first does not — the pairing with its rules is already complete — and only
+  raises the question of which one counts. So a type in use is offered **nowhere it could be
+  duplicated**: "Add type" lists only the free ones and disables itself when there are none,
+  and each row's drop-down holds the free ones **plus its own**, without which the row could
+  not display the value it already has. `AppliesSection.Refresh` recomputes both after any
+  change, and the section wraps the callback so the window cannot forget to ask.
+- **The drop-down lists are updated in place, never cleared and refilled.** A `ComboBox`
+  whose `ItemsSource` empties loses its selection, and the row would come back blank — which
+  then writes an empty type into the document.
 
 **Verified end to end**: opening a real config, the empty-project and broken-file states,
 creating from the template, and saving. The saved file kept all 15 rules with their

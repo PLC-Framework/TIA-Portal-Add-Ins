@@ -69,6 +69,59 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="0,18,0,8" />
         </Style>
+
+        <!-- The cross inside a tag. Borderless and transparent, so the tag reads as one
+             object rather than as a label sitting next to a button. -->
+        <Style TargetType="Button" x:Key="ChipClose">
+            <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrandBrushTop}" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Sub-navigation inside a section. RadioButtons rather than a TabControl: the
+             panels they switch between live in the layout above, and a TabControl would
+             bring its own chrome to fight with the dark theme for no gain. -->
+        <Style TargetType="RadioButton" x:Key="Tab">
+            <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd" Background="Transparent"
+                                BorderBrush="Transparent" BorderThickness="0,0,0,2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowHover}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BrandBrushTop}" />
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -238,6 +291,211 @@
                                            TextWrapping="Wrap" Foreground="#7E8899" />
                             </Grid>
                         </StackPanel>
+
+                        <!-- ===================== Coding style ===================== -->
+                        <Grid x:Name="CodingStylePanel" Visibility="Collapsed">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="Coding style" Style="{StaticResource SectionTitle}" />
+
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,16">
+                                <RadioButton x:Name="RulesTab" Content="Rules" IsChecked="True"
+                                             Style="{StaticResource Tab}" Checked="OnCodingTab" />
+                                <RadioButton x:Name="AppliesTab" Content="Applies to"
+                                             Style="{StaticResource Tab}" Checked="OnCodingTab" />
+                            </StackPanel>
+
+                            <!-- Rules: the catalogue on the left, one rule on the right -->
+                            <Grid Grid.Row="2" x:Name="RulesArea">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="190" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" Grid.Column="0" MinHeight="240"
+                                        Background="{StaticResource Field}"
+                                        BorderBrush="{StaticResource FieldEdge}" BorderThickness="1">
+                                    <ListBox x:Name="RuleList" Background="Transparent" BorderThickness="0"
+                                             Foreground="{StaticResource Ink}"
+                                             SelectionChanged="OnRuleSelected" />
+                                </Border>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Button x:Name="AddRuleButton" Content="Add" Width="70" Padding="0,5"
+                                            Style="{StaticResource Quiet}" Click="OnAddRule" />
+                                    <Button x:Name="RemoveRuleButton" Content="Remove" Width="80" Padding="0,5"
+                                            Margin="8,0,0,0" Style="{StaticResource Quiet}" Click="OnRemoveRule" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                                            x:Name="RuleDetail" Margin="16,0,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Id" Style="{StaticResource FieldLabel}" />
+                                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="RuleIdBox"
+                                                   LostFocus="OnRuleIdCommitted" KeyDown="OnRuleIdKey" />
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Pattern" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="RuleRegexBox" Margin="0,10,0,0"
+                                                   FontFamily="Consolas" TextChanged="OnRuleRegexChanged" />
+
+                                        <TextBlock Grid.Row="2" Grid.Column="1" x:Name="RegexState" Margin="0,5,0,0"
+                                                   TextWrapping="Wrap" />
+
+                                        <!-- A pattern that compiles can still be perfectly
+                                             wrong. This is the only way to find that out
+                                             before the Add-In marks half a project. -->
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Try it" Style="{StaticResource FieldLabel}" Margin="0,12,10,0" />
+                                        <TextBox   Grid.Row="3" Grid.Column="1" x:Name="RuleSampleBox" Margin="0,12,0,0"
+                                                   FontFamily="Consolas" TextChanged="OnRuleSampleChanged" />
+
+                                        <TextBlock Grid.Row="4" Grid.Column="1" x:Name="SampleState" Margin="0,5,0,0"
+                                                   TextWrapping="Wrap" />
+                                    </Grid>
+
+                                    <TextBlock Text="Description" Style="{StaticResource GroupTitle}" />
+                                    <TextBox x:Name="RuleDescriptionBox" MinHeight="120" MaxHeight="220"
+                                             AcceptsReturn="True" TextWrapping="Wrap"
+                                             VerticalContentAlignment="Top"
+                                             VerticalScrollBarVisibility="Auto"
+                                             TextChanged="OnRuleDescriptionChanged" />
+                                    <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#7E8899"
+                                               Text="One line each. Optional — a rule with no prose still works." />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Applies to: the five lists, one after another -->
+                            <ItemsControl Grid.Row="2" x:Name="AppliesArea" Visibility="Collapsed">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,0,20">
+                                            <TextBlock Text="{Binding Title}" Style="{StaticResource GroupTitle}" Margin="0,0,0,6" />
+
+                                            <ItemsControl ItemsSource="{Binding Rows}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="{StaticResource Field}"
+                                                                BorderBrush="{StaticResource FieldEdge}" BorderThickness="1"
+                                                                Padding="8,6" Margin="0,0,0,6">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="180" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <!-- Closed set: a type outside it
+                                                                     cannot match a real TIA object,
+                                                                     so it is chosen, never typed.
+                                                                     The list holds the free types
+                                                                     plus this row's own, so no two
+                                                                     rows can end up the same. -->
+                                                                <ComboBox Grid.Column="0" VerticalAlignment="Top"
+                                                                          ItemsSource="{Binding AvailableTypes}"
+                                                                          SelectedItem="{Binding Type, Mode=TwoWay}" />
+
+                                                                <!-- Only what this type implements, as
+                                                                     tags. A box per rule would be a
+                                                                     hundred and fifty controls across a
+                                                                     section, nearly all of them empty. -->
+                                                                <ItemsControl Grid.Column="1" Margin="12,2,0,0"
+                                                                              ItemsSource="{Binding Implemented}">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <WrapPanel />
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border x:Name="Chip" Margin="0,0,6,5"
+                                                                                    Padding="7,2,3,2" CornerRadius="3"
+                                                                                    Background="{StaticResource Surface}"
+                                                                                    BorderBrush="{StaticResource FieldEdge}"
+                                                                                    BorderThickness="1">
+                                                                                <StackPanel Orientation="Horizontal">
+                                                                                    <!-- TextBlock, not Content: WPF
+                                                                                         reads _ as an accelerator and
+                                                                                         hides it, and an id is an
+                                                                                         exact key. -->
+                                                                                    <TextBlock x:Name="Label" Text="{Binding Id}"
+                                                                                               VerticalAlignment="Center"
+                                                                                               Foreground="{StaticResource Ink}" />
+                                                                                    <Button Content="✕" Width="18" Padding="0"
+                                                                                            Margin="5,0,0,0"
+                                                                                            Style="{StaticResource ChipClose}"
+                                                                                            ToolTip="Stop implementing this rule"
+                                                                                            Tag="{Binding}" Click="OnRemoveRuleFromType" />
+                                                                                </StackPanel>
+                                                                            </Border>
+                                                                            <DataTemplate.Triggers>
+                                                                                <!-- No rule of that name exists: a
+                                                                                     reference left dangling by a
+                                                                                     hand-edited file. Shown so it can
+                                                                                     be removed, not hidden. -->
+                                                                                <DataTrigger Binding="{Binding IsKnown}" Value="False">
+                                                                                    <Setter TargetName="Chip" Property="BorderBrush"
+                                                                                            Value="{StaticResource BrandBrushTop}" />
+                                                                                    <Setter TargetName="Label" Property="Foreground"
+                                                                                            Value="{StaticResource BrandBrushTop}" />
+                                                                                    <Setter TargetName="Chip" Property="ToolTip"
+                                                                                            Value="No rule with this id. Remove it, or add a rule that name." />
+                                                                                </DataTrigger>
+                                                                            </DataTemplate.Triggers>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+
+                                                                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                                            VerticalAlignment="Top">
+                                                                    <Button Content="+" Width="26" Padding="0,2"
+                                                                            Style="{StaticResource Quiet}"
+                                                                            IsEnabled="{Binding CanAddRule}"
+                                                                            ToolTip="Implement another rule"
+                                                                            Tag="{Binding}" Click="OnAddRuleToType" />
+                                                                    <Button Content="✕" Width="26" Padding="0,2"
+                                                                            Margin="6,0,0,0"
+                                                                            Style="{StaticResource Quiet}"
+                                                                            ToolTip="Remove this type"
+                                                                            Tag="{Binding}" Click="OnRemoveType" />
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <!-- Disabled once every type of the closed set has a
+                                                 row: there is nothing left that could be added
+                                                 without duplicating a pairing that already exists. -->
+                                            <Button Content="Add type" Width="100" Padding="0,5"
+                                                    HorizontalAlignment="Left" Style="{StaticResource Quiet}"
+                                                    IsEnabled="{Binding CanAdd}"
+                                                    ToolTip="Add one of the types this section still has free"
+                                                    Tag="{Binding}" Click="OnAddType" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
 
                         <!-- ============== Not editable here yet ============== -->
                         <StackPanel x:Name="LaterPanel" Visibility="Collapsed">

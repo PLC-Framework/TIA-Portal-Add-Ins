@@ -133,6 +133,58 @@ namespace Satellite.ConfigEditor.Document
         public bool Has(string path) => _root.SelectToken(path) != null;
 
         /// <summary>
+        /// A list inside the document, created on the way if asked for.
+        ///
+        /// The tree is handed out rather than copied into a model and back: that is what
+        /// keeps a save from disturbing anything the editor did not touch, and it is why
+        /// this returns the live <see cref="JArray"/> instead of a snapshot.
+        /// </summary>
+        public JArray ArrayAt(string path, bool create = false)
+        {
+            JToken token = _root.SelectToken(path);
+            if (token is JArray existing) return existing;
+
+            if (!create) return null;
+
+            JArray created = new JArray();
+            Put(path, created);
+            return created;
+        }
+
+        public JObject ObjectAt(string path, bool create = false)
+        {
+            JToken token = _root.SelectToken(path);
+            if (token is JObject existing) return existing;
+
+            if (!create) return null;
+
+            JObject created = new JObject();
+            Put(path, created);
+            return created;
+        }
+
+        private void Put(string path, JToken value)
+        {
+            string[] steps = path.Split('.');
+            JObject parent = _root;
+
+            for (int i = 0; i < steps.Length - 1; i++)
+            {
+                JObject next = parent[steps[i]] as JObject;
+
+                if (next == null)
+                {
+                    next = new JObject();
+                    parent[steps[i]] = next;
+                }
+
+                parent = next;
+            }
+
+            parent[steps[steps.Length - 1]] = value;
+        }
+
+        /// <summary>
         /// The structural problems: required fields, closed sets, internal references.
         /// **This is what blocks a save** - a broken file is broken on every machine.
         /// </summary>

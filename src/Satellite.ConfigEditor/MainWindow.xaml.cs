@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -11,7 +11,10 @@ using Core.Config;
 using Core.Config.Validation;
 using Core.Secrets;
 
+using Newtonsoft.Json.Linq;
+
 using Satellite.ConfigEditor.Document;
+using Satellite.ConfigEditor.Editing;
 using Satellite.ConfigEditor.Handoff;
 
 // System.Windows.Controls declares a ValidationResult of its own - WPF's, for binding
@@ -56,7 +59,7 @@ namespace Satellite.ConfigEditor
             _sections.Add(new Section("Metadata", "metadata"));
             _sections.Add(new Section("Repository", "coreRemoteRepositoryConfig", "coreLocalRepositoryConfig"));
             _sections.Add(new Section("Hierarchy", "projectConfig.hierarchy") { Editable = false });
-            _sections.Add(new Section("Coding style", "projectConfig.codingStyle") { Editable = false });
+            _sections.Add(new Section("Coding style", "projectConfig.codingStyle"));
 
             Nav.ItemsSource = _sections;
 
@@ -213,6 +216,7 @@ namespace Satellite.ConfigEditor
                 _loading = false;
             }
 
+            FillCodingStyle();
             Emphasise();
             Revalidate();
         }
@@ -346,6 +350,352 @@ namespace Satellite.ConfigEditor
                 TokenBox.Visibility = Visibility.Visible;
                 TokenBox.Focus();
             }
+        }
+
+        // ----------------------------------------------------------------- coding style
+
+        private CodingStyleEditor _style;
+        private readonly ObservableCollection<AppliesSection> _applies =
+            new ObservableCollection<AppliesSection>();
+
+        private JObject _rule;
+
+        private void FillCodingStyle()
+        {
+            _style = new CodingStyleEditor(_document);
+
+            _loading = true;
+            try
+            {
+                string chosen = RuleList.SelectedItem as string;
+
+                RuleList.ItemsSource = null;
+                RuleList.ItemsSource = _style.RuleIds();
+
+                // Keep the operator where they were: rebuilding the list after an edit
+                // would otherwise throw them back to the top every keystroke.
+                if (chosen != null && _style.RuleIds().Contains(chosen)) RuleList.SelectedItem = chosen;
+                else if (RuleList.Items.Count > 0) RuleList.SelectedIndex = 0;
+
+                FillApplies();
+            }
+            finally
+            {
+                _loading = false;
+            }
+
+            ShowRule(RuleList.SelectedItem as string);
+        }
+
+        private void FillApplies()
+        {
+            IReadOnlyList<string> catalogue = _style.RuleIds();
+
+            _applies.Clear();
+
+            foreach (Applies definition in CodingStyleEditor.Sections)
+            {
+                AppliesSection section = new AppliesSection(definition);
+
+                foreach (JObject entry in _style.Objects(definition.Key).OfType<JObject>())
+                    section.Add(entry, catalogue, OnStyleEdited);
+
+                // Also for a section with no rows at all, so "Add type" starts out right.
+                section.Refresh();
+
+                _applies.Add(section);
+            }
+
+            AppliesArea.ItemsSource = _applies;
+        }
+
+        /// <summary>A tick or a type changed: the document already has it, so just revalidate.</summary>
+        private void OnStyleEdited()
+        {
+            if (_loading) return;
+
+            Revalidate();
+        }
+
+        private void ShowRule(string id)
+        {
+            _rule = id == null ? null : _style.Rule(id);
+
+            bool any = _rule != null;
+            RuleDetail.IsEnabled = any;
+            RemoveRuleButton.IsEnabled = any;
+
+            _loading = true;
+            try
+            {
+                RuleIdBox.Text = any ? id : string.Empty;
+                RuleRegexBox.Text = any ? _rule["regex"]?.Value<string>() ?? string.Empty : string.Empty;
+                RuleDescriptionBox.Text = any ? CodingStyleEditor.DescriptionsOf(_rule) : string.Empty;
+            }
+            finally
+            {
+                _loading = false;
+            }
+
+            ShowRegexState();
+        }
+
+        private void OnRuleSelected(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading) return;
+
+            ShowRule(RuleList.SelectedItem as string);
+        }
+
+        private void OnAddRule(object sender, RoutedEventArgs e)
+        {
+            if (_style == null) return;
+
+            JObject added = _style.AddRule();
+            string id = added["id"].Value<string>();
+
+            FillCodingStyle();
+            RuleList.SelectedItem = id;
+            ShowRule(id);
+
+            RuleIdBox.Focus();
+            RuleIdBox.SelectAll();
+
+            Revalidate();
+        }
+
+        private void OnRemoveRule(object sender, RoutedEventArgs e)
+        {
+            string id = RuleList.SelectedItem as string;
+            if (_style == null || id == null) return;
+
+            // The references go with it. A rule removed but still implemented somewhere is
+            // exactly the dangling reference this section exists to prevent.
+            _style.RemoveRule(id);
+
+            FillCodingStyle();
+            Revalidate();
+        }
+
+        /// <summary>
+        /// Renaming is committed on leaving the field, not per keystroke: an id is a key,
+        /// and rewriting every reference on the way from "type" to "typeName" would churn
+        /// the document through a dozen half-typed names.
+        /// </summary>
+        private void OnRuleIdCommitted(object sender, RoutedEventArgs e)
+        {
+            if (_loading || _style == null || _rule == null) return;
+
+            string oldId = _rule["id"]?.Value<string>();
+            string wanted = RuleIdBox.Text.Trim();
+
+            if (wanted.Length == 0 || string.Equals(wanted, oldId, StringComparison.Ordinal))
+            {
+                _loading = true;
+                try { RuleIdBox.Text = oldId ?? string.Empty; }
+                finally { _loading = false; }
+                return;
+            }
+
+            string used = _style.RenameRule(oldId, wanted);
+
+            FillCodingStyle();
+            RuleList.SelectedItem = used;
+            ShowRule(used);
+
+            StatusLine.Text = string.Equals(used, wanted, StringComparison.Ordinal)
+                ? StatusLine.Text
+                : "'" + wanted + "' was already taken, so the rule is called '" + used + "'.";
+
+            Revalidate();
+        }
+
+        private void OnRuleIdKey(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Enter) OnRuleIdCommitted(sender, e);
+        }
+
+        private void OnRuleRegexChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_loading || _rule == null) return;
+
+            _rule["regex"] = RuleRegexBox.Text;
+
+            ShowRegexState();
+            Revalidate();
+        }
+
+        private void OnRuleSampleChanged(object sender, TextChangedEventArgs e) => ShowRegexState();
+
+        private void OnRuleDescriptionChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_loading || _rule == null) return;
+
+            CodingStyleEditor.SetDescriptions(_rule, RuleDescriptionBox.Text);
+            Revalidate();
+        }
+
+        private void ShowRegexState()
+        {
+            string pattern = RuleRegexBox.Text;
+            string problem = CodingStyleEditor.RegexProblem(pattern);
+
+            if (_rule == null)
+            {
+                RegexState.Text = string.Empty;
+                SampleState.Text = string.Empty;
+                return;
+            }
+
+            RegexState.Text = problem == null ? "compiles" : problem;
+            RegexState.Foreground = problem == null ? Ok : Bad;
+
+            bool? matches = CodingStyleEditor.Matches(pattern, RuleSampleBox.Text);
+
+            if (matches == null)
+            {
+                SampleState.Text = string.Empty;
+                return;
+            }
+
+            SampleState.Text = matches.Value ? "matches" : "does not match";
+            SampleState.Foreground = matches.Value ? Ok : Bad;
+        }
+
+        private static readonly System.Windows.Media.Brush Ok =
+            new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(0x7F, 0xC9, 0x8A));
+
+        private static readonly System.Windows.Media.Brush Bad =
+            new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(0xE2, 0x6D, 0x6D));
+
+        private void OnCodingTab(object sender, RoutedEventArgs e)
+        {
+            if (RulesArea == null || AppliesArea == null) return;
+
+            bool rules = RulesTab.IsChecked == true;
+
+            RulesArea.Visibility = rules ? Visibility.Visible : Visibility.Collapsed;
+            AppliesArea.Visibility = rules ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        /// <summary>
+        /// Offers the types this section still has free. Only the free ones: a second row
+        /// for a type that already has one says nothing the first does not, and only raises
+        /// the question of which of the two counts.
+        /// </summary>
+        private void OnAddType(object sender, RoutedEventArgs e)
+        {
+            Button button = sender as Button;
+            AppliesSection section = button?.Tag as AppliesSection;
+
+            if (section == null || _style == null || !section.CanAdd) return;
+
+            // Nothing to choose between, so do not make them choose.
+            if (section.FreeTypes.Count == 1)
+            {
+                AddType(section, section.FreeTypes[0]);
+                return;
+            }
+
+            ContextMenu menu = new ContextMenu
+            {
+                PlacementTarget = button,
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom
+            };
+
+            foreach (string type in section.FreeTypes)
+            {
+                string chosen = type;
+
+                // TextBlock rather than a string header, for the same reason the tick boxes
+                // use one: WPF would read an underscore as a keyboard accelerator.
+                MenuItem item = new MenuItem { Header = new TextBlock { Text = type } };
+                item.Click += (s, args) => AddType(section, chosen);
+
+                menu.Items.Add(item);
+            }
+
+            menu.IsOpen = true;
+        }
+
+        private void AddType(AppliesSection section, string type)
+        {
+            JObject entry = _style.AddObject(section.Definition.Key, type);
+
+            section.Add(entry, _style.RuleIds(), OnStyleEdited);
+            Revalidate();
+        }
+
+        /// <summary>
+        /// Offers the rules this type does not implement yet — the same shape as "Add
+        /// type", so it is learnt once. Building the menu from the catalogue is also what
+        /// keeps a dangling reference from being created here in the first place.
+        /// </summary>
+        private void OnAddRuleToType(object sender, RoutedEventArgs e)
+        {
+            Button button = sender as Button;
+            TypeRow row = button?.Tag as TypeRow;
+
+            if (row == null || !row.CanAddRule) return;
+
+            if (row.AvailableRules.Count == 1)
+            {
+                row.AddRule(row.AvailableRules[0]);
+                Revalidate();
+                return;
+            }
+
+            ContextMenu menu = new ContextMenu
+            {
+                PlacementTarget = button,
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom
+            };
+
+            foreach (string id in row.AvailableRules)
+            {
+                string chosen = id;
+
+                // TextBlock rather than a string header: a rule id like data_container
+                // would otherwise lose its underscores to accelerator parsing.
+                MenuItem item = new MenuItem { Header = new TextBlock { Text = id } };
+                item.Click += (s, args) => { row.AddRule(chosen); Revalidate(); };
+
+                menu.Items.Add(item);
+            }
+
+            menu.IsOpen = true;
+        }
+
+        private void OnRemoveRuleFromType(object sender, RoutedEventArgs e)
+        {
+            RuleTag tag = (sender as FrameworkElement)?.Tag as RuleTag;
+            if (tag == null) return;
+
+            // The row it belongs to is whichever holds this exact tag.
+            TypeRow row = _applies.SelectMany(section => section.Rows)
+                                  .FirstOrDefault(candidate => candidate.Implemented.Contains(tag));
+
+            row?.RemoveRule(tag);
+            Revalidate();
+        }
+
+        private void OnRemoveType(object sender, RoutedEventArgs e)
+        {
+            TypeRow row = (sender as FrameworkElement)?.Tag as TypeRow;
+            if (row == null) return;
+
+            foreach (AppliesSection section in _applies)
+            {
+                if (!section.Rows.Contains(row)) continue;
+
+                // The section owns both halves: the row and the entry behind it.
+                section.Remove(row);
+                break;
+            }
+
+            Revalidate();
         }
 
         // ----------------------------------------------------------------- validation
@@ -482,13 +832,15 @@ namespace Satellite.ConfigEditor
                 return;
             }
 
-            OnlyVisible(section.Name == "Metadata" ? MetadataPanel : RepositoryPanel);
+            if (section.Name == "Metadata") OnlyVisible(MetadataPanel);
+            else if (section.Name == "Repository") OnlyVisible(RepositoryPanel);
+            else OnlyVisible(CodingStylePanel);
         }
 
         private void OnlyVisible(UIElement panel)
         {
             foreach (UIElement candidate in new UIElement[]
-                     { MetadataPanel, RepositoryPanel, LaterPanel, MissingPanel })
+                     { MetadataPanel, RepositoryPanel, CodingStylePanel, LaterPanel, MissingPanel })
             {
                 candidate.Visibility = ReferenceEquals(candidate, panel)
                     ? Visibility.Visible
