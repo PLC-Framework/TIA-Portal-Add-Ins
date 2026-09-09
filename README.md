@@ -149,7 +149,7 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
 
 | Layer | May depend on | Actual references |
 |---|---|---|
-| `Core` | only what **every** consumer needs | `mscorlib`, `System.Core`, `System.Runtime.Serialization` |
+| `Core` | only what **every** consumer needs | `mscorlib`, `System`, `System.Core`, `System.Runtime.Serialization` |
 | `AddIn.Shared` | `Core` + host types that are **not** Siemens | `+ System.Drawing` |
 | `UI.Shared` | `Core` + WPF | WPF only |
 | `S7PlcWebserverApi` | the network, and nothing of ours | `System.Net.Http`, `Newtonsoft.Json` |
@@ -499,11 +499,63 @@ Launching an external executable is the sanctioned path, and Siemens equips it: 
 
 That redirection is worth remembering: it is a ready-made IPC channel between the Add-In and a satellite, simpler than named pipes.
 
+### The five locations, at a glance
+
+Everything the framework writes or reads on a station lands in one of five places. The rule
+that decides which is short: **`%ProgramData%` is what the installer puts there;
+`%LOCALAPPDATA%` is what the applications write.** Getting that backwards is the failure
+that passes every test on a developer's machine — where you are an administrator — and
+fails at a customer's, where you are not.
+
+| Location | Scope | In code | Elevation |
+|---|---|---|---|
+| `%ProgramData%\PLC-Framework\` | per **machine** | `Core.InstallPaths.Root` | once, to install |
+| `%LOCALAPPDATA%\PLC-Framework\` | per **user** | — no constant yet | none |
+| `%AppData%\Siemens\Automation\Portal V20\UserAddIns\` | per user, per TIA version | — Siemens' own | none |
+| `%AppData%\Siemens\Automation\Portal V21\UserAddIns\` | per user, per TIA version | — Siemens' own | none |
+| `<TIA project>\.plc-framework\` | per **project** | `Core.Config.ConfigPaths` | none |
+
+`PLC_FRAMEWORK_HOME` replaces the first row entirely, which is how a test run or the VM
+points at a staging folder without installing anything.
+
+**`%ProgramData%\PLC-Framework\`** — what was installed
+
+| | |
+|---|---|
+| `tools\` | `InstallPaths.Tools`. **Every** executable shipped — satellites and command-line helpers alike — each with its DLLs, `.exe.config` included. Copied in as a whole build output, not as a lone `.exe` |
+
+**`%LOCALAPPDATA%\PLC-Framework\`** — what the applications write
+
+| | Written by | |
+|---|---|---|
+| `credentials.json` | `Satellite.DataBlockSnapshot`, only after a login the CPU accepted | web server user and password per project + PLC; the password under DPAPI `CurrentUser` |
+| `.env` | `Satellite.ConfigEditor` | `GITHUB_TOKEN`. Here because the token is personal **and** because `%ProgramData%` is not writable |
+| `config.template.json` | `Satellite.ConfigEditor`, when it is missing or does not parse | the template for a new `config.json`, written out from the embedded copy so it can be customised |
+
+**`...\Portal V20\UserAddIns\`** and **`...\Portal V21\UserAddIns\`**
+
+| | |
+|---|---|
+| `PLC-Framework.V20.addin` | carries `PLC-Framework.V20.dll` plus `Core.dll` and `AddIn.Shared.dll` |
+| `PLC-Framework.V21.addin` | the same, with `PLC-Framework.V21.dll` |
+
+**`<TIA project>\.plc-framework\`** — what belongs to the project
+
+| | Written by | Read by |
+|---|---|---|
+| `config.json` | the user by hand, and `Satellite.ConfigEditor` | the Add-In |
+| `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx` | the user |
+
+**Not one secret lives here, and that is deliberate**: this folder is under version control,
+with `.version-control\` sitting right beside it. It is why the PLC credentials live under
+`%LOCALAPPDATA%` and why `config.json` carries the literal `${GITHUB_TOKEN}` rather than the
+token.
+
 ### Where the satellites live
 
 ```
 %ProgramData%\PLC-Framework\         ← Core.InstallPaths.Root
-├── .env                             ← InstallPaths.EnvFile
+├── .env                             ← InstallPaths.EnvFile — MOVING, see below
 └── tools\                           ← InstallPaths.Tools — every executable shipped
 ```
 
@@ -513,7 +565,13 @@ That redirection is worth remembering: it is a ready-made IPC channel between th
 
 > **"Satellite" is a role, not a location.** It names a WPF app the Add-In launches from the menu — as opposed to a command-line helper. Both live in `tools\`. The word stays in project names (`Satellite.About`) and in the architecture decisions, because it describes what a thing *is*; the folder only says where it sits.
 
-> The `.env` is therefore readable by **every user of the station**. That is the right call for a shared team credential; a personal token would belong somewhere per-user instead.
+> **The `.env` is moving out of here, to `%LOCALAPPDATA%\PLC-Framework\.env`** (decided
+> 2026-09-08 — see *The `config.json` contract*). The line above used to read that a
+> station-wide `.env` was the right call for a shared team credential, "and a personal token
+> would belong somewhere per-user instead". The only thing in it turned out to be
+> `GITHUB_TOKEN`, which is exactly that personal token — and `%ProgramData%` grants ordinary
+> users read and execute but **not write**, so the config editor could not save here anyway.
+> `tools\` stays: an installed executable genuinely is per machine.
 
 `PLC_FRAMEWORK_HOME` overrides the root, which is how you point a test run — or the VM — at a staging folder without installing or needing elevation.
 
@@ -949,6 +1007,142 @@ Two traps came out of doing it:
 Verified by driving the real window through UI Automation — focus set per control, the
 pointer parked off-window so hover could not be confused with focus, and a capture started
 so the whole form could be seen disabled.
+
+## The `config.json` contract
+
+Settled 2026-09-08, ahead of building the validator and `Satellite.ConfigEditor`. This is
+the authority on what the file must contain; the model under `Core/Config/Model/` is
+deliberately **permissive** and enforces none of it, because a serializer that throws stops
+at the first problem and loses the rest.
+
+Two kinds of check, kept apart because only one of them touches the disk:
+
+| | |
+|---|---|
+| **Structural** | required fields, closed value sets, internal references, uniqueness, regex that compile. Pure, and safe to run inside TIA Portal |
+| **Environmental** | a path exists, a `${VAR}` resolves, a repository is reachable. Touches disk and network, and belongs in its own pass |
+
+"Required" is scoped **per concern**, not per document: an action reads only its own section
+and validates only that, while the editor runs the whole set before saving.
+
+### `metadata`
+
+| Field | Required | Type | Description |
+|---|---|---|---|
+| `metadata` | **Yes** | object | Holds `coreSource`, which decides the rest of the file |
+| `metadata.coreSource` | **Yes** | string | Closed set: `local` \| `remote`. Selects which repository section is required |
+| `metadata.version` | No | string | `v<n>.<n>` with two to four components of up to two digits — `v2.0`, `v1.12.3`, `v9.9.9.9` |
+| `metadata.author` | No | string | Informative. Not validated |
+| `metadata.description` | No | string | Informative. Not validated |
+
+### `coreRemoteRepositoryConfig` — required only when `coreSource = remote`
+
+| Field | Required | Type | Description |
+|---|---|---|---|
+| `apiUrl` | **Yes** | string | GitHub API endpoint. Must be an absolute URI |
+| `owner` | **Yes** | string | Repository owner |
+| `repository` | **Yes** | string | Repository name |
+| `branch` | **Yes** | string | Branch. The template ships `main`; empty is an error |
+| `folder` | **Yes** | string | Path inside the repository down to the core |
+| `dependencyFile` | **Yes** | string | Dependency graph file name, today `core.json` |
+| `token` | No | string | **Always the literal `${GITHUB_TOKEN}`** — see below. Absent or empty means a public repository |
+
+### `coreLocalRepositoryConfig` — required only when `coreSource = local`
+
+| Field | Required | Type | Description |
+|---|---|---|---|
+| `repository` | **Yes** | string | Local path. That it exists on disk is *environmental*, checked separately |
+| `folder` | **Yes** | string | Path inside the repository down to the core |
+| `dependencyFile` | **Yes** | string | Dependency graph file name |
+
+### `projectConfig`
+
+| Field | Required | Type | Description |
+|---|---|---|---|
+| `projectConfig` | **Yes** | object | What the Add-In applies to the TIA project |
+| `projectConfig.hierarchy` | **Yes** | object | The folder tree to create |
+| `projectConfig.codingStyle` | **Yes** | object | Naming rules, and which objects they apply to |
+
+### `projectConfig.hierarchy`
+
+Every list is **required but may be empty**. `[]` says "this concern has no folders"; a
+missing key says nothing at all, and the difference is worth keeping.
+
+| Field | Required | Type | Description |
+|---|---|---|---|
+| `blocks` | **Yes** | array of `Group` | Folders under Program blocks. May be `[]` |
+| `technologyObjects` | **Yes** | array of `Group` | Folders under Technology objects. May be `[]` |
+| `tagTables` | **Yes** | array of `Group` | Folders under PLC tags. May be `[]` |
+| `types` | **Yes** | array of `Group` | Folders under PLC data types. May be `[]` |
+| `softwareUnits` | No | object | Applied inside **every** software unit. Only the S7-1500 has them; on an S7-1200 the section is ignored |
+| `softwareUnits.blocks` | **Yes**, if `softwareUnits` is present | array of `Group` | May be `[]` |
+| `softwareUnits.tagTables` | **Yes**, if `softwareUnits` is present | array of `Group` | May be `[]` |
+| `softwareUnits.types` | **Yes**, if `softwareUnits` is present | array of `Group` | May be `[]` |
+
+There is deliberately **no `technologyObjects` under `softwareUnits`**: a software unit
+exposes blocks, tag tables and types only. Nothing in this section creates units — they are
+named by the user after the plant's architecture, so the config describes only what goes
+*inside* one.
+
+### `Group` — recursive
+
+| Field | Required | Type | Description |
+|---|---|---|---|
+| `name` | **Yes** | string | Folder name. Not empty. **Unique among siblings of the same parent**; the same name in a different branch is legal |
+| `groups` | No | array of `Group` | Sub-folders. Same rules, all the way down |
+
+### `projectConfig.codingStyle`
+
+Same rule as the hierarchy: required, possibly empty.
+
+| Field | Required | Type | Description |
+|---|---|---|---|
+| `rules` | **Yes** | array of `Rule` | The catalogue of naming rules. May be `[]` |
+| `blocks` | **Yes** | array of `PlcTypeObject` | Closed set of `type`: `OB`, `ArrayDB`, `GlobalDB`, `InstanceDB`, `FC`, `FB` |
+| `technologyObjects` | **Yes** | array of `PlcTypeObject` | Closed set of `type`: `TechnologicalInstanceDB` |
+| `tagTables` | **Yes** | array of `PlcTypeObject` | Closed set of `type`: `PlcTagTable` |
+| `types` | **Yes** | array of `PlcTypeObject` | Closed set of `type`: `PlcStruct` |
+| `alarmTextLists` | **Yes** | array of `PlcTypeObject` | Closed set of `type`: `AlarmTexts` |
+
+### `Rule`
+
+| Field | Required | Type | Description |
+|---|---|---|---|
+| `id` | **Yes** | string | **Unique across the whole file**. This is what `implements` points at |
+| `regex` | **Yes** | string | Naming pattern. **Must compile** — checked structurally, since a pattern that cannot compile is a broken file, not a broken environment |
+| `descriptions` | No | array of string | Human-readable explanation of the rule |
+
+### `PlcTypeObject`
+
+| Field | Required | Type | Description |
+|---|---|---|---|
+| `type` | **Yes** | string | TIA object type. Closed set, listed per section above |
+| `implements` | **Yes** | array of string | Rules this type accepts. Not empty, and **every id must exist in `rules`** — an internal reference, so a typo is caught rather than silently ignored |
+
+### The token never lands in `config.json`
+
+`config.json` lives inside the TIA project, and TIA projects are under version control. So
+the file **always** carries the literal `${GITHUB_TOKEN}` and never the secret itself. The
+editor shows the field masked with a show/hide eye — the same twin-control pattern as the
+PLC password — and what the operator types goes to the `.env`, never to the JSON. Reading
+the field means reading the `.env` back.
+
+**The `.env` moves to `%LOCALAPPDATA%\PLC-Framework\.env`, per user.** A GitHub token is
+personal, not a station-wide credential, and `%ProgramData%` grants ordinary users read and
+execute but **not write** — so an editor writing there would fail on a real workstation
+while working perfectly on a developer's own machine. Per user it is writable by the person
+who owns the token, and two engineers sharing a station stop overwriting each other.
+
+> This supersedes the earlier placement under `%ProgramData%\PLC-Framework\.env`, described
+> under *Where the satellites live*. `%ProgramData%` keeps `tools\`, which genuinely is per
+> machine. `InstallPaths.EnvFile` still points at the old location and has to follow.
+
+The same reasoning caught a second file. `config.template.json` was first placed in
+`tools\`, with the editor writing the embedded copy out there when it was missing — which
+would have failed on any station where the engineer is not an administrator. It moves to
+`%LOCALAPPDATA%\PLC-Framework\` too, and the general rule is now written down under
+*The five locations, at a glance*: **`%ProgramData%` is what the installer puts there,
+`%LOCALAPPDATA%` is what the applications write.**
 
 ## Prior reference project
 

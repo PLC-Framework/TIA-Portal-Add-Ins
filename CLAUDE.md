@@ -74,7 +74,7 @@ A type's layer is decided by **what it depends on**, not by who happens to call 
 
 | Layer | May depend on | Holds |
 |---|---|---|
-| `Core` | only what **every** consumer needs | `Config` model + loader, `DependencyGraph` model, `InstallPaths`, `Product` |
+| `Core` | only what **every** consumer needs | `Config` model + loader + **validator**, `DependencyGraph` model, `InstallPaths`, `Product` |
 | `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`), its ports (`ITiaNotifier`, `IGroupNode`, `IProcessLauncher`, `HierarchyTargets`, `Icons`), and the embedded `assets\` with their `Assets` loader |
 | `UI.Shared` | `Core` + WPF | brand resources (`BrandLogo.xaml`, `Theme.xaml`) and, later, shared windows and the single-instance guard |
 | `S7PlcWebserverApi` | the network, and nothing of ours | the JSON-RPC client for a CPU's web server: `PlcClient`, `PlcVariable`, `PlcValue`, `PlcLimits` |
@@ -84,7 +84,7 @@ A type's layer is decided by **what it depends on**, not by who happens to call 
 Verified from the compiled assemblies:
 
 ```
-PLC-Framework.Core                -> mscorlib, System.Core, System.Runtime.Serialization
+PLC-Framework.Core                -> mscorlib, System, System.Core, System.Runtime.Serialization
 PLC-Framework.AddIn.Shared        -> + PLC-Framework.Core, System.Drawing
 PLC-Framework.UI.Shared           -> WPF only (today it is pure XAML, so it emits almost nothing)
 PLC-Framework.S7PlcWebserverApi   -> System.Net.Http, Newtonsoft.Json  (no reference to Core)
@@ -202,6 +202,47 @@ zipped copy sooner or later. Hence:
 This leaves `.env` and `${VAR}` expansion untouched as pending work — they are still what
 `${GITHUB_TOKEN}` in `config.json` needs, and that one genuinely is a shared team secret.
 
+### `Satellite.ConfigEditor` — decided 2026-09-08, not yet built
+
+Edits `config.json` with a UI. Launched from the menu by `ConfigEditorAction`, labelled
+**"Config. Editor"**. The contract it enforces is the README table; these are the decisions
+about the application itself:
+
+- **Missing `.plc-framework\` or missing `config.json` is a normal state, not an error.**
+  The window says so and offers to create one, folders included.
+- **The template is `config.template.json`, embedded *and* on disk at
+  `%LOCALAPPDATA%\PLC-Framework\`.** The file on disk wins when it is present and parses;
+  otherwise the embedded copy is used **and written out**, so a station repairs itself and
+  the operator gets something to customise. Seeded from the `config.json` in `.example\`.
+  **Per user, not `tools\`** — that was the first plan and it carries the same defect as the
+  old `.env`: `tools\` lives under `%ProgramData%`, where ordinary users have read and
+  execute but **not write**, so the self-repair would work on a developer's machine and
+  fail on a real station. Anything this satellite *writes* goes to the per-user folder;
+  `%ProgramData%` is for what the installer puts there.
+- **One instance per running TIA Portal**, and the satellite works that out **by itself**:
+  it reads its own parent process, which is TIA because `ProcessLauncher` starts it with
+  `UseShellExecute=false`. **The Add-In cannot supply the PID** — measured in the restricted
+  `AppDomain`, `Process.GetCurrentProcess()` throws `SecurityException` under partial trust,
+  for `Id` and `ProcessName` alike, and `AddIn.Utilities` holds only `Process` and
+  `ProcessStartInfo`, neither of which offers it. Reading the parent costs ~170 ms once at
+  startup, cannot be forged by editing the handoff, and degrades correctly when started by
+  hand: no TIA parent, no tie. The mutex name hashes it — `SingleInstance.Claim` builds
+  `Local\<Product>.<appId>`, and a backslash **separates the mutex namespace**, so no raw
+  path can go in there.
+- **`Newtonsoft.Json` for reading and writing**, in the satellite only — `Core` keeps
+  `DataContractJsonSerializer`, which is fine for loading but wrong for saving: it does not
+  indent, it orders members its own way, and a read-write round trip **drops every key the
+  model does not know**. This file is meant to be hand-edited, so edits are surgical over
+  the JSON tree, leaving untouched anything the editor did not change.
+- **The GitHub token never enters `config.json`.** The file always carries the literal
+  `${GITHUB_TOKEN}`; the secret goes to the `.env`, which **moves to
+  `%LOCALAPPDATA%\PLC-Framework\.env`** for two reasons — the token is personal, and
+  `%ProgramData%` is not writable by ordinary users, so an editor saving there would work
+  here and fail on a real station. The field is masked with the same show/hide twin-control
+  as the PLC password.
+- **The validator comes first.** It is `Core`'s, this satellite is its first consumer, and
+  the Add-In needs it too.
+
 ### Sharing code between `AddIn.V20` and `AddIn.V21`
 
 Three mechanisms, each for a different case:
@@ -271,9 +312,29 @@ A different kind of divergence, and easier to miss because the source is identic
 
 **`.siemens\` holds the reflected reference** for both versions, generated from the assemblies with `GetExportedTypes()`. Consult it before asserting anything about the Openness API, and regenerate rather than hand-edit. It carries type names and counts only, no Siemens code, which is why it can be committed when the DLLs cannot.
 
-### `config.json` pipeline — designed, not yet built
+### `config.json` pipeline — contract settled 2026-09-08, code not yet built
 
-`config.json` has **two producers** (a future WPF satellite with a UI, and the user editing by hand) and **one consumer** (the Add-In). Decisions taken:
+**The field-by-field contract lives in the README, under *The `config.json` contract*** —
+required, type and meaning for every key, plus the closed sets, the internal references and
+the uniqueness rules. It is the authority; do not restate it here and do not infer
+requiredness from the model, which is permissive on purpose.
+
+The shape of it, worth carrying in your head:
+
+- **`metadata.coreSource` decides the file.** `local` or `remote`, and that selects which of
+  the two repository sections is required. The other one is not validated at all.
+- **Lists are required but may be empty.** `[]` says "no folders for this concern"; a
+  missing key says nothing. Applies to all four `hierarchy` lists and all six of
+  `codingStyle`.
+- **Two internal references** are what a typo breaks silently, so both are checked:
+  `implements` must name an existing `rules[].id`, and `rules[].id` is unique file-wide.
+- **`Group.name` is unique among siblings only** — the same name in another branch is fine,
+  because they are different folders.
+- **A `regex` that does not compile is a structural error**, not an environmental one: it is
+  a broken file, not a broken machine.
+
+`config.json` has **two producers** (`Satellite.ConfigEditor`, and the user editing by hand)
+and **one consumer** (the Add-In). Decisions taken:
 
 - **DTOs stay permissive**, validation is a separate pass. A serializer that throws stops at the first problem and loses the rest; a validator reports all of them with their location.
 - **Validation lives in `Core` and runs twice**: in the satellite before saving, in the Add-In after loading. Validating only in the UI is useless — hand-editing bypasses it.
@@ -286,9 +347,16 @@ A different kind of divergence, and easier to miss because the source is identic
 ### Pending
 
 - [ ] **Building while TIA has the Add-In loaded fails.** The Publisher cannot overwrite a `.addin` that the VM holds open through a shared folder — `vmware-vmx.exe` shows up as the owner. Harmless once understood, but it looks like a build error: close TIA, or stop deploying straight out of `bin\Debug\net48`
-- [ ] Structural validator per concern, then the environmental one
+- [x] **Structural validator built** (2026-09-09), in `Core/Config/Validation/`: one
+      validator per concern plus `ConfigValidator` for the whole document. Exercised against
+      the real `config.json` in `.example\` — clean — and against thirty-odd deliberately
+      broken variants. `System` joined `Core`'s references for `Regex` and `Uri`; harmless,
+      but the layering table was updated rather than left to drift
+- [ ] The **environmental** validator: paths that exist, `${VAR}` that resolve. Separate
+      pass, separate method — it touches disk and must not run inside the pure one
 - [ ] `config.schema.json` referenced from the file itself via `$schema`
-- [ ] `.env` reader over `InstallPaths.EnvFile` + `${VAR}` expansion, both in `Core`. The `ISecretLookup` port is probably unnecessary now: with a deterministic path, the Add-In and the satellites read the same file with the same code
+- [ ] **Give `Core.InstallPaths` the per-user folder too** — `%LOCALAPPDATA%\PLC-Framework\` now has three tenants (`credentials.json`, `.env`, `config.template.json`) and **no constant**: `CredentialStore` builds the path itself today, and two more copies of that `Path.Combine` is exactly how the literals drift apart. Same reason `ConfigPaths` exists. Then **move `InstallPaths.EnvFile` onto it** (decided 2026-09-08): `%ProgramData%` grants ordinary users read and execute but **not write**, so `Satellite.ConfigEditor` cannot save the token there — it would pass every test here and fail on a real station. `tools\` stays per machine
+- [ ] `.env` reader + `${VAR}` expansion, both in `Core`. The `ISecretLookup` port is probably unnecessary now: with a deterministic path, the Add-In and the satellites read the same file with the same code
 - [ ] Verify on the VM what `Assembly.GetExecutingAssembly().Location` returns for a loaded `.addin`. No longer blocking anything, but worth knowing — the old project assumed `UserAddIns` and may well get an empty string
 - [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
 - [ ] Automate deployment to the VM — now two copies, the `.addin` into `UserAddIns\` and the satellite into `tools\`. Both are manual today, and this is the item that makes a single-file satellite unnecessary (decision 8)
