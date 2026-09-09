@@ -502,20 +502,39 @@ That `msil` also confirms `Core` stayed AnyCPU while the Add-In is `amd64`; the 
 
 ### 3. Installing into TIA Portal
 
-Copy the `.addin` to the `UserAddIns` folder of the matching TIA version, on the machine where TIA runs (here, the VM):
+Copy the `.addin` to the machine where TIA runs (here, the VM). **There are two folders per
+TIA version, and TIA reads both** — which one to use is a question about who the Add-In is
+for, not about which one works:
 
-```
-C:\Users\<user-name>\AppData\Roaming\Siemens\Automation\Portal V20\UserAddIns\
-C:\Users\<user-name>\AppData\Roaming\Siemens\Automation\Portal V21\UserAddIns\
-```
+| | Path | For | Elevation |
+|---|---|---|---|
+| **Per user** | `%AppData%\Siemens\Automation\Portal V20\UserAddIns\` | the engineer who is logged in | none |
+| **Per machine** | `C:\Program Files\Siemens\Automation\Portal V20\AddIns\` | every engineer on the station | **yes** |
 
-Three things that bite:
+Substitute `Portal V21` for the V21 package. Each TIA version only looks at its own pair of
+folders, so both Add-Ins coexist without interfering. The `.addin` already contains the DLL;
+nothing else needs copying.
 
-- It is **`UserAddIns`**, not `AddIns`.
-- It is under **`AppData\Roaming`** (what `%AppData%` expands to), not `AppData\Local`.
-- The folder does not exist until created by hand.
+Four things that bite:
 
-Each TIA version only looks at its own folder, so both Add-Ins coexist without interfering. The `.addin` already contains the DLL; nothing else needs copying.
+- The per-user folder is **`UserAddIns`**; the per-machine one is **`AddIns`**. The names
+  are not interchangeable, and neither is a typo for the other.
+- The per-user one is under **`AppData\Roaming`** (what `%AppData%` expands to), not
+  `AppData\Local`.
+- Neither folder is guaranteed to exist. `UserAddIns` has to be created by hand;
+  `AddIns` sits inside TIA's installation, so a missing *`Portal V20`* folder means TIA is
+  not installed at that path, while a missing `AddIns` inside it is just a folder to make.
+- **The same package in both folders is loaded twice.** Which copy you are then testing is
+  whichever one TIA picked, and that is not a thing to find out by guessing — so
+  `step2-deploy-vm.ps1` reports it whenever it sees the package in the other folder.
+
+The per-machine folder is the same trade the framework already makes for
+`%ProgramData%\PLC-Framework\tools\`: one install serves everyone who logs in, at the price
+of needing an administrator once. The difference is that this one is **Siemens' directory,
+inside their installation**, so it is theirs to overwrite — a repair or an upgrade is
+entitled to clean it out, and nothing in the framework would notice. Not measured, just a
+consequence of whose folder it is; the per-user copy is the safer default for that reason
+alone.
 
 ### What a `.addin` actually is
 
@@ -560,9 +579,9 @@ Launching an external executable is the sanctioned path, and Siemens equips it: 
 
 That redirection is worth remembering: it is a ready-made IPC channel between the Add-In and a satellite, simpler than named pipes.
 
-### The five locations, at a glance
+### The six locations, at a glance
 
-Everything the framework writes or reads on a station lands in one of five places. The rule
+Everything the framework writes or reads on a station lands in one of six places. The rule
 that decides which is short: **`%ProgramData%` is what the installer puts there;
 `%LOCALAPPDATA%` is what the applications write.** Getting that backwards is the failure
 that passes every test on a developer's machine — where you are an administrator — and
@@ -571,10 +590,19 @@ fails at a customer's, where you are not.
 | Location | Scope | In code | Elevation |
 |---|---|---|---|
 | `%ProgramData%\PLC-Framework\` | per **machine** | `Core.InstallPaths.Root` | once, to install |
-| `%LOCALAPPDATA%\PLC-Framework\` | per **user** | — no constant yet | none |
-| `%AppData%\Siemens\Automation\Portal V20\UserAddIns\` | per user, per TIA version | — Siemens' own | none |
-| `%AppData%\Siemens\Automation\Portal V21\UserAddIns\` | per user, per TIA version | — Siemens' own | none |
+| `%LOCALAPPDATA%\PLC-Framework\` | per **user** | `Core.InstallPaths.UserRoot` | none |
+| `%AppData%\Siemens\Automation\Portal V2x\UserAddIns\` | per user, per TIA version | — Siemens' own | none |
+| `C:\Program Files\Siemens\Automation\Portal V2x\AddIns\` | per **machine**, per TIA version | — Siemens' own | **yes** |
 | `<TIA project>\.plc-framework\` | per **project** | `Core.Config.ConfigPaths` | none |
+
+That is five rows for six places because the two Add-In rows are one row each for two TIA
+versions — V20 and V21 never share a folder.
+
+**The last two are the same choice as the first two, made by Siemens instead of by us**:
+one folder per user that anybody can write, one per machine that only an administrator can.
+The Add-In goes in exactly one of them — `step2-deploy-vm.ps1` picks with `-Scope`, and
+reports if it finds the package in the other, because **TIA reads both and would load it
+twice**.
 
 `PLC_FRAMEWORK_HOME` replaces the first row entirely, which is how a test run or the VM
 points at a staging folder without installing anything.
@@ -593,7 +621,7 @@ points at a staging folder without installing anything.
 | `.env` | `Satellite.ConfigEditor` | `GITHUB_TOKEN`. Here because the token is personal **and** because `%ProgramData%` is not writable |
 | `config.template.json` | `Satellite.ConfigEditor`, when it is missing or does not parse | the template for a new `config.json`, written out from the embedded copy so it can be customised |
 
-**`...\Portal V20\UserAddIns\`** and **`...\Portal V21\UserAddIns\`**
+**`...\Portal V2x\UserAddIns\`** or **`...\Portal V2x\AddIns\`** — one or the other, never both
 
 | | |
 |---|---|
@@ -640,6 +668,107 @@ Not next to the `.addin`. `UserAddIns` is **per TIA version**, so V20 and V21 wo
 `Environment.GetFolderPath(CommonApplicationData)` is deterministic and identical for every consumer, and needs no discovery. Note it is **`CommonApplicationData`, not `LocalApplicationData`** — `%ProgramData%`, not `%AppData%`. Copying a satellite into the latter is the easiest way to get a "not installed" error out of an install that looks correct.
 
 No Siemens API offers an alternative: neither `TiaPortal` nor the `Siemens.Engineering.AddIn` namespace exposes the Add-In's own path or the running TIA version.
+
+### Deploying to the VM
+
+Two scripts, one on each machine, because the copy has to happen where the destination is.
+
+```
+development PC:   scripts\step1-stage-host.ps1    builds, then gathers into .deploy\
+VM:               scripts\step2-deploy-vm.cmd     installs what was gathered
+```
+
+The names carry the order and the machine, because getting either wrong is the easy
+mistake: step 2 on the host would install into the development PC, and step 1 on the VM has
+no Siemens tools to build with.
+
+**Step 2 is launched through a `.cmd`, and that is not cosmetic.** Windows refuses to run a
+`.ps1` twice over here:
+
+```
+.\step2-deploy-vm.ps1 : File Z:\...\step2-deploy-vm.ps1 cannot be loaded because
+running scripts is disabled on this system.
+```
+
+The default `ExecutionPolicy` is `Restricted`, **and** the VM reaches the repo through a
+mapped drive, which Windows classifies as the Internet zone — so even `RemoteSigned`, the
+usual answer, would still block it for a second and entirely separate reason. The wrapper
+sidesteps both without changing anything on the machine:
+
+```bat
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0step2-deploy-vm.ps1" %*
+```
+
+`-ExecutionPolicy` on the command line applies to that one process, needs no elevation and
+leaves the machine's policy alone; `%~dp0` resolves the script beside the `.cmd`, so it
+works from any working directory; `%*` passes `-ToolsOnly` and `-AddInsOnly` straight
+through. **Prefer this to `Set-ExecutionPolicy`**: a deployment script is a poor reason to
+loosen a machine-wide security setting, and the next machine would need the same change
+made by hand.
+
+`step1-stage-host.ps1` writes to `.deploy\` and **not** to `bin\Debug\net48`, which is the whole
+reason it exists: TIA holds the `.addin` open through the shared folder, so the Publisher
+cannot overwrite the file the VM is reading and the build dies with `MSB3073`. Two copies
+of the artefact, and the build only ever touches one of them.
+
+```
+.deploy\
+├── tools\      the three satellites, already merged as InstallPaths.Tools expects them
+└── addins\     PLC-Framework.V20.addin, PLC-Framework.V21.addin
+```
+
+The three satellites share `Core.dll` and `UI.Shared.dll`, and the copies are identical
+because they were built together — which is what lets one folder serve all of them. `.pdb`
+files are excluded; add `/XF` back if a crash needs chasing on the VM.
+
+`step2-deploy-vm.ps1` copies `tools\` with `/PURGE`, so a renamed executable does not linger,
+and puts each package in its TIA version's Add-In folder. Two switches for the common cases:
+`-ToolsOnly` when TIA is open and holding the packages, `-AddInsOnly` when only the Add-In
+changed.
+
+**`-Scope` picks which of the two Add-In folders**, and the default is the one that needs
+nothing:
+
+```
+step2-deploy-vm.cmd                     %AppData%\...\Portal V2x\UserAddIns\   this user
+step2-deploy-vm.cmd -Scope Machine      C:\Program Files\...\Portal V2x\AddIns\   everyone
+```
+
+Machine scope writes inside TIA's installation, so it needs elevation — run the `.cmd` as
+administrator. Three things it does rather than let Windows explain them badly:
+
+- **It asks for elevation by name, and only once it has somewhere to write.** Left to the
+  copy, the refusal arrives as an `Access denied`, which reads exactly like the *other*
+  thing that fails here — a package locked by a running TIA. And demanding an administrator
+  for a TIA version the station does not have would simply be a lie.
+- **A missing `Portal V2x` folder means TIA is not installed there; a missing `AddIns`
+  inside it is just a folder to create.** Only the second is created. `-InstallRoot` points
+  at the folder holding `Portal V20` when TIA is not under `%ProgramFiles%`.
+- **It reports the package sitting in the other folder.** Both are read by TIA, so a
+  leftover per-user copy after switching to machine scope means the Add-In is loaded twice
+  and the copy under test is whichever TIA reached first. It says which file to delete
+  rather than deleting it — that folder may hold somebody else's decision.
+
+Exercised here without TIA installed, by redirecting `%AppData%` and pointing `-InstallRoot`
+at a fake installation: both packages copied, the duplicate warning firing for the one
+version that had a leftover and not for the other, the elevation refusal, and the
+not-installed report.
+
+**It prints the age of everything it installs — "2 min ago" — and that is the point.** The
+failure worth preventing is testing a stale build and spending an afternoon debugging
+something already fixed, and that failure never announces itself. "It is deployed" has to
+be something you can read.
+
+Two things it reports rather than fails on, because both are ordinary: a TIA version that
+is not installed, and a package locked by a running TIA. The second says which TIA to close.
+
+> **`robocopy` reports success with a non-zero exit code** — 1 means files were copied, 2
+> that extras were found, 3 both; only 8 and above are failures. A script that does not
+> normalise that prints success on screen and returns failure to its caller. Both scripts
+> reset `$LASTEXITCODE` and `exit 0`.
+
+> Both scripts are **ASCII only**, deliberately. PowerShell 5.1 reads a UTF-8 file with no
+> BOM as ANSI, so a single accented character becomes a parse error.
 
 ### Installing a satellite
 
@@ -1244,7 +1373,7 @@ The same reasoning caught a second file. `config.template.json` was first placed
 `tools\`, with the editor writing the embedded copy out there when it was missing — which
 would have failed on any station where the engineer is not an administrator. It moves to
 `%LOCALAPPDATA%\PLC-Framework\` too, and the general rule is now written down under
-*The five locations, at a glance*: **`%ProgramData%` is what the installer puts there,
+*The six locations, at a glance*: **`%ProgramData%` is what the installer puts there,
 `%LOCALAPPDATA%` is what the applications write.**
 
 ## Validating a configuration

@@ -26,6 +26,7 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 - **Never hardcode a resource-name prefix.** Match on the tail of the name — a stale prefix compiles fine and returns `null` at runtime inside TIA.
 - **A button that removes something uses the `Destructive` style, and every one of them does.** Identical to `Quiet` at rest and **red under the pointer**, so the click announces itself before it happens — and announces itself the same way wherever a remove button appears. Its template is spelled out rather than derived from `Quiet` with `BasedOn`, because the state that differs is a trigger *inside* the template and `BasedOn` cannot reach into one.
 - **The dark-theme control styles live in `UI.Shared/Resources/Controls.xaml`, and a windowed app merges that one dictionary** — it pulls `Theme.xaml` in itself. Do not copy styles into a window: they moved out of `Satellite.DataBlockSnapshot` on 2026-09-09 precisely because a second consumer appeared. Most are **implicit**, so a plain `<TextBox/>` is themed already; only real choices are keyed (`Quiet` / `Primary` / `Destructive` for a button, `FieldLabel`, `FieldChrome`, `Reveal`). Colours are named in `Theme.xaml` — never write a hex literal into a trigger, which is how one "disabled grey" becomes three.
+- **`robocopy` reports success with a non-zero exit code** — 1 copied, 2 extras, 3 both; only 8 and above are failures. A script that does not normalise it prints success and returns failure to its caller. And **PowerShell 5.1 reads a UTF-8 file with no BOM as ANSI**, so every `.ps1` in `scripts\` stays ASCII: one accented character is a parse error. The same trap corrupts a document rewritten with `Get-Content | Set-Content` — use the Edit tool or Python instead.
 - **A selectable row needs its own template, or Windows paints the selection.** `ListBoxItem` and `TreeViewItem` take their selected background from the **system** brushes — blue with focus, and a **pale box without it**, which on a dark form reads as a rendering fault rather than as a selection. Both are templated in `Controls.xaml` and paint selection in the brand colour, focused or not, via a `MultiTrigger` on `IsSelectionActive`. `ListViewItem` derives from `ListBoxItem` but **does not inherit its implicit style** — an implicit style matches the exact type — so all three are declared. A window that needs to add to one of them uses `BasedOn="{StaticResource {x:Type TreeViewItem}}"` rather than starting over.
 - **A `ComboBox` template must serve both `IsEditable` states.** A template written for the editable case has only `PART_EditableTextBox`, and a read-only `ComboBox` using it renders **empty** — the selection binds fine and nothing is drawn, because the stock template's `ContentPresenter` for `SelectionBoxItem` is missing. `Controls.xaml` now carries both and an `IsEditable` trigger picks one. The `ToggleButton` spans both columns and is declared **before** the editable `TextBox`, so a read-only combo opens from anywhere while an editable one still gets its clicks.
 - **Theming a WPF input control takes a `ControlTemplate`, not `Setter`s.** Background, foreground, caret and selection are properties; **hover and focus are template triggers painting from hardcoded brushes**, so a styled field still flashes Windows-blue when touched. One `ControlTemplate` with `TargetType="Control"` serves `TextBox` and `PasswordBox` alike — both are `TextBoxBase`, which locates its editing surface by the name `PART_ContentHost`. Two consequences bite: an implicit `TextBox` style also lands on an editable `ComboBox`'s `PART_EditableTextBox` (so its padding must be zeroed against the combo's fixed height), and that same part is transparent by design, so a disabled trigger must dim the border and text but **never** repaint the background.
@@ -67,7 +68,7 @@ Do not relitigate without new information:
 3. **Satellites are separate `.exe` files, and cannot be otherwise.** Verified: the Publisher **silently drops** any `.exe` listed under `AdditionalAssemblies` — no error, no warning, the package is just built without it. The filter is purely by extension (the same PE renamed to `.dll` is packaged), but that is no workaround: the part lands in `LocalAssemblyCache/` and TIA loads it as an assembly inside its own process, never as a file on disk. Siemens' own `Siemens.Engineering.AddIn.Utilities.Process` wrapper plus `ProcessStartPermission` confirm launching an external executable is the sanctioned path.
 4. **Install location** — `%ProgramData%\PLC-Framework\`, exposed by `Core.InstallPaths`, holding a single `tools\` folder for **every** executable shipped, satellites included. **Per machine, not per user.** Its counterpart is `%LOCALAPPDATA%\PLC-Framework\`, `InstallPaths.UserRoot`, and the line between them is a rule: **`%ProgramData%` is what the installer puts there, `%LOCALAPPDATA%` is what the applications write** — `.env`, `credentials.json`, `config.template.json`. `%ProgramData%` grants ordinary users read and execute but **not write**, so getting this backwards passes every test on a developer's machine, where you are an administrator, and fails at a customer's. **Not** next to the `.addin`: `UserAddIns` is per TIA version (V20 and V21 would each need a copy) and belongs to Siemens. **Not** derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be trusted. `PLC_FRAMEWORK_HOME` overrides it for staging. Installing needs elevation once; reading does not.
    - **"Satellite" is a role, not a location.** A satellite is a WPF app the Add-In launches from the menu; it lives in `tools\` next to any command-line helper. Splitting the folder by role was tried and reverted — it only invited arguments about which half a new executable belonged in.
-5. **Add-In â†’ satellite handoff: a JSON document over stdin** (chosen 2026-09-04). Siemens' `Process` wrapper exposes `RedirectStandardInput`, so the Add-In writes the payload straight into the child and no file is ever created — nothing to clean up, no permissions question, no stale handoff from a crashed run. **Verified end to end on the VM (2026-09-04): the redirection does survive the permission sandbox.** The satellite still reads the payload behind a small abstraction, and the fallback — a `%TEMP%` file whose path arrives as an argument — stays wired as reserve rather than as a bet. Not the TIA project folder: those are under version control, and tying the handoff to project writability makes a read-only project fail before the window even opens.
+5. **Add-In → satellite handoff: a JSON document over stdin** (chosen 2026-09-04). Siemens' `Process` wrapper exposes `RedirectStandardInput`, so the Add-In writes the payload straight into the child and no file is ever created — nothing to clean up, no permissions question, no stale handoff from a crashed run. **Verified end to end on the VM (2026-09-04): the redirection does survive the permission sandbox.** The satellite still reads the payload behind a small abstraction, and the fallback — a `%TEMP%` file whose path arrives as an argument — stays wired as reserve rather than as a bet. Not the TIA project folder: those are under version control, and tying the handoff to project writability makes a read-only project fail before the window even opens.
 6. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup, but *what* the name identifies differs by satellite, and the difference is the design:
    - `Satellite.About` — **one, full stop.** It shows the same thing to everyone.
    - `Satellite.DataBlockSnapshot` — **no guard at all.** Each run is a job with its own PLC, its own blocks and its own destination; a single instance would either refuse the second launch or silently discard the selection that came with it. The rule stands for satellites that show *state*; it does not for one that performs a *job*.
@@ -414,10 +415,10 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
 ## Status (2026-09-09)
 
 - [x] `Core`, `AddIn.V20` and `AddIn.V21` created, all in the `.slnx`.
-- [x] Both Add-Ins **validated end to end**: build â†’ `.addin` containing `Core` â†’ load and run correctly in TIA Portal V20 / V21 on the VM.
+- [x] Both Add-Ins **validated end to end**: build → `.addin` containing `Core` → load and run correctly in TIA Portal V20 / V21 on the VM.
 - [x] `AddIn.Shared` created: the Add-In's version-agnostic layer. Ports `ITiaNotifier` / `IGroupNode` / `IProcessLauncher` implemented per version in `AddIn.VXX/Adapters/`.
 - [x] `ConfigLoader` reading the real `config.json`, and `CreateProjectHierarchyAction` migrated from the old project — the four duplicated recursive walks collapsed into one, exercised with fakes and **no TIA installed**.
-- [x] Icons working end to end: `assets/` by feature â†’ embedded by glob â†’ `Adapters/Icons.cs` â†’ `AddActionItemWithIcon`, verified in TIA on the VM.
+- [x] Icons working end to end: `assets/` by feature → embedded by glob → `Adapters/Icons.cs` → `AddActionItemWithIcon`, verified in TIA on the VM.
 - [x] `config.json` and `core.json` models complete in `Core.Config` / `Core.DependencyGraph`, cross-checked key by key against the real files **and** against the generator's own models in `code/tools/dependency_graph_builder`.
 - [x] `UI.Shared` created: `BrandLogo.xaml` (the SVG as a vector `DrawingImage`), `Theme.xaml`, and the `SingleInstance` guard.
 - [x] **First satellite complete**: `Satellite.About` — window, single-instance guard and `ApplicationIcon`, each verified by running the real binary here, not by inspecting XAML.
@@ -425,7 +426,7 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
 - [x] `S7PlcWebserverApi` created and **validated against two real CPUs** — an S7-1500 and an S7-1200 G2 — reading a data block of 8,910 variables with zero failures. Session, browse with array expansion, and batched reads.
 - [x] The XLSX exporter in `Satellite.DataBlockSnapshot`, checked with the OpenXML SDK's own validator (0 errors) and by inspecting the package XML: typed cells, invariant numbers, and no omitted cell that could pass for an unread value.
 - [x] `Satellite.DataBlockSnapshot` complete: window, handoff, capture and export. Its layers were each verified against two real CPUs from PowerShell, without TIA.
-- [x] **The whole chain validated in TIA on the VM (2026-09-04)**: menu entry on a multiple selection of data blocks â†’ `TiaPlcSelection` gathers the CPU and its addresses â†’ JSON over the child's standard input â†’ the satellite opens with everything filled in. This is what proves `RedirectStandardInput` survives partial trust.
+- [x] **The whole chain validated in TIA on the VM (2026-09-04)**: menu entry on a multiple selection of data blocks → `TiaPlcSelection` gathers the CPU and its addresses → JSON over the child's standard input → the satellite opens with everything filled in. This is what proves `RedirectStandardInput` survives partial trust.
 - [x] **Credentials remembered per user and per CPU** (2026-09-07), so an hour of captures
       is not an hour of typing. Exercised here: ten CPUs of one project each keeping their
       own pair, the same CPU name in two projects not colliding, re-saving not duplicating,
@@ -505,7 +506,7 @@ and **one consumer** (the Add-In). Decisions taken:
 - **Scoped per concern, not per document.** Each action reads only its section, so no section is globally required; "required" belongs to the concern. The satellite runs the composite validator, an action runs only its own.
 - **Structural vs environmental** validation kept apart: closed value sets, required fields, internal references and regex-that-compile are pure; checking a path exists or a `${VAR}` resolves touches disk and belongs in a separate method.
 - `coreSource` is `local | remote`, and it decides which repository section is required.
-- The `.env` lookup is environment-specific (Add-In vs satellite resolve it differently) â†’ it becomes a `Core` port, with `${VAR}` expansion pure in `Core`.
+- The `.env` lookup is environment-specific (Add-In vs satellite resolve it differently) → it becomes a `Core` port, with `${VAR}` expansion pure in `Core`.
 - A **JSON Schema** is the highest-leverage addition for the hand-edit path: it validates while the user types, before any of the above runs.
 
 ### Pending
@@ -516,7 +517,29 @@ and **one consumer** (the Add-In). Decisions taken:
       validates while the file is being typed, before any of `Core`'s validators run
 - [ ] Verify on the VM what `Assembly.GetExecutingAssembly().Location` returns for a loaded `.addin`. No longer blocking anything, but worth knowing — the old project assumed `UserAddIns` and may well get an empty string
 - [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
-- [ ] Automate deployment to the VM — now two copies, the `.addin` into `UserAddIns\` and the satellite into `tools\`. Both are manual today, and this is the item that makes a single-file satellite unnecessary (decision 8)
+- [x] **Deployment to the VM automated** (2026-09-09): `scripts\step1-stage-host.ps1` on the
+      development PC, `scripts\step2-deploy-vm.cmd` inside the VM — the names carry the order
+      and the machine, because running either on the wrong one is the easy mistake. It had
+      grown to five manual copies — two `.addin` and three satellites — and the cost was
+      never the time but the silent failure of testing a stale build, so step 2 prints the
+      **age** of everything it installs. This is also the item that makes a single-file
+      satellite unnecessary (decision 8).
+      **Step 2 is invoked through a `.cmd` wrapper** carrying
+      `-NoProfile -ExecutionPolicy Bypass -File`: the VM blocks the `.ps1` twice over — the
+      default policy is `Restricted`, and the repo arrives on a mapped drive, which Windows
+      treats as the Internet zone, so even `RemoteSigned` would still refuse it. A
+      per-invocation bypass needs no elevation and changes nothing on the machine;
+      `Set-ExecutionPolicy` would loosen a machine-wide setting for one script and would
+      have to be repeated on the next station.
+      **`-Scope User|Machine` picks the Add-In folder**, added 2026-09-09: TIA reads a
+      per-user `UserAddIns` *and* a per-machine `AddIns` inside its own installation, so
+      this is the same per-user / per-machine choice as `%LOCALAPPDATA%` vs `%ProgramData%`
+      — only made by Siemens. `User` is the default because it needs nothing; `Machine`
+      needs elevation, which the script demands **by name and only once it has somewhere to
+      write**, since otherwise it arrives as an `Access denied` indistinguishable from a
+      package locked by a running TIA. **The package must be in one folder, not both** — TIA
+      reads both and would load it twice, leaving the copy under test undecided — so the
+      script reports a leftover in the other folder rather than deleting it
 - [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to shorten the test cycle
 - [ ] Decide how many satellites there will be and whether they need live TIA data or just a snapshot
 
