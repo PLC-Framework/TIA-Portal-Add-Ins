@@ -281,6 +281,14 @@ creating from the template, and saving. The saved file kept all 15 rules with th
 descriptions, the 11 block groups and the four root keys in their original order, and Core
 loads and validates it clean.
 
+`ConfigEditorAction` puts it on the **project root** of both Add-Ins, labelled
+**"Config. Editor"**, and deliberately does **not** check that `config.json` exists — its
+absence is the case the editor is most useful for. It carries its own
+`ConfigEditorPayload` rather than reusing `HandoffPayload`, which would send a null `plc`
+and a null `dataBlocks` on every launch. All five paths exercised with doubles, and the
+payload serialised **inside a restricted `AppDomain`** — a new data-contract type is exactly
+what partial trust rejected once before.
+
 ### Sharing code between `AddIn.V20` and `AddIn.V21`
 
 Three mechanisms, each for a different case:

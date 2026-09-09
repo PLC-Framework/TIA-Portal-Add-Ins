@@ -32,6 +32,16 @@ namespace AddIn
 
         protected override void BuildContextMenuItems(ContextMenuAddInRoot menuAddInRoot)
         {
+            // On the project root: config.json belongs to the project rather than to any
+            // one PLC. No check that the file exists - its absence is a normal state the
+            // editor handles by offering to create one.
+            AddAction<Project>(
+                menuAddInRoot,
+                ConfigEditorAction.Title,
+                null,
+                menuSelectionProvider => ConfigEditorAction.Execute(
+                    _notifier, _launcher, ProjectDirectory(), ProjectName()));
+
             // On the project root, and last: it is about the framework rather than about
             // anything selected. The window itself is a separate executable in tools\, so
             // all this does is launch it.
@@ -104,5 +114,9 @@ namespace AddIn
         /// <summary>Directory of the open TIA project, where .plc-framework lives.</summary>
         private string ProjectDirectory() =>
             _tiaPortal?.Projects?.FirstOrDefault()?.Path?.DirectoryName;
+
+        /// <summary>Shown in a satellite's header, so two open windows can be told apart.</summary>
+        private string ProjectName() =>
+            _tiaPortal?.Projects?.FirstOrDefault()?.Name;
     }
 }

@@ -34,4 +34,22 @@ namespace AddIn.Shared.Actions
         [DataMember(Name = "dataBlocks")]
         public string[] DataBlocks { get; set; }
     }
+
+    /// <summary>
+    /// What the config editor needs, which is only the project.
+    ///
+    /// Its own type rather than a reused HandoffPayload: sharing one would send the editor
+    /// a null <c>plc</c> and a null <c>dataBlocks</c> on every launch, and the day a reader
+    /// starts trusting a field it was never given is the day this gets hard to follow.
+    /// Same partial-trust rule as above - public, and top level.
+    /// </summary>
+    [DataContract]
+    public sealed class ConfigEditorPayload
+    {
+        [DataMember(Name = "projectDirectory")]
+        public string ProjectDirectory { get; set; }
+
+        [DataMember(Name = "projectName")]
+        public string ProjectName { get; set; }
+    }
 }
