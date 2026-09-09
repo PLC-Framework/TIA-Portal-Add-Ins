@@ -1,0 +1,398 @@
+{
+  "metadata":
+  {
+    "version" : "v2.0",
+    "author" : "",
+    "description" : " ",
+    "coreSource" : "local"
+  },
+  "coreRemoteRepositoryConfig" :
+  {
+    "apiUrl" : "https://api.github.com/",
+    "owner" : "PLC-Framework",
+    "repository" : "code",
+    "branch": "main",
+    "folder" : "plc/s7-1x00/core",
+    "dependencyFile" :  "core.json",
+    "token" : "${GITHUB_TOKEN}"
+  },
+  "coreLocalRepositoryConfig" :
+  {
+    "repository" : "e:/plcframework/code",
+    "folder" : "plc/s7-1x00/core",
+    "dependencyFile": "core.json"
+  },
+  "projectConfig" :
+  {
+    "hierarchy" :
+    {
+      "blocks" : 
+      [
+        {"name" : "00-OB"},
+        {"name" : "01-FSL"},
+        {"name" : "02-SCL"},
+        {"name" : "03-ALL", "groups" : 
+        [
+          {"name" : "IT"},
+          {"name" : "Nodes"},
+          {"name" : "Sequences", "groups" : [{"name" : "0-Containers"}]}
+        ]},
+        {"name" : "04-CL", "groups" : [{"name" : "0-Containers"}]},
+        {"name" : "10-HW"},
+        {"name" : "11-HMI"},
+        {"name" : "core"},
+        {"name" : "custom"},
+        {"name" : "vendor"},
+        {"name" : "provisional"}
+      ],
+      "technologyObjects" : [
+        {"name" : "04-CL"}
+      ],
+      "tagTables" :
+      [
+        {"name" : "core"},
+        {"name" : "custom"},
+        {"name" : "vendor"},
+        {"name" : "provisional"},
+        {"name" : "io"}
+      ],
+      "types" :
+      [
+        {"name" : "core"},
+        {"name" : "custom"},
+        {"name" : "vendor"},
+        {"name" : "provisional"}
+      ],
+      "softwareUnits" :
+      {
+        "blocks" :
+        [
+          {"name" : "core"},
+          {"name" : "custom"},
+          {"name" : "vendor"}
+        ],
+        "tagTables" :
+        [
+          {"name" : "core"},
+          {"name" : "custom"}
+        ],
+        "types" :
+        [
+          {"name" : "core"},
+          {"name" : "custom"}
+        ]
+      }
+    },
+    "codingStyle" :
+    {
+      "rules" :
+      [
+        {
+          "id" : "interruption",
+          "regex" : "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$",
+          "descriptions" : 
+          [
+            "Interrupt Naming Rules",
+            "1. Every interrupt name must start with an uppercase letter (A-Z).",
+            "2. Words are separated using an underscore (_).",
+            "3. Digits (0-9) are allowed.",
+            "4. Only uppercase letters, digits, and underscores are allowed.",
+            "5. The interrupt name must not end with an underscore.",
+            "6. After each underscore, the next character must be an uppercase letter or a digit."
+          ]
+        },
+        {
+          "id" : "data_container",
+          "regex" : "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$",
+          "descriptions" : 
+          [
+            "Data Container Naming Rules",
+            "1. Every interrupt name must start with an uppercase letter (A-Z).",
+            "2. Words are separated using an underscore (_).",
+            "3. Digits (0-9) are allowed.",
+            "4. Only uppercase letters, digits, and underscores are allowed.",
+            "5. The interrupt name must not end with an underscore.",
+            "6. After each underscore, the next character must be an uppercase letter or a digit."
+          ]
+        },
+        {
+          "id" : "type",
+          "regex" : "^[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "descriptions" : 
+          [
+            "Data Type Naming Rules",
+            "1. The identifier must start with a lowercase letter.",
+            "2. Words within a segment are separated using camelCase (the first letter of each subsequent word is uppercase).",
+            "3. Digits (0-9) are allowed anywhere except as the first character of the identifier.",
+            "4. The underscore (_) may be used as a semantic separator between logical segments.",
+            "5. After each underscore, the next character must be a lowercase letter or a digit.",
+            "6. Consecutive underscores (__) are not allowed.",
+            "7. The identifier must not end with an underscore.",
+            "8. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "safety_type",
+          "regex" : "^F_[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "descriptions" :
+          [
+            "Safety Data Type Naming Rules",
+            "1. The identifier must start with the prefix F_.",
+            "2. The first character after F_ must be a lowercase letter.",
+            "3. Words within a segment are separated using camelCase (the first letter of each subsequent word is uppercase).",
+            "4. Digits (0-9) are allowed anywhere except as the first character after the F_ prefix.",
+            "5. The underscore (_) may be used as a semantic separator between logical segments.",
+            "6. After each underscore, the next character must be a lowercase letter or a digit.",
+            "7. Consecutive underscores (__) are not allowed.",
+            "8. The identifier must not end with an underscore.",
+            "9. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "enumeration",
+          "regex" : "^E[A-Z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "descriptions" :
+          [
+            "Enumeration Naming Rules",
+            "1. The identifier must start with the prefix E.",
+            "2. The first character after E must be an uppercase letter (A-Z).",
+            "3. Words within a segment are separated using camelCase (the first letter of each subsequent word is uppercase).",
+            "4. Digits (0-9) are allowed anywhere except as the first character after the E prefix.",
+            "5. The underscore (_) may be used as a semantic separator between logical segments.",
+            "6. After each underscore, the next character must be a lowercase letter or a digit.",
+            "7. Consecutive underscores (__) are not allowed.",
+            "8. The identifier must not end with an underscore.",
+            "9. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "function",
+          "regex" : "^(?:__|_)[a-z][a-zA-Z0-9]*(?:_[a-z][a-zA-Z0-9]*)*$",
+          "descriptions" :
+          [
+            "Function Naming Rules",
+            "1. Every function name must start with a single underscore (_) followed by a lowercase letter.",
+            "2. Private functions may optionally start with a double underscore (__) followed by a lowercase letter.",
+            "3. Digits (0-9) are allowed within the function name.",
+            "4. The underscore (_) may be used as a semantic separator between logical segments.",
+            "5. Words within a segment must follow lower camel case:",
+            "5.1. The first word starts with a lowercase letter.",
+            "5.2. Each subsequent word starts with an uppercase letter.",
+            "6. After a semantic separator (_), the next segment must start with a lowercase letter.",
+            "7. Consecutive semantic separators are not allowed, except for the leading __ used to indicate a private function.",
+            "8. The function name must not end with an underscore.",
+            "9. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "safety_function",
+          "regex" : "^(?:_F_|__F_)[a-z][a-zA-Z0-9]*(?:_[a-z][a-zA-Z0-9]*)*$",
+          "descriptions" : 
+          [
+            "Safety Function Naming Rules",
+            "1. Every safety function must start with either _F_ or __F_.",
+            "2. The first character after the prefix must be a lowercase letter.",
+            "3. Digits (0-9) are allowed within the function name.",
+            "4. The underscore (_) may be used as a semantic separator between logical segments.",
+            "4.1. Words within a segment must follow lower camel case:",
+            "4.2. The first word starts with a lowercase letter.",
+            "5. Each subsequent word starts with an uppercase letter.",
+            "6. After a semantic separator (_), the next segment must start with a lowercase letter.",
+            "7.Consecutive semantic separators are not allowed, except in the prefixes __F_.",
+            "8. The function name must not end with an underscore.",
+            "9. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "subroutine",
+          "regex" : "^[A-Z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "descriptions" :
+          [
+            "Subroutine Naming Rules",
+            "1. The identifier must start with an uppercase letter (A-Z).",
+            "2. Words within a segment are separated using camelCase (the first letter of each subsequent word is uppercase).",
+            "3. Digits (0-9) are allowed anywhere except as the first character of the identifier.",
+            "4. The underscore (_) may be used as a semantic separator between logical segments.",
+            "5. After each underscore, the next character must be a lowercase letter or a digit.",
+            "6. Consecutive underscores (__) are not allowed.",
+            "7. The identifier must not end with an underscore.",
+            "8. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "safety_subroutine",
+          "regex" : "^F_[A-Z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "descriptions" :
+          [
+            "Safety Subroutine Naming Rules",
+            "1. The identifier must start with the prefix F_.",
+            "2. The first character after F_ must be an uppercase letter (A-Z).",
+            "3. Words within a segment are separated using camelCase (the first letter of each subsequent word is uppercase).",
+            "4. Digits (0-9) are allowed anywhere except as the first character after the F_ prefix.",
+            "5. The underscore (_) may be used as a semantic separator between logical segments.",
+            "6. After each underscore, the next character must be a lowercase letter or a digit.",
+            "7. Consecutive underscores (__) are not allowed.",
+            "8. The identifier must not end with an underscore.",
+            "9. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "generic_object_container",
+          "regex" : "^_oc_[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "descriptions" :
+          [
+            "Object Container Naming Rules",
+            "1. The identifier must always start with the prefix _oc_.",
+            "2. The first character after _oc_ must be a lowercase letter.",
+            "3. Digits (0-9) are allowed anywhere except as the first character after the _oc_ prefix.",
+            "4. Words within a segment follow lower camel case (the first word starts lowercase, each subsequent word starts uppercase).",
+            "5. The underscore (_) may be used as a semantic separator between logical segments.",
+            "6. After each _, the next character must be a lowercase letter or a digit.",
+            "7. Consecutive underscores (__) are not allowed, except within the fixed prefix _oc_.",
+            "8. The identifier must not end with an underscore.",
+            "9. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "object_container_for_sequences",
+          "regex" : "^_oc_seq[0-9]{1,3}_[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "descriptions" :
+          [
+            "Object Container for Sequences Naming Rules",
+            "1. The identifier must start with the prefix _oc_seq.",
+            "2. After _oc_seq, it must contain 1 to 3 digits (0-9).",
+            "3. The digits must be immediately followed by an underscore (_).",
+            "4. After the underscore, the rest of the name follows the same rules as Object Container naming rules:",
+            "4.1. Lower camel case within segments.",
+            "4.2. Words separated by camelCase (uppercase letter for each new word).",
+            "4.3. _ can be used as a semantic separator between logical segments.",
+            "4.4. After each _, the next character must be a lowercase letter or a digit.",
+            "5. Digits are allowed anywhere except at the start of the post-prefix name segment.",
+            "6. Consecutive underscores (__) are not allowed (except inside the fixed prefix structure).",
+            "7. The identifier must not end with an underscore.",
+            "8. Only letters, digits, and underscores are allowed."
+          ]
+        },
+        {
+          "id" : "text_list",
+          "regex" : "^[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "descriptions" : 
+          [
+            "Text List Naming Rules",
+            "1. The identifier must start with a lowercase letter.",
+            "2. Words within a segment are separated using camelCase (the first letter of each subsequent word is uppercase).",
+            "3. Digits (0-9) are allowed anywhere except as the first character of the identifier.",
+            "4. The underscore (_) may be used as a semantic separator between logical segments.",
+            "5. After each underscore, the next character must be a lowercase letter or a digit.",
+            "6. Consecutive underscores (__) are not allowed.",
+            "7. The identifier must not end with an underscore.",
+            "8. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "safety_text_list",
+          "regex" : "^F_[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "descriptions" :
+          [
+            "Safety Text List Naming Rules",
+            "1. The identifier must start with the prefix F_.",
+            "2. The first character after F_ must be a lowercase letter.",
+            "3. Words within a segment are separated using camelCase (the first letter of each subsequent word is uppercase).",
+            "4. Digits (0-9) are allowed anywhere except as the first character after the F_ prefix.",
+            "5. The underscore (_) may be used as a semantic separator between logical segments.",
+            "6. After each underscore, the next character must be a lowercase letter or a digit.",
+            "7. Consecutive underscores (__) are not allowed.",
+            "8. The identifier must not end with an underscore.",
+            "9. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "constant",
+          "regex" : "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$",
+          "descriptions" :
+          [
+            "Constant Naming Rules",
+            "1. The identifier must always start with an uppercase letter (A-Z).",
+            "2. Only uppercase letters, digits (0-9), and underscores (_) are allowed.",
+            "3. Words are separated using a single underscore (_).",
+            "4. Consecutive underscores (__) are not allowed.",
+            "5. The identifier must not start or end with an underscore.",
+            "6. After each underscore, the next character must be an uppercase letter or a digit.",
+            "7. Only uppercase letters are allowed (no lowercase characters)."
+          ]
+        },
+        {
+          "id" : "variable",
+          "regex" : "^[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "descriptions" :
+          [
+            "Variable Naming Rules",
+            "1. The identifier must start with a lowercase letter.",
+            "2. Words within a segment are separated using camelCase (the first letter of each subsequent word is uppercase).",
+            "3. Digits (0-9) are allowed anywhere except as the first character of the identifier.",
+            "4. The underscore (_) may be used as a semantic separator between logical segments.",
+            "5. After each underscore, the next character must be a lowercase letter or a digit.",
+            "6. Consecutive underscores (__) are not allowed.",
+            "7. The identifier must not end with an underscore.",
+            "8. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        }
+      ],
+      "blocks" :
+      [
+        {
+          "type": "OB",
+          "implements": [ "interruption" ]
+        },
+        {
+          "type": "ArrayDB",
+          "implements": [ "data_container" ]
+        },
+        {
+          "type": "GlobalDB",
+          "implements": [ "data_container" ]
+        },
+        {
+          "type": "InstanceDB",
+          "implements": [ "data_container" ]
+        },
+        {
+          "type": "FC",
+          "implements": [ "function", "safety_function", "subroutine", "safety_subroutine" ]
+        },
+        {
+          "type": "FB",
+          "implements": [ "function", "safety_function", "subroutine", "safety_subroutine", "generic_object_container", "object_container_for_sequences" ]
+        }
+      ],
+      "technologyObjects" :
+      [
+        {
+          "type": "TechnologicalInstanceDB",
+          "implements": [ "data_container" ]
+        }
+      ],
+      "tagTables" :
+      [
+        {
+          "type": "PlcTagTable",
+          "implements": [ "enumeration" ]
+        }
+      ],
+      "types" :
+      [
+        {
+          "type": "PlcStruct",
+          "implements": [ "type", "safety_type" ]
+        }
+      ],
+      "alarmTextLists" :
+      [
+        {
+          "type" : "AlarmTexts",
+          "implements" : [ "text_list", "safety_text_list" ]
+        }
+      ]
+    }
+  }
+}

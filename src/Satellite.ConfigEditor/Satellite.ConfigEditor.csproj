@@ -17,4 +17,28 @@
     <ProjectReference Include="..\UI.Shared\UI.Shared.csproj" />
   </ItemGroup>
 
+  <!-- config.json is meant to be hand-edited, so saving must not disturb what the editor
+       did not change. DataContractJsonSerializer - which Core uses to load - cannot do
+       that: it does not indent, it orders members its own way, and a read-write round trip
+       drops every key the model does not know. -->
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <!-- The template for a new config.json, carried inside the executable so a station with
+       nothing installed can still create one. A copy is written to the per-user folder on
+       first use, and that copy wins from then on. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\config.template.json" />
+  </ItemGroup>
+
+  <!-- WPF has no folder picker of its own, and the window needs one to point at a project
+       when it was started by hand. -->
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+    <!-- WMI, to read this process's parent - which is the TIA Portal that launched it.
+         Neither is part of the default net48 reference set. -->
+    <Reference Include="System.Management" />
+  </ItemGroup>
+
 </Project>

@@ -114,6 +114,21 @@ src/UI.Shared/
 > `Satellite.About` merges `Theme.xaml` alone, because it has no form.
 
 ```
+src/Satellite.ConfigEditor/
+├── Satellite.ConfigEditor.csproj   references Core, UI.Shared; Newtonsoft.Json
+├── Resources/
+│   └── config.template.json  embedded; a copy is written to the per-user folder on use
+├── Startup/
+│   └── ParentProcess.cs      which TIA launched this, read from the parent process
+├── Handoff/                  EditorRequest + the stdin reader
+├── Document/
+│   ├── ConfigDocument.cs     the JSON tree, edited in place and validated through Core
+│   └── ConfigTemplate.cs     the per-user template, with the embedded one behind it
+├── App.xaml(.cs)             one instance per TIA Portal
+└── MainWindow.xaml(.cs)      section navigation; Metadata and Repository so far
+```
+
+```
 src/Satellite.About/
 ├── Satellite.About.csproj    WinExe, UseWPF, ApplicationIcon from assets\
 ├── App.xaml                  merges the UI.Shared dictionaries by pack URI

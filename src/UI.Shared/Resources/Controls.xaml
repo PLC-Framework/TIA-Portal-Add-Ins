@@ -139,19 +139,13 @@
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}" />
 
-                        <!-- Padding zero on purpose. The implicit TextBox style carries 6,4
-                             and its template applies that inside the border, which does not
-                             fit the fixed height above and clips the text. The row's own
-                             margin already spaces it. -->
-                        <TextBox x:Name="PART_EditableTextBox"
-                                 Grid.Column="0" Margin="5,0,0,0" Padding="0"
-                                 Background="Transparent" BorderThickness="0"
-                                 Foreground="{TemplateBinding Foreground}"
-                                 CaretBrush="{TemplateBinding Foreground}"
-                                 SelectionBrush="{StaticResource BrandBrushTop}"
-                                 VerticalContentAlignment="Center" />
-
-                        <ToggleButton Grid.Column="1" Focusable="False" ClickMode="Press"
+                        <!-- Declared before the editable TextBox so it sits *under* it:
+                             with IsEditable the TextBox takes the clicks over its own area
+                             and this still opens the drop-down from anywhere else, while a
+                             read-only ComboBox opens from anywhere at all - which is how
+                             one behaves everywhere in Windows. -->
+                        <ToggleButton x:Name="Toggle" Grid.ColumnSpan="2"
+                                      Focusable="False" ClickMode="Press"
                                       IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
                                                   RelativeSource={RelativeSource TemplatedParent}}">
                             <ToggleButton.Template>
@@ -159,11 +153,38 @@
                                     <Border Background="Transparent">
                                         <Path Data="M 0 0 L 4 4 L 8 0 Z"
                                               Fill="{StaticResource InkMuted}"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                              HorizontalAlignment="Right" Margin="0,0,7,0"
+                                              VerticalAlignment="Center" />
                                     </Border>
                                 </ControlTemplate>
                             </ToggleButton.Template>
                         </ToggleButton>
+
+                        <!-- What a **non-editable** ComboBox shows. Without this the
+                             control renders empty however good the binding is: the stock
+                             template has one of these and a template written for the
+                             editable case alone quietly loses it. Not hit-testable, so
+                             the ToggleButton underneath still gets the click. -->
+                        <ContentPresenter x:Name="Selected" Grid.Column="0"
+                                          Margin="7,0,0,0"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                          VerticalAlignment="Center"
+                                          IsHitTestVisible="False" />
+
+                        <!-- Padding zero on purpose. The implicit TextBox style carries 6,4
+                             and its template applies that inside the border, which does not
+                             fit the fixed height above and clips the text. The row's own
+                             margin already spaces it. -->
+                        <TextBox x:Name="PART_EditableTextBox"
+                                 Grid.Column="0" Margin="5,0,0,0" Padding="0"
+                                 Visibility="Collapsed"
+                                 Background="Transparent" BorderThickness="0"
+                                 Foreground="{TemplateBinding Foreground}"
+                                 CaretBrush="{TemplateBinding Foreground}"
+                                 SelectionBrush="{StaticResource BrandBrushTop}"
+                                 VerticalContentAlignment="Center" />
 
                         <Popup x:Name="PART_Popup" AllowsTransparency="True"
                                IsOpen="{TemplateBinding IsDropDownOpen}"
@@ -179,9 +200,17 @@
                         </Popup>
                     </Grid>
 
-                    <!-- The same three states as a plain field, so the row of controls
-                         answers to the pointer and the keyboard as one set. -->
                     <ControlTemplate.Triggers>
+                        <!-- Editable and read-only are two different controls wearing one
+                             template: exactly one of the two ways of showing the value is
+                             ever visible. -->
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="Selected" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+
+                        <!-- The same three states as a plain field, so the row of controls
+                             answers to the pointer and the keyboard as one set. -->
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource FieldEdgeHover}" />
                         </Trigger>

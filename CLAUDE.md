@@ -25,6 +25,7 @@ Working instructions for this repo. The full technical documentation (Siemens DL
 - **The loader and the assets cannot be separated.** Embedded resources are scoped to the assembly that carries them, and `Assets` resolves against `typeof(Assets).Assembly`. Moving `Assets.cs` without moving the `EmbeddedResource` glob makes every lookup return `null` — **silently**, because `Open` returns `null` by design so callers degrade.
 - **Never hardcode a resource-name prefix.** Match on the tail of the name — a stale prefix compiles fine and returns `null` at runtime inside TIA.
 - **The dark-theme control styles live in `UI.Shared/Resources/Controls.xaml`, and a windowed app merges that one dictionary** — it pulls `Theme.xaml` in itself. Do not copy styles into a window: they moved out of `Satellite.DataBlockSnapshot` on 2026-09-09 precisely because a second consumer appeared. Most are **implicit**, so a plain `<TextBox/>` is themed already; only real choices are keyed (`Quiet`/`Primary`, `FieldLabel`, `Reveal`). Colours are named in `Theme.xaml` — never write a hex literal into a trigger, which is how one "disabled grey" becomes three.
+- **A `ComboBox` template must serve both `IsEditable` states.** A template written for the editable case has only `PART_EditableTextBox`, and a read-only `ComboBox` using it renders **empty** — the selection binds fine and nothing is drawn, because the stock template's `ContentPresenter` for `SelectionBoxItem` is missing. `Controls.xaml` now carries both and an `IsEditable` trigger picks one. The `ToggleButton` spans both columns and is declared **before** the editable `TextBox`, so a read-only combo opens from anywhere while an editable one still gets its clicks.
 - **Theming a WPF input control takes a `ControlTemplate`, not `Setter`s.** Background, foreground, caret and selection are properties; **hover and focus are template triggers painting from hardcoded brushes**, so a styled field still flashes Windows-blue when touched. One `ControlTemplate` with `TargetType="Control"` serves `TextBox` and `PasswordBox` alike — both are `TextBoxBase`, which locates its editing surface by the name `PART_ContentHost`. Two consequences bite: an implicit `TextBox` style also lands on an editable `ComboBox`'s `PART_EditableTextBox` (so its padding must be zeroed against the combo's fixed height), and that same part is transparent by design, so a disabled trigger must dim the border and text but **never** repaint the background.
 - **`AddIn.Shared.Assets.Open(path)` returns a `Stream`, never an image type.** The lookup is worth sharing; the type is not. `Adapters/Icons` materialises a `System.Drawing.Icon` for the TIA menu, and a WPF consumer would build an `ImageSource` from the same bytes. Keeping the lookup free of `System.Drawing` is what allows both.
 
@@ -243,6 +244,34 @@ about the application itself:
   as the PLC password.
 - **The validator comes first.** It is `Core`'s, this satellite is its first consumer, and
   the Add-In needs it too.
+
+#### The window — phase 1 built 2026-09-09
+
+Section navigation down the left, not tabs: two of the sections subdivide again, and nested
+tabs stop being readable. A **dot beside a section** says that section has problems, which
+is exactly how the validator already reports them — per concern.
+
+- **Structural problems block saving; environmental ones never do.** A configuration
+  prepared here for another station is not wrong because a drive is not mapped on this one,
+  so those are shown as warnings. `Save` is simply disabled while the structure is broken.
+- **A file that exists but does not parse is never offered the template button.** That
+  button would overwrite it, and a file somebody broke by hand is still a file somebody
+  wants back. It shows the parser's line and column instead.
+- **Both repository sections stay visible and editable**; the one `coreSource` does not
+  select is dimmed. A project often carries both and switches between them, and hiding the
+  other one makes it look lost.
+- **Creating from the template writes nothing until Save**, so backing out costs nothing.
+- The token uses the same twin-control eye as the PLC password, and writes to the `.env`
+  **before** the JSON: there is no point leaving a `config.json` behind that references a
+  variable nobody managed to set.
+- `Hierarchy` and `Coding style` show a panel saying they are not editable here yet, and
+  that saving leaves them untouched — which is true, and is what the JSON-tree editing
+  buys.
+
+**Verified end to end**: opening a real config, the empty-project and broken-file states,
+creating from the template, and saving. The saved file kept all 15 rules with their
+descriptions, the 11 block groups and the four root keys in their original order, and Core
+loads and validates it clean.
 
 ### Sharing code between `AddIn.V20` and `AddIn.V21`
 
