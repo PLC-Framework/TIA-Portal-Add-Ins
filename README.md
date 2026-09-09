@@ -72,8 +72,20 @@ src/Satellite.DataBlockSnapshot/
 src/Core/
 ├── Core.csproj               SDK-style net48, AnyCPU
 ├── Product.cs                literals shared by every consumer
-├── InstallPaths.cs           %ProgramData%\PLC-Framework — .env and tools\
-├── Config/                   config.json loader + model under Model/
+├── InstallPaths.cs           %ProgramData%\...\tools\ and %LOCALAPPDATA%\...\ per user
+├── Config/
+│   ├── ConfigLoader.cs       config.json → Config, and why it could not be read
+│   ├── ConfigPaths.cs        the .plc-framework\ literals both sides must agree on
+│   ├── Model/                the DTOs — permissive on purpose, they enforce nothing
+│   └── Validation/           one validator per concern, plus the two composites
+│       ├── ValidationIssue.cs / ValidationResult.cs / Issues.cs
+│       ├── MetadataValidator.cs · RepositoryValidator.cs
+│       ├── HierarchyValidator.cs · CodingStyleValidator.cs
+│       ├── ConfigValidator.cs        structural, whole document
+│       └── EnvironmentValidator.cs   paths that exist, ${VAR} that resolve
+├── Secrets/
+│   ├── DotEnv.cs             the per-user .env: read, and written back surgically
+│   └── Variables.cs          ${NAME} references — pure, given a lookup
 └── DependencyGraph/          core.json model (DependencyGraph, Node, Edge, Report)
 ```
 
@@ -555,7 +567,6 @@ token.
 
 ```
 %ProgramData%\PLC-Framework\         ← Core.InstallPaths.Root
-├── .env                             ← InstallPaths.EnvFile — MOVING, see below
 └── tools\                           ← InstallPaths.Tools — every executable shipped
 ```
 
@@ -565,13 +576,13 @@ token.
 
 > **"Satellite" is a role, not a location.** It names a WPF app the Add-In launches from the menu — as opposed to a command-line helper. Both live in `tools\`. The word stays in project names (`Satellite.About`) and in the architecture decisions, because it describes what a thing *is*; the folder only says where it sits.
 
-> **The `.env` is moving out of here, to `%LOCALAPPDATA%\PLC-Framework\.env`** (decided
-> 2026-09-08 — see *The `config.json` contract*). The line above used to read that a
-> station-wide `.env` was the right call for a shared team credential, "and a personal token
-> would belong somewhere per-user instead". The only thing in it turned out to be
-> `GITHUB_TOKEN`, which is exactly that personal token — and `%ProgramData%` grants ordinary
-> users read and execute but **not write**, so the config editor could not save here anyway.
-> `tools\` stays: an installed executable genuinely is per machine.
+> **The `.env` moved out of here** on 2026-09-09, to `%LOCALAPPDATA%\PLC-Framework\.env`.
+> This section used to say a station-wide `.env` was right for a shared team credential,
+> "and a personal token would belong somewhere per-user instead". The only thing in it
+> turned out to be `GITHUB_TOKEN`, which is exactly that personal token — and `%ProgramData%`
+> grants ordinary users read and execute but **not write**, so the config editor could not
+> have saved here at all. `InstallPaths.EnvFile` now hangs off `UserRoot`. `tools\` stays:
+> an installed executable genuinely is per machine.
 
 `PLC_FRAMEWORK_HOME` overrides the root, which is how you point a test run — or the VM — at a staging folder without installing or needing elevation.
 
@@ -1143,6 +1154,99 @@ would have failed on any station where the engineer is not an administrator. It 
 `%LOCALAPPDATA%\PLC-Framework\` too, and the general rule is now written down under
 *The five locations, at a glance*: **`%ProgramData%` is what the installer puts there,
 `%LOCALAPPDATA%` is what the applications write.**
+
+## Validating a configuration
+
+Built 2026-09-09, in `Core/Config/Validation/`. The contract above says what is required;
+this says how it is checked.
+
+**There are two entry points and choosing the wrong one is a design error, not a
+preference:**
+
+```csharp
+ConfigValidator.Validate(config);            // the whole document — the editor, before saving
+HierarchyValidator.Validate(hierarchy);      // one concern — an action, before acting
+```
+
+An action reads one section and must refuse to run only over problems *in that section*.
+`CreateProjectHierarchyAction` calling the composite would let a broken `codingStyle` stop a
+folder tree that is perfectly fine, and "required" would quietly become a property of the
+document rather than of the concern that needs it.
+
+Every per-concern validator takes an optional path prefix, which is how the composite makes
+its issues read `projectConfig.hierarchy.blocks[0].name` while the same validator called
+alone says `blocks[0].name`.
+
+**The structural pass never touches disk.** It is handed an object and returns issues,
+which is what makes it safe inside TIA Portal and what let every behaviour below be checked
+against invented JSON without writing a file.
+
+```csharp
+public sealed class ValidationIssue { string Path; string Message; }   // "metadata.coreSource: Required."
+public sealed class ValidationResult { IReadOnlyList<ValidationIssue> Issues; bool IsValid; }
+```
+
+`Path` is a position **inside the document**, not on disk — that is what will let the editor
+put the cursor on the offending field instead of showing a message about a file.
+
+Three decisions worth keeping:
+
+- **A depth guard, at 32 levels.** Not a style rule: this runs inside TIA Portal's process
+  and a `StackOverflowException` **cannot be caught** in .NET — it takes the host down.
+  A hand-written folder tree is three or four deep. Checked with 200: it reports and lives.
+- **A literal token in `config.json` is not a validation error.** The file works with it;
+  it is a secret in the wrong place, which is a warning for the editor to give, not a reason
+  for the Add-In to refuse a configuration.
+- **The composite does not demand a repository section when `coreSource` is unusable.**
+  That is already reported once, and a second complaint about the same mistake trains the
+  reader to skim the report.
+
+### The environmental pass is separate, and that is the point
+
+`EnvironmentValidator.Validate(config, lookup)` checks what depends on the machine: that a
+local repository path exists, that the folder and the dependency file under it exist, that
+every `${VAR}` resolves.
+
+**A configuration is not wrong because a drive is not mapped here.** It is unusable *here,
+now* — a different sentence, and often a temporary one. So this pass runs when somebody
+asks rather than on every load, and it is the reason the two never share a method.
+
+It deliberately does **not** reach the network. Whether GitHub answers is a question with a
+timeout attached, and a validator that can hang for thirty seconds is one nobody runs.
+
+## Secrets: the `.env` and `${VAR}`
+
+`Core/Secrets/` holds both halves, and the split matters: `Variables` is **pure** — it is
+handed a lookup and never opens a file — while `DotEnv` is the one that knows where the
+file is. That is what lets the same expansion run inside TIA, inside a satellite, and
+inside a test with three values in a dictionary.
+
+```csharp
+DotEnv.Get("GITHUB_TOKEN");                       // the .env, then the process environment
+DotEnv.Set("GITHUB_TOKEN", "ghp_…");              // null on success, or a sentence
+Variables.Expand("Bearer ${GITHUB_TOKEN}", lookup);
+```
+
+- **The file is written surgically.** `Set` replaces the one line that defines the name and
+  leaves everything else — comments, order, unrelated entries, spacing — exactly as it was.
+  A rewrite from a dictionary would silently eat the comments explaining what each secret
+  is for. Same principle as the config editor's own writes.
+- **An unresolved `${VAR}` is left standing, not blanked.** An empty string travels on and
+  fails far away as an unexplained HTTP 401; a literal `${GITHUB_TOKEN}` arriving where a
+  token was expected says exactly what went wrong. Reporting it is the environmental
+  validator's job, and its message names the `.env` to add it to.
+- **Empty counts as unresolved**, everywhere. `DotEnv.Get` returns null for a key present
+  with no value, the validator reports that case as missing, and `Expand` leaves the
+  reference alone — three places that would otherwise disagree about the same fact.
+- **The process environment sits behind the file**, which is what lets a build server or a
+  test override a secret without editing anything. That read is wrapped: it is denied
+  outright under partial trust.
+- **Nothing here throws.** A missing file, an unreadable one, a line that makes no sense:
+  all mean "that secret is not available", which callers already handle.
+
+The parser is forgiving because the file is edited by hand — `export` prefixes, quotes,
+blanks around the `=`, `#` comments, and a value containing `=` all behave as a reader would
+expect.
 
 ## Prior reference project
 

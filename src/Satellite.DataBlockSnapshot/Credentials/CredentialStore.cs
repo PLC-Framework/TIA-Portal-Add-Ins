@@ -52,10 +52,9 @@ namespace Satellite.DataBlockSnapshot.Credentials
         private static readonly byte[] Entropy =
             Encoding.UTF8.GetBytes("PLC-Framework.Satellite.DataBlockSnapshot.credentials.v1");
 
-        private static string FilePath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            Product.Title,
-            "credentials.json");
+        // The folder is Core's to decide - three applications write into it - while the
+        // file name stays here, because nothing else reads it.
+        private static string FilePath => InstallPaths.UserFile("credentials.json");
 
         public static Credential Find(string projectDirectory, string plc, string address)
         {

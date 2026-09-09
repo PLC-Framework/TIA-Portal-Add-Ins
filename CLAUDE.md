@@ -74,7 +74,7 @@ A type's layer is decided by **what it depends on**, not by who happens to call 
 
 | Layer | May depend on | Holds |
 |---|---|---|
-| `Core` | only what **every** consumer needs | `Config` model + loader + **validator**, `DependencyGraph` model, `InstallPaths`, `Product` |
+| `Core` | only what **every** consumer needs | `Config` model + loader + **validators**, `Secrets` (`.env`, `${VAR}`), `DependencyGraph` model, `InstallPaths`, `Product` |
 | `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`), its ports (`ITiaNotifier`, `IGroupNode`, `IProcessLauncher`, `HierarchyTargets`, `Icons`), and the embedded `assets\` with their `Assets` loader |
 | `UI.Shared` | `Core` + WPF | brand resources (`BrandLogo.xaml`, `Theme.xaml`) and, later, shared windows and the single-instance guard |
 | `S7PlcWebserverApi` | the network, and nothing of ours | the JSON-RPC client for a CPU's web server: `PlcClient`, `PlcVariable`, `PlcValue`, `PlcLimits` |
@@ -352,11 +352,18 @@ and **one consumer** (the Add-In). Decisions taken:
       the real `config.json` in `.example\` — clean — and against thirty-odd deliberately
       broken variants. `System` joined `Core`'s references for `Regex` and `Uri`; harmless,
       but the layering table was updated rather than left to drift
-- [ ] The **environmental** validator: paths that exist, `${VAR}` that resolve. Separate
-      pass, separate method — it touches disk and must not run inside the pure one
+- [x] **The environmental validator** (2026-09-09): local repository path, its folder and
+      its dependency file, plus every `${VAR}` resolving. Separate pass, separate type — it
+      touches disk. Deliberately does **not** reach the network
+- [x] **`Core.InstallPaths` gained `UserRoot` and `UserFile(name)`** (2026-09-09), and
+      `EnvFile` now hangs off them. `CredentialStore` stopped building the path itself.
+      `PLC_FRAMEWORK_HOME` moves `Root` only, **not** `UserRoot` — verified — because the
+      two answer different questions and the variable exists for elevation, which the
+      per-user folder never needs
+- [x] **`.env` reader + `${VAR}` expansion in `Core`** (2026-09-09), as `Core/Secrets/`.
+      `ISecretLookup` was indeed unnecessary. `Variables` is pure and takes a lookup;
+      `DotEnv` owns the file and writes it **surgically**, preserving comments and order
 - [ ] `config.schema.json` referenced from the file itself via `$schema`
-- [ ] **Give `Core.InstallPaths` the per-user folder too** — `%LOCALAPPDATA%\PLC-Framework\` now has three tenants (`credentials.json`, `.env`, `config.template.json`) and **no constant**: `CredentialStore` builds the path itself today, and two more copies of that `Path.Combine` is exactly how the literals drift apart. Same reason `ConfigPaths` exists. Then **move `InstallPaths.EnvFile` onto it** (decided 2026-09-08): `%ProgramData%` grants ordinary users read and execute but **not write**, so `Satellite.ConfigEditor` cannot save the token there — it would pass every test here and fail on a real station. `tools\` stays per machine
-- [ ] `.env` reader + `${VAR}` expansion, both in `Core`. The `ISecretLookup` port is probably unnecessary now: with a deterministic path, the Add-In and the satellites read the same file with the same code
 - [ ] Verify on the VM what `Assembly.GetExecutingAssembly().Location` returns for a loaded `.addin`. No longer blocking anything, but worth knowing — the old project assumed `UserAddIns` and may well get an empty string
 - [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
 - [ ] Automate deployment to the VM — now two copies, the `.addin` into `UserAddIns\` and the satellite into `tools\`. Both are manual today, and this is the item that makes a single-file satellite unnecessary (decision 8)
