@@ -43,7 +43,7 @@ $ErrorActionPreference = "Stop"
 # disease as testing a stale build, one level up and with nothing printing its age.
 function StagingFolder
 {
-    if ((Test-Path (Join-Path $PSScriptRoot "tools")) -and
+    if ((Test-Path (Join-Path $PSScriptRoot "bin")) -and
         (Test-Path (Join-Path $PSScriptRoot "addins"))) { return $PSScriptRoot }
 
     return Join-Path (Split-Path $PSScriptRoot -Parent) ".deploy"
@@ -111,25 +111,58 @@ function Age($path) {
 }
 
 if (-not $AddInsOnly) {
-    $tools = Join-Path $env:ProgramData "PLC-Framework\tools"
+    # InstallPaths.Root, worked out by the same two rules Core uses - otherwise the installer
+    # and the Add-In would disagree about where the framework lives, which fails as a
+    # "not installed" error on an install that looks perfectly fine.
+    #
+    #   PLC_FRAMEWORK_HOME wins, so a run without elevation can stage into a folder the Add-In
+    #   will also look in; and ProgramW6432 rather than ProgramFiles, so a 32-bit PowerShell
+    #   still installs where the x64 Add-In inside TIA is going to look.
+    $install = $env:PLC_FRAMEWORK_HOME
 
-    Write-Host "satellites -> $tools" -ForegroundColor Cyan
-    New-Item -ItemType Directory -Force $tools | Out-Null
+    if (-not $install) {
+        $programFiles = $env:ProgramW6432
+        if (-not $programFiles) { $programFiles = $env:ProgramFiles }
 
-    # /PURGE so a renamed or removed executable does not linger. The folder holds only what
-    # this framework ships, so nothing else can be caught by it.
+        $install = Join-Path $programFiles "PLC-Framework"
+    }
+
+    Write-Host "satellites -> $install" -ForegroundColor Cyan
+
+    # Same question as for the machine-wide Add-In folder, asked the same way: whether this
+    # process can write there, not whether it is elevated. Program Files needs elevation on
+    # a normal station, but PLC_FRAMEWORK_HOME can point this at a staging folder that does
+    # not - and refusing that run would be wrong.
+    if (-not (CanWrite $install)) {
+        Write-Host "`n   Cannot write into $install" -ForegroundColor Red
+
+        if (-not (IsElevated)) {
+            Write-Host "   Program Files needs elevation: right-click scripts\step2-deploy-vm.cmd" -ForegroundColor Red
+            Write-Host "   and pick 'Run as administrator'." -ForegroundColor Red
+        }
+        else {
+            Write-Host "   This session is already elevated, so check the folder's permissions." -ForegroundColor Red
+        }
+
+        exit 1
+    }
+
+    # /PURGE so a renamed or removed executable does not linger. Safe only because this
+    # folder is entirely ours and holds nothing but the build output - anything else put
+    # there by hand is deleted on the next run, which is the price of not leaving a stale
+    # satellite behind after a project is renamed.
     #
     # robocopy reports success with a NON-ZERO exit code - 1 copied, 2 extras, 3 both - and
     # only 8 and above are failures. Left alone, the script would end up reporting failure
     # to its caller while printing success on screen.
-    & robocopy (Join-Path $deploy "tools") $tools /E /PURGE /NJH /NJS /NDL /NP | Out-Null
+    & robocopy (Join-Path $deploy "bin") $install /E /PURGE /NJH /NJS /NDL /NP | Out-Null
 
     $code = $LASTEXITCODE
     $global:LASTEXITCODE = 0
 
     if ($code -ge 8) { throw "Copying the satellites failed (robocopy $code)." }
 
-    foreach ($exe in Get-ChildItem $tools -Filter "*.exe") {
+    foreach ($exe in Get-ChildItem $install -Filter "*.exe") {
         Write-Host ("   {0,-46} {1}" -f $exe.Name, (Age $exe.FullName))
     }
 }

@@ -24,7 +24,7 @@ namespace AddIn.Shared.Actions
         public const string Title = "Config. Editor";
 
         /// <summary>
-        /// File name inside <see cref="InstallPaths.Tools"/>. It is the AssemblyName of the
+        /// File name inside <see cref="InstallPaths.Root"/>. It is the AssemblyName of the
         /// Satellite.ConfigEditor project, and nothing binds the two at compile time - they
         /// sit in different layers on purpose - so renaming that project breaks this at run
         /// time instead.

@@ -89,7 +89,7 @@ src/Satellite.DataBlockSnapshot/
 src/Core/
 ├── Core.csproj               SDK-style net48, AnyCPU
 ├── Product.cs                literals shared by every consumer
-├── InstallPaths.cs           %ProgramData%\...\tools\ and %LOCALAPPDATA%\...\ per user
+├── InstallPaths.cs           C:\Program Files\PLC-Framework\ and %LOCALAPPDATA%\...\ per user
 ├── Config/
 │   ├── ConfigLoader.cs       config.json → Config, and why it could not be read
 │   ├── ConfigPaths.cs        the .plc-framework\ literals both sides must agree on
@@ -533,7 +533,7 @@ Four things that bite:
   `step2-deploy-vm.ps1` reports it whenever it sees the package in the other folder.
 
 The per-machine folder is the same trade the framework already makes for
-`%ProgramData%\PLC-Framework\tools\`: one install serves everyone who logs into the station,
+`C:\Program Files\PLC-Framework\`: one install serves everyone who logs into the station,
 at the price of needing an administrator once. The per-user one is the answer where nobody
 will grant that.
 
@@ -586,24 +586,42 @@ Launching an external executable is the sanctioned path, and Siemens equips it: 
 
 That redirection is worth remembering: it is a ready-made IPC channel between the Add-In and a satellite, simpler than named pipes.
 
-### The six locations, at a glance
+### The five locations, at a glance
 
-Everything the framework writes or reads on a station lands in one of six places. The rule
-that decides which is short: **`%ProgramData%` is what the installer puts there;
-`%LOCALAPPDATA%` is what the applications write.** Getting that backwards is the failure
-that passes every test on a developer's machine — where you are an administrator — and
-fails at a customer's, where you are not.
+Everything the framework writes or reads on a station lands in one of five places. The rule
+that decides which is short, and it is Windows' own: **`Program Files` is what the installer
+puts there; `%LOCALAPPDATA%` is what the applications write.** Getting that backwards is the
+failure that passes every test on a developer's machine — where you are an administrator —
+and fails at a customer's, where you are not.
 
 | Location | Scope | In code | Elevation |
 |---|---|---|---|
-| `%ProgramData%\PLC-Framework\` | per **machine** | `Core.InstallPaths.Root` | once, to install |
+| `C:\Program Files\PLC-Framework\` | per **machine** | `Core.InstallPaths.Root` | once, to install |
 | `%LOCALAPPDATA%\PLC-Framework\` | per **user** | `Core.InstallPaths.UserRoot` | none |
 | `%AppData%\Siemens\Automation\Portal V2x\UserAddIns\` | per user, per TIA version | — Siemens' own | none |
 | `C:\Program Files\Siemens\Automation\Portal V2x\AddIns\` | per **machine**, per TIA version | — Siemens' own | **yes** |
 | `<TIA project>\.plc-framework\` | per **project** | `Core.Config.ConfigPaths` | none |
 
-That is five rows for six places because the two Add-In rows are one row each for two TIA
-versions — V20 and V21 never share a folder.
+That is five rows for more than five places, because the two Add-In rows are one row each
+for two TIA versions — V20 and V21 never share a folder.
+
+> **`%ProgramData%` was the first answer, and it was wrong** (corrected 2026-09-11). The
+> reason on record — *"`%ProgramData%` grants ordinary users read and execute but not
+> write"* — is simply false: its `Users` ACE carries `Write` with `ContainerInherit`, so
+> every subfolder inherits it. Measured on a stock Windows 11: a standard user creates a
+> folder there, and a file inside it, with no elevation at all. **A directory anyone can
+> write to and everyone executes from is how a planted DLL gets loaded**, which is the
+> reason binaries live in `Program Files` — where `Users` really do get read and execute and
+> nothing more. Application whitelisting agrees: default AppLocker rules permit execution
+> from `Program Files` and `Windows` and deny it elsewhere for standard users, so satellites
+> under `%ProgramData%` would refuse to start on a locked-down station. The move cost
+> nothing, because step 2 already had to run elevated for V20's Add-In folder.
+>
+> The decisions that had been built on the false premise — the `.env` and
+> `config.template.json` moving to `%LOCALAPPDATA%` — still stand, on the corrected reason:
+> a user may *create* a file under `%ProgramData%` but not modify one written by the
+> installer or by another engineer, the folder is shared so two engineers overwrite each
+> other, and the token is personal.
 
 **The last two are the same choice as the first two, made by Siemens instead of by us**:
 one folder per user that anybody can write, one per machine that only an administrator can.
@@ -615,18 +633,23 @@ reports finding it in the other, because **TIA reads both and would load it twic
 `PLC_FRAMEWORK_HOME` replaces the first row entirely, which is how a test run or the VM
 points at a staging folder without installing anything.
 
-**`%ProgramData%\PLC-Framework\`** — what was installed
+**`C:\Program Files\PLC-Framework\`** — what was installed
 
 | | |
 |---|---|
-| `tools\` | `InstallPaths.Tools`. **Every** executable shipped — satellites and command-line helpers alike — each with its DLLs, `.exe.config` included. Copied in as a whole build output, not as a lone `.exe` |
+| `*.exe`, `*.dll` | `InstallPaths.Root`, flat. **Every** executable shipped — satellites and command-line helpers alike — each with its DLLs and `.exe.config`. Copied in as a whole build output, not as a lone `.exe` |
+
+**No `tools\` subfolder.** It existed while the root was `%ProgramData%\PLC-Framework\` and
+might have shared space with data; under `Program Files` the folder holds nothing but
+binaries, so a level named after them said nothing the folder did not already say.
+`C:\Program Files\<Product>\app.exe` is the ordinary shape of an installed application.
 
 **`%LOCALAPPDATA%\PLC-Framework\`** — what the applications write
 
 | | Written by | |
 |---|---|---|
 | `credentials.json` | `Satellite.DataBlockSnapshot`, only after a login the CPU accepted | web server user and password per project + PLC; the password under DPAPI `CurrentUser` |
-| `.env` | `Satellite.ConfigEditor` | `GITHUB_TOKEN`. Here because the token is personal **and** because `%ProgramData%` is not writable |
+| `.env` | `Satellite.ConfigEditor` | `GITHUB_TOKEN`. Here because the token is personal **and** because the install folder is not writable by the engineer who owns it |
 | `config.template.json` | `Satellite.ConfigEditor`, when it is missing or does not parse | the template for a new `config.json`, written out from the embedded copy so it can be customised |
 
 **`...\Portal V2x\UserAddIns\`** or **`...\Portal V2x\AddIns\`** — one or the other, never both
@@ -651,29 +674,30 @@ token.
 ### Where the satellites live
 
 ```
-%ProgramData%\PLC-Framework\         ← Core.InstallPaths.Root
-└── tools\                           ← InstallPaths.Tools — every executable shipped
+C:\Program Files\PLC-Framework\      ← Core.InstallPaths.Root
+├── PLC-Framework.Satellite.About.exe
+├── PLC-Framework.Core.dll
+└── ...                              every executable shipped, and its DLLs
 ```
 
-**Per machine, not per user**: one install serves every engineer who logs into the station, and both the V20 and V21 Add-Ins resolve the same path. Creating the folder needs administrator rights once; reading it afterwards does not — `%ProgramData%` grants `BUILTIN\Users` read and execute by default.
+**Per machine, not per user**: one install serves every engineer who logs into the station, and both the V20 and V21 Add-Ins resolve the same path. Creating it needs administrator rights once; reading it afterwards does not — `Program Files` grants `BUILTIN\Users` read and execute by default, and nothing more, which is the point.
 
-**One folder for every executable.** A split between `satellites\` and `tools\` was tried and reverted: the boundary blurred immediately, and it only raised the question of which half a new executable belonged in.
+**One flat folder for every executable.** A split between `satellites\` and `tools\` was tried and reverted: the boundary blurred immediately, and it only raised the question of which half a new executable belonged in. The surviving `tools\` level went too when the root moved to `Program Files` — a folder holding nothing but binaries does not need a subfolder named after them, and `C:\Program Files\<Product>\app.exe` is the ordinary shape of an installed application.
 
-> **"Satellite" is a role, not a location.** It names a WPF app the Add-In launches from the menu — as opposed to a command-line helper. Both live in `tools\`. The word stays in project names (`Satellite.About`) and in the architecture decisions, because it describes what a thing *is*; the folder only says where it sits.
+> **"Satellite" is a role, not a location.** It names a WPF app the Add-In launches from the menu — as opposed to a command-line helper. Both live in the same folder. The word stays in project names (`Satellite.About`) and in the architecture decisions, because it describes what a thing *is*; the folder only says where it sits.
 
 > **The `.env` moved out of here** on 2026-09-09, to `%LOCALAPPDATA%\PLC-Framework\.env`.
 > This section used to say a station-wide `.env` was right for a shared team credential,
 > "and a personal token would belong somewhere per-user instead". The only thing in it
-> turned out to be `GITHUB_TOKEN`, which is exactly that personal token — and `%ProgramData%`
-> grants ordinary users read and execute but **not write**, so the config editor could not
-> have saved here at all. `InstallPaths.EnvFile` now hangs off `UserRoot`. `tools\` stays:
-> an installed executable genuinely is per machine.
+> turned out to be `GITHUB_TOKEN`, which is exactly that personal token, and the install
+> folder is not writable by the engineer who owns it. `InstallPaths.EnvFile` now hangs off
+> `UserRoot`. The executables stay: an installed binary genuinely is per machine.
 
-`PLC_FRAMEWORK_HOME` overrides the root, which is how you point a test run — or the VM — at a staging folder without installing or needing elevation.
+`PLC_FRAMEWORK_HOME` overrides the root, which is how you point a test run — or the VM — at a staging folder without installing or needing elevation. **`step2-deploy-vm.ps1` honours it too**, by the same two rules `InstallPaths.Root` uses; an installer and an Add-In that disagreed about where the framework lives would produce a "not installed" error on an install that looks perfectly fine.
 
 Not next to the `.addin`. `UserAddIns` is **per TIA version**, so V20 and V21 would each need their own copy of a satellite that is really per machine, and it is Siemens' directory rather than ours. Not derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be relied on.
 
-`Environment.GetFolderPath(CommonApplicationData)` is deterministic and identical for every consumer, and needs no discovery. Note it is **`CommonApplicationData`, not `LocalApplicationData`** — `%ProgramData%`, not `%AppData%`. Copying a satellite into the latter is the easiest way to get a "not installed" error out of an install that looks correct.
+**The path is read from `ProgramW6432`, falling back to `SpecialFolder.ProgramFiles`** — not the other way round, and the reason is WOW64. `Core` is loaded into TIA Portal, which is x64, *and* into the satellites, which are AnyCPU. On a 32-bit host `SpecialFolder.ProgramFiles` answers `Program Files (x86)`, so the two halves of the framework would resolve **different installations** with nothing failing visibly. `ProgramW6432` is set by 64-bit Windows for processes of either bitness, and is absent on 32-bit Windows where the fallback is right. Checked: the satellites build as `ILOnly` with no `Preferred32Bit`, so today both halves agree — this closes the trap rather than fixes a live bug.
 
 No Siemens API offers an alternative: neither `TiaPortal` nor the `Siemens.Engineering.AddIn` namespace exposes the Add-In's own path or the running TIA version.
 
@@ -721,7 +745,7 @@ of the artefact, and the build only ever touches one of them.
 
 ```
 .deploy\
-├── tools\                   the three satellites, merged as InstallPaths.Tools expects them
+├── bin\                     the three satellites, merged flat as InstallPaths.Root expects
 ├── addins\                  PLC-Framework.V20.addin, PLC-Framework.V21.addin
 ├── step2-deploy-vm.cmd      a copy of the installer, refreshed every run
 └── step2-deploy-vm.ps1
@@ -777,7 +801,7 @@ rewrites the script into it on every run, so the thing you copy is always curren
 is only ever one thing to copy.
 
 `StagingFolder` works out which case it is by **looking for the payload rather than being
-told**: `tools\` and `addins\` beside the script means this is the staged copy, otherwise
+told**: `bin\` and `addins\` beside the script means this is the staged copy, otherwise
 the staging folder is `.deploy\` one level up from `scripts\`.
 
 `step2-deploy-vm.ps1` copies `tools\` with `/PURGE`, so a renamed executable does not linger,
@@ -867,10 +891,14 @@ Copy the project's **whole build output** into `tools\`, not just the executable
 The three `.pdb` files are optional: they only add line numbers to stack traces, which is worth having while testing on the VM and not afterwards.
 
 ```
-robocopy "src\Satellite.About\bin\Debug\net48" "C:\ProgramData\PLC-Framework\tools" /E
+robocopy "src\Satellite.About\bin\Debug\net48" "C:\Program Files\PLC-Framework" /E
 ```
 
-Creating `C:\ProgramData\PLC-Framework\` needs elevation once. To test without it, point `PLC_FRAMEWORK_HOME` at any folder holding a `tools\`, and **restart TIA Portal afterwards** — a running process does not see an environment variable created after it started.
+That is the manual form; `scripts\step2-deploy-vm.ps1` does it for all three satellites at
+once. Either way `C:\Program Files\PLC-Framework\` needs elevation. To test without it,
+point `PLC_FRAMEWORK_HOME` at any folder holding the executables — the deploy script honours
+it too — and **restart TIA Portal afterwards**, since a running process does not see an
+environment variable created after it started.
 
 ### Partial trust, and what it forbids
 
@@ -1442,21 +1470,20 @@ editor shows the field masked with a show/hide eye — the same twin-control pat
 PLC password — and what the operator types goes to the `.env`, never to the JSON. Reading
 the field means reading the `.env` back.
 
-**The `.env` moves to `%LOCALAPPDATA%\PLC-Framework\.env`, per user.** A GitHub token is
-personal, not a station-wide credential, and `%ProgramData%` grants ordinary users read and
-execute but **not write** — so an editor writing there would fail on a real workstation
-while working perfectly on a developer's own machine. Per user it is writable by the person
-who owns the token, and two engineers sharing a station stop overwriting each other.
+**The `.env` lives at `%LOCALAPPDATA%\PLC-Framework\.env`, per user.** A GitHub token is
+personal, not a station-wide credential, and the install folder is not writable by the
+engineer who owns the token — so an editor writing there would fail on a real workstation
+while working perfectly on a developer's own machine. Per user it is writable by that
+person, and two engineers sharing a station stop overwriting each other.
 
-> This supersedes the earlier placement under `%ProgramData%\PLC-Framework\.env`, described
-> under *Where the satellites live*. `%ProgramData%` keeps `tools\`, which genuinely is per
-> machine. `InstallPaths.EnvFile` still points at the old location and has to follow.
+> This supersedes an earlier placement inside the install folder, described under *Where the
+> satellites live*. `InstallPaths.EnvFile` hangs off `UserRoot`.
 
-The same reasoning caught a second file. `config.template.json` was first placed in
-`tools\`, with the editor writing the embedded copy out there when it was missing — which
+The same reasoning caught a second file. `config.template.json` was first placed beside the
+executables, with the editor writing the embedded copy out there when it was missing — which
 would have failed on any station where the engineer is not an administrator. It moves to
-`%LOCALAPPDATA%\PLC-Framework\` too, and the general rule is now written down under
-*The six locations, at a glance*: **`%ProgramData%` is what the installer puts there,
+`%LOCALAPPDATA%\PLC-Framework\` too, and the general rule is written down under
+*The five locations, at a glance*: **`Program Files` is what the installer puts there,
 `%LOCALAPPDATA%` is what the applications write.**
 
 ## Validating a configuration

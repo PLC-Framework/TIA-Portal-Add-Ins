@@ -22,7 +22,7 @@ namespace AddIn.Shared.Actions
         public const string Title = "Snapshot data blocks";
 
         /// <summary>
-        /// File name inside <see cref="InstallPaths.Tools"/>. It is the AssemblyName of
+        /// File name inside <see cref="InstallPaths.Root"/>. It is the AssemblyName of
         /// the Satellite.DataBlockSnapshot project.
         /// </summary>
         public const string ExecutableName = "PLC-Framework.Satellite.DataBlockSnapshot.exe";

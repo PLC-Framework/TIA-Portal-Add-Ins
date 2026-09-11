@@ -18,7 +18,7 @@ $ErrorActionPreference = "Stop"
 
 $repo    = Split-Path $PSScriptRoot -Parent
 $deploy  = Join-Path $repo ".deploy"
-$tools   = Join-Path $deploy "tools"
+$binaries = Join-Path $deploy "bin"
 $addins  = Join-Path $deploy "addins"
 
 # robocopy reports success with a NON-ZERO exit code - 1 means files were copied, 2 that
@@ -48,19 +48,19 @@ if (-not $SkipBuild) {
 # Cleared each time. A stale executable left behind from a renamed project is exactly the
 # kind of thing that gets loaded for weeks without anybody noticing.
 Remove-Item $deploy -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force $tools  | Out-Null
-New-Item -ItemType Directory -Force $addins | Out-Null
+New-Item -ItemType Directory -Force $binaries | Out-Null
+New-Item -ItemType Directory -Force $addins   | Out-Null
 
-Write-Host "`nsatellites -> .deploy\tools\" -ForegroundColor Cyan
+Write-Host "`nsatellites -> .deploy\bin\" -ForegroundColor Cyan
 foreach ($name in $satellites) {
     $from = Join-Path $repo "src\$name\bin\Debug\net48"
     if (-not (Test-Path $from)) { throw "$name has not been built: $from" }
 
-    # All three land in one folder, which is what InstallPaths.Tools expects. They share
+    # All three land in one flat folder, which is what InstallPaths.Root expects. They share
     # Core.dll and UI.Shared.dll; the copies are identical because they were built together.
     # /XF *.pdb: line numbers in stack traces are worth having on the VM, but not the noise
     # here - drop the switch if a crash needs chasing.
-    Copy-Tree $from $tools @("/XF", "*.pdb")
+    Copy-Tree $from $binaries @("/XF", "*.pdb")
 
     $exe = Get-ChildItem $from -Filter "*.exe" | Select-Object -First 1
     Write-Host ("   {0,-46} {1}" -f $exe.Name, $exe.LastWriteTime.ToString("HH:mm:ss"))

@@ -19,10 +19,10 @@ namespace Satellite.ConfigEditor.Document
     /// one is the fallback, and it is **written out** when the file is missing or broken -
     /// so a station repairs itself and there is something to customise.
     ///
-    /// Per user, not <c>tools\</c>. That was the first plan and it carries the same defect
-    /// the old .env did: <c>tools\</c> lives under %ProgramData%, where ordinary users have
-    /// read and execute but **not write**, so the self-repair would work on a developer's
-    /// machine and fail on a real station.
+    /// Per user, not the install folder. That was the first plan and it carries the same
+    /// defect the old .env did: the install folder is Program Files, where ordinary users
+    /// have read and execute but **not write**, so the self-repair would work on a
+    /// developer's machine and fail on a real station.
     /// </summary>
     public static class ConfigTemplate
     {

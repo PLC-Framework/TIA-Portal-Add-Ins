@@ -66,8 +66,11 @@ Do not relitigate without new information:
 1. **Three layers, decided by dependency set** — see below.
 2. **Two Add-In projects**: `AddIn.V20` (valid V17–V20) and `AddIn.V21`. V21 breaks binary compatibility and splits the assemblies.
 3. **Satellites are separate `.exe` files, and cannot be otherwise.** Verified: the Publisher **silently drops** any `.exe` listed under `AdditionalAssemblies` — no error, no warning, the package is just built without it. The filter is purely by extension (the same PE renamed to `.dll` is packaged), but that is no workaround: the part lands in `LocalAssemblyCache/` and TIA loads it as an assembly inside its own process, never as a file on disk. Siemens' own `Siemens.Engineering.AddIn.Utilities.Process` wrapper plus `ProcessStartPermission` confirm launching an external executable is the sanctioned path.
-4. **Install location** — `%ProgramData%\PLC-Framework\`, exposed by `Core.InstallPaths`, holding a single `tools\` folder for **every** executable shipped, satellites included. **Per machine, not per user.** Its counterpart is `%LOCALAPPDATA%\PLC-Framework\`, `InstallPaths.UserRoot`, and the line between them is a rule: **`%ProgramData%` is what the installer puts there, `%LOCALAPPDATA%` is what the applications write** — `.env`, `credentials.json`, `config.template.json`. `%ProgramData%` grants ordinary users read and execute but **not write**, so getting this backwards passes every test on a developer's machine, where you are an administrator, and fails at a customer's. **Not** next to the `.addin`: `UserAddIns` is per TIA version (V20 and V21 would each need a copy) and belongs to Siemens. **Not** derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be trusted. `PLC_FRAMEWORK_HOME` overrides it for staging. Installing needs elevation once; reading does not.
-   - **"Satellite" is a role, not a location.** A satellite is a WPF app the Add-In launches from the menu; it lives in `tools\` next to any command-line helper. Splitting the folder by role was tried and reverted — it only invited arguments about which half a new executable belonged in.
+4. **Install location** — `C:\Program Files\PLC-Framework\`, exposed by `Core.InstallPaths.Root`, holding **every** executable shipped, satellites included, **flat**. **Per machine, not per user.** Its counterpart is `%LOCALAPPDATA%\PLC-Framework\`, `InstallPaths.UserRoot`, and the line between them is Windows' own rule: **`Program Files` is what the installer puts there, `%LOCALAPPDATA%` is what the applications write** — `.env`, `credentials.json`, `config.template.json`. **Not** next to the `.addin`: `UserAddIns` is per TIA version (V20 and V21 would each need a copy) and belongs to Siemens. **Not** derived from `Assembly.Location` either: TIA loads the Add-In out of the package, so that path cannot be trusted. `PLC_FRAMEWORK_HOME` overrides it for staging, and **`step2-deploy-vm.ps1` honours the same two rules** — an installer and an Add-In disagreeing about the root produce a "not installed" error on an install that looks fine. Installing needs elevation once; reading does not.
+   - **This was `%ProgramData%\PLC-Framework\tools\` until 2026-09-11, and the move was a correction, not a preference.** The reason on record — *"`%ProgramData%` grants ordinary users read and execute but not write"* — is **false**: its `Users` ACE carries `Write` with `ContainerInherit`, inherited by every subfolder. Measured: a standard user creates a folder there, and a file inside it, unelevated. **A directory anyone can write to and everyone executes from is how a planted DLL gets loaded**, and default AppLocker rules deny execution outside `Program Files` and `Windows` for standard users, so satellites there would not start on a locked-down station. The move cost nothing — step 2 already ran elevated for V20's Add-In folder. The decisions built on the false premise (`.env`, `config.template.json` → `%LOCALAPPDATA%`) still stand, on the corrected reason: a user may *create* under `%ProgramData%` but not modify what the installer or another engineer wrote, the folder is shared, and the token is personal.
+   - **`tools\` went with the move.** It earned its keep only while the root might hold data too; under `Program Files` the folder holds nothing but binaries, and `C:\Program Files\<Product>\app.exe` is the ordinary shape. Staging renamed to match: `.deploy\bin\`.
+   - **`Root` reads `ProgramW6432` first, `SpecialFolder.ProgramFiles` second.** WOW64: `Core` is loaded into TIA (x64) *and* into the satellites (AnyCPU), so on a 32-bit host `SpecialFolder.ProgramFiles` would answer `Program Files (x86)` and the two halves would resolve **different installations** with nothing failing visibly. Verified the satellites are `ILOnly` with no `Preferred32Bit`, so this closes a trap rather than fixing a live bug.
+   - **"Satellite" is a role, not a location.** A satellite is a WPF app the Add-In launches from the menu; it sits next to any command-line helper in the same flat folder. Splitting the folder by role was tried and reverted — it only invited arguments about which half a new executable belonged in.
 5. **Add-In → satellite handoff: a JSON document over stdin** (chosen 2026-09-04). Siemens' `Process` wrapper exposes `RedirectStandardInput`, so the Add-In writes the payload straight into the child and no file is ever created — nothing to clean up, no permissions question, no stale handoff from a crashed run. **Verified end to end on the VM (2026-09-04): the redirection does survive the permission sandbox.** The satellite still reads the payload behind a small abstraction, and the fallback — a `%TEMP%` file whose path arrives as an argument — stays wired as reserve rather than as a bet. Not the TIA project folder: those are under version control, and tying the handoff to project writability makes a read-only project fail before the window even opens.
 6. **Avoiding duplicates**: each satellite takes a named `Mutex` at startup, but *what* the name identifies differs by satellite, and the difference is the design:
    - `Satellite.About` — **one, full stop.** It shows the same thing to everyone.
@@ -234,11 +237,11 @@ about the application itself:
   `%LOCALAPPDATA%\PLC-Framework\`.** The file on disk wins when it is present and parses;
   otherwise the embedded copy is used **and written out**, so a station repairs itself and
   the operator gets something to customise. Seeded from the `config.json` in `.example\`.
-  **Per user, not `tools\`** — that was the first plan and it carries the same defect as the
-  old `.env`: `tools\` lives under `%ProgramData%`, where ordinary users have read and
-  execute but **not write**, so the self-repair would work on a developer's machine and
-  fail on a real station. Anything this satellite *writes* goes to the per-user folder;
-  `%ProgramData%` is for what the installer puts there.
+  **Per user, not the install folder** — that was the first plan and it carries the same
+  defect as the old `.env`: the install folder is `Program Files`, where ordinary users have
+  read and execute but **not write**, so the self-repair would work on a developer's machine
+  and fail on a real station. Anything this satellite *writes* goes to the per-user folder;
+  `Program Files` is for what the installer puts there.
 - **One instance per running TIA Portal**, and the satellite works that out **by itself**:
   it reads its own parent process, which is TIA because `ProcessLauncher` starts it with
   `UseShellExecute=false`. **The Add-In cannot supply the PID** — measured in the restricted
@@ -255,9 +258,9 @@ about the application itself:
   model does not know**. This file is meant to be hand-edited, so edits are surgical over
   the JSON tree, leaving untouched anything the editor did not change.
 - **The GitHub token never enters `config.json`.** The file always carries the literal
-  `${GITHUB_TOKEN}`; the secret goes to the `.env`, which **moves to
-  `%LOCALAPPDATA%\PLC-Framework\.env`** for two reasons — the token is personal, and
-  `%ProgramData%` is not writable by ordinary users, so an editor saving there would work
+  `${GITHUB_TOKEN}`; the secret goes to the `.env`, which lives at
+  **`%LOCALAPPDATA%\PLC-Framework\.env`** for two reasons — the token is personal, and the
+  install folder is not writable by ordinary users, so an editor saving there would work
   here and fail on a real station. The field is masked with the same show/hide twin-control
   as the PLC password.
 - **The validator came first**, and it was the right order: it is `Core`'s, this satellite
@@ -533,7 +536,7 @@ and **one consumer** (the Add-In). Decisions taken:
       have to be repeated on the next station.
       **The Add-In folder is per TIA version, not per run** (2026-09-09). TIA reads a
       per-user `UserAddIns` *and* a per-machine `AddIns` inside its own installation — the
-      same per-user / per-machine split as `%LOCALAPPDATA%` vs `%ProgramData%`, only made by
+      same per-user / per-machine split as `%LOCALAPPDATA%` vs `Program Files`, only made by
       Siemens — and **which one a version uses belongs to that installation, not to us**: on
       the VM, V20 is `C:\Program Files\Siemens\Automation\Portal V20\AddIns` and V21 is
       `%AppData%\...\Portal V21\UserAddIns`. So the scope sits in the `$targets` table beside
@@ -574,7 +577,7 @@ and **one consumer** (the Add-In). Decisions taken:
       deployer copied by hand goes stale silently, which is the same disease as testing a
       stale build with nothing printing the installer's age — so the installer is paired
       with the payload and rewritten every run instead. `StagingFolder` decides which case
-      it is **by looking for `tools\` and `addins\` beside itself**, not by being told
+      it is **by looking for `bin\` and `addins\` beside itself**, not by being told
 - [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to shorten the test cycle
 - [ ] Decide how many satellites there will be and whether they need live TIA data or just a snapshot
 

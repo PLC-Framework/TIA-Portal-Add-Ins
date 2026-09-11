@@ -39,7 +39,7 @@ namespace AddIn
                     _notifier, _launcher, ProjectDirectory(), ProjectName()));
 
             // On the project root, and last: it is about the framework rather than about
-            // anything selected. The window itself is a separate executable in tools\, so
+            // anything selected. The window itself is a separate executable on disk, so
             // all this does is launch it.
             AddAction<Project>(
                 menuAddInRoot,

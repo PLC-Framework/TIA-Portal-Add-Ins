@@ -9,7 +9,7 @@ namespace AddIn.Shared.Actions
     /// <summary>
     /// Opens the About window.
     ///
-    /// That window is a satellite: a separate executable in the framework's tools\ folder,
+    /// That window is a satellite: a separate executable in the framework's install folder,
     /// because a .addin package cannot carry an .exe and TIA loads its parts as assemblies
     /// rather than as files on disk. So this action resolves a path and launches it.
     /// </summary>
@@ -24,7 +24,7 @@ namespace AddIn.Shared.Actions
         public const string IconPath = "Brand/favicon.ico";
 
         /// <summary>
-        /// File name inside <see cref="InstallPaths.Tools"/>. It is the AssemblyName of the
+        /// File name inside <see cref="InstallPaths.Root"/>. It is the AssemblyName of the
         /// Satellite.About project, so renaming that project breaks this at runtime rather
         /// than at compile time - the two live in different solutions' worth of layers.
         /// </summary>

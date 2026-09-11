@@ -12,26 +12,36 @@ namespace Core
     /// Deliberately NOT derived from the running assembly's location. TIA Portal loads an
     /// Add-In out of its .addin package, so Assembly.Location is not something to rely on;
     /// and it is not derived from UserAddIns either, since that folder is per TIA version
-    /// and belongs to Siemens. A well-known path under CommonApplicationData needs no
-    /// discovery, and reading it needs no elevation — only installing does.
+    /// and belongs to Siemens. A well-known path needs no discovery, and reading it needs
+    /// no elevation — only installing does.
     ///
-    ///     %ProgramData%\PLC-Framework\
-    ///     +-- tools\           every executable shipped with the framework
+    ///     C:\Program Files\PLC-Framework\
+    ///     +-- *.exe, *.dll     every executable shipped with the framework, and its DLLs
     ///
     ///     %LOCALAPPDATA%\PLC-Framework\
     ///     +-- .env             secrets, per user
     ///     +-- ...              whatever an application writes for itself
     ///
-    /// One folder for the executables, on purpose. "Satellite" stays the name of a role — a
-    /// WPF app the Add-In launches from the menu — not of a location: satellites live in
-    /// tools\ alongside command-line helpers. Splitting the folder by role only invited
-    /// arguments about which half a new executable belonged in.
+    /// One flat folder for the executables, on purpose. "Satellite" stays the name of a
+    /// role — a WPF app the Add-In launches from the menu — not of a location: satellites
+    /// sit alongside any command-line helper. Splitting by role only invited arguments
+    /// about which half a new executable belonged in, and a tools\ level under a folder
+    /// that holds nothing but binaries said nothing the folder did not already say.
     ///
-    /// **The split between the two roots is a rule, not a preference:
-    /// %ProgramData% is what the installer puts there, %LOCALAPPDATA% is what the
-    /// applications write.** %ProgramData% grants ordinary users read and execute but not
-    /// write, so anything written to it works on a developer's machine — where you are an
-    /// administrator — and fails at a customer's, where you are not.
+    /// **Program Files, not %ProgramData%, and that was a correction** (2026-09-11). The
+    /// original choice rested on "%ProgramData% grants ordinary users read and execute but
+    /// not write", which is simply false: its Users ACE carries Write with ContainerInherit,
+    /// so it is inherited by every subfolder — measured, and a standard user can drop a file
+    /// next to an .exe there without elevation. A directory anyone can write to and everyone
+    /// executes from is how a planted DLL gets loaded, and it is why binaries belong in
+    /// Program Files, which grants Users read and execute and nothing more. Application
+    /// whitelisting agrees: the default AppLocker rules permit execution from Program Files
+    /// and Windows and deny it elsewhere for standard users.
+    ///
+    /// **The rule between the two roots survives the correction, restated:
+    /// Program Files is what the installer puts there, %LOCALAPPDATA% is what the
+    /// applications write.** Installing needs elevation; nothing the applications do to
+    /// their own data ever should.
     ///
     /// Nothing here creates directories or touches disk: these are just the agreed
     /// locations. Installing is somebody else's job.
@@ -49,10 +59,21 @@ namespace Core
         /// </summary>
         public const string RootOverrideVariable = "PLC_FRAMEWORK_HOME";
 
-        private const string ToolsFolderName = "tools";
         private const string EnvFileName = ".env";
 
-        /// <summary>Root of the installation, or null when it cannot be determined.</summary>
+        // Always the 64-bit Program Files, whatever the bitness of the process asking.
+        // Core is loaded into TIA Portal, which is x64, and into the satellites, which are
+        // AnyCPU - so on a 32-bit host SpecialFolder.ProgramFiles would answer
+        // "Program Files (x86)" and the two would resolve DIFFERENT installations without
+        // anything failing visibly. ProgramW6432 is set by 64-bit Windows for processes of
+        // either bitness and is absent on 32-bit Windows, where the fallback is correct.
+        private const string Wow64ProgramFilesVariable = "ProgramW6432";
+
+        /// <summary>
+        /// Root of the installation - where every executable shipped with the framework
+        /// lives, the satellites the Add-In launches and any command-line helper alike.
+        /// Null when it cannot be determined.
+        /// </summary>
         public static string Root
         {
             get
@@ -60,18 +81,17 @@ namespace Core
                 string overridden = SafeEnvironmentVariable(RootOverrideVariable);
                 if (!string.IsNullOrWhiteSpace(overridden)) return overridden;
 
-                string programData = SafeFolder(Environment.SpecialFolder.CommonApplicationData);
-                return string.IsNullOrEmpty(programData)
+                string programFiles = SafeEnvironmentVariable(Wow64ProgramFilesVariable);
+                if (string.IsNullOrWhiteSpace(programFiles))
+                {
+                    programFiles = SafeFolder(Environment.SpecialFolder.ProgramFiles);
+                }
+
+                return string.IsNullOrEmpty(programFiles)
                     ? null
-                    : Path.Combine(programData, Product.Title);
+                    : Path.Combine(programFiles, Product.Title);
             }
         }
-
-        /// <summary>
-        /// Where every executable shipped with the framework lives: the satellite apps
-        /// the Add-In launches from the menu, and any command-line helper alike.
-        /// </summary>
-        public static string Tools => Combine(Root, ToolsFolderName);
 
         /// <summary>
         /// Where the framework's applications keep this user's own data, or null when it
@@ -96,16 +116,16 @@ namespace Core
         /// <summary>
         /// The .env holding secrets, kept out of the TIA project on purpose.
         ///
-        /// **Per user**, not per machine. It moved out of %ProgramData% on 2026-09-08 for
-        /// two reasons: the only thing in it is a personal GitHub token rather than a
-        /// shared team credential, and %ProgramData% is not writable by ordinary users, so
-        /// an editor saving here would have failed on any station where the engineer is
+        /// **Per user**, not per machine. It moved out of the install folder on 2026-09-08
+        /// for two reasons: the only thing in it is a personal GitHub token rather than a
+        /// shared team credential, and the install folder is not writable by ordinary users,
+        /// so an editor saving there would have failed on any station where the engineer is
         /// not an administrator.
         /// </summary>
         public static string EnvFile => Combine(UserRoot, EnvFileName);
 
         /// <summary>Full path of a shipped executable, by file name.</summary>
-        public static string Tool(string fileName) => Combine(Tools, fileName);
+        public static string Tool(string fileName) => Combine(Root, fileName);
 
         /// <summary>
         /// Full path of a per-user file, by file name.
