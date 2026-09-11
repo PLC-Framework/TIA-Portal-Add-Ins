@@ -26,13 +26,22 @@
                Width="300"
                HorizontalAlignment="Left" Margin="23,0,0,0" />
 
-        <TextBlock Grid.Row="1"
-                   Text="{x:Static core:Product.Title}"
-                   Foreground="{StaticResource BrandBrushTop}"
-                   FontSize="32"
-                   FontWeight="SemiBold"
-                   HorizontalAlignment="Center"
-                   Margin="0,4,0,0" />
+        <StackPanel Grid.Row="1" HorizontalAlignment="Center" Margin="0,4,0,0">
+            <TextBlock Text="{x:Static core:Product.Title}"
+                       Foreground="{StaticResource BrandBrushTop}"
+                       FontSize="32"
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center" />
+
+            <!-- The number a tester reads back when something goes wrong. This window is
+                 the only place it is on screen, which is why the About entry earns its
+                 place in the menu at all. -->
+            <TextBlock Text="{x:Static core:Product.Version}"
+                       Foreground="{StaticResource InkMuted}"
+                       FontSize="13"
+                       HorizontalAlignment="Center"
+                       Margin="0,2,0,0" />
+        </StackPanel>
 
         <TextBlock Grid.Row="2"
                    Text="A very Platypus-like framework for designing modern PLC programs!"

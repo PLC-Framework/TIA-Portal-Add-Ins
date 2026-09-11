@@ -7,6 +7,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
+using Core;
 using Core.Config;
 using Core.Config.Validation;
 using Core.Secrets;
@@ -53,6 +54,10 @@ namespace Satellite.ConfigEditor
         public MainWindow(EditorRequest request)
         {
             InitializeComponent();
+
+            // In the title bar, so it reaches every screenshot a tester sends
+            // without them having to go and find it.
+            Title = "Config editor " + Product.Version;
 
             _request = request;
 

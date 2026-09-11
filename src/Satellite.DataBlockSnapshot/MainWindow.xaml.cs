@@ -11,6 +11,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
+using Core;
 using Core.Config;
 
 using S7PlcWebserverApi;
@@ -42,6 +43,10 @@ namespace Satellite.DataBlockSnapshot
         public MainWindow(SnapshotRequest request)
         {
             InitializeComponent();
+
+            // In the title bar, so it reaches every screenshot a tester sends
+            // without them having to go and find it.
+            Title = "Data block snapshot " + Product.Version;
 
             _request = request;
 

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+  Imported automatically by every project under this folder, which is the point: the version
+  is stated once and the seven projects inherit it. MSBuild walks up from each .csproj until
+  it finds this file, so a new project picks it up by existing.
+
+  BUMPING A RELEASE TOUCHES TWO MORE FILES, and nothing here can reach them:
+
+      src\AddIn.V20\Config.xml     <AddInVersion> and <Product><Version>
+      src\AddIn.V21\Config.xml     the same
+
+  The Publisher's schema wants the number written out in its own XML, and it is what TIA
+  shows in Options -> Add-Ins. Leaving those behind produces an Add-In that reports one
+  version while the assemblies inside it carry another - which is worse than no version at
+  all, because the report a tester sends back is then wrong rather than missing.
+-->
+<Project>
+
+  <PropertyGroup>
+    <!--
+      One number, and only one. The SDK derives the rest and they are deliberately not
+      restated here: AssemblyVersion and FileVersion both come out as 1.0.0.0, verified by
+      building with nothing but this property set.
+
+      They are three digits against four because they are two different things.
+      Version is SemVer - three components plus an optional suffix, 1.0.0-beta.1 - and it
+      feeds AssemblyInformationalVersion. AssemblyVersion and FileVersion are System.Version,
+      exactly four integers with no room for a suffix, so a three-part number is padded.
+
+      Restating all three would recreate the drift this file exists to remove: raise Version
+      alone and the assemblies would keep reporting the old number, silently.
+    -->
+    <Version>1.0.0</Version>
+
+    <Product>PLC-Framework</Product>
+    <Company>PLC-Framework</Company>
+    <Authors>cyanezf (PLC-Framework)</Authors>
+    <Copyright>Copyright (c) 2026 PLC-Framework</Copyright>
+  </PropertyGroup>
+
+</Project>
