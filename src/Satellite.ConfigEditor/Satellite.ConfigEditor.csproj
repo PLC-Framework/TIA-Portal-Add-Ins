@@ -30,6 +30,7 @@
        first use, and that copy wins from then on. -->
   <ItemGroup>
     <EmbeddedResource Include="Resources\config.template.json" />
+    <EmbeddedResource Include="Resources\config.schema.json" />
   </ItemGroup>
 
   <!-- WPF has no folder picker of its own, and the window needs one to point at a project

@@ -215,12 +215,29 @@ namespace Satellite.ConfigEditor.Document
         }
 
         /// <returns>Null on success, or a sentence naming what went wrong.</returns>
-        public string Save()
+        public string Save() => Save(out string _);
+
+        /// <param name="note">
+        /// Something that is worth saying but did not stop the save — today, only the JSON
+        /// Schema failing to be written beside the file. It is deliberately not folded into
+        /// the return value: the configuration did save, and a caller that treats "could not
+        /// write the schema" as a failed save would be wrong about the one thing that
+        /// matters.
+        /// </param>
+        /// <returns>Null on success, or a sentence naming what went wrong.</returns>
+        public string Save(out string note)
         {
+            note = null;
+
             if (string.IsNullOrWhiteSpace(Path)) return "There is nowhere to save this yet.";
 
             try
             {
+                // Before serialising, so the $schema it adds is part of what gets written
+                // and part of what _saved compares against - otherwise the document would
+                // read as dirty the instant it was saved.
+                note = ConfigSchema.Ensure(_root, Path);
+
                 string text = Serialise();
 
                 Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path));

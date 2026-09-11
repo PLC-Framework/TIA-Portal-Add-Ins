@@ -997,9 +997,9 @@ namespace Satellite.ConfigEditor
                 _tokenChanged = false;
             }
 
-            string error = _document.Save();
+            string error = _document.Save(out string note);
 
-            StatusLine.Text = error ?? "Saved to " + _document.Path;
+            StatusLine.Text = error ?? ("Saved to " + _document.Path + (note == null ? string.Empty : "  " + note));
             Revalidate();
         }
 

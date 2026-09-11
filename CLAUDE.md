@@ -536,9 +536,25 @@ and **one consumer** (the Add-In). Decisions taken:
 ### Pending
 
 - [ ] **Building while TIA has the Add-In loaded fails.** The Publisher cannot overwrite a `.addin` that the VM holds open through a shared folder — `vmware-vmx.exe` shows up as the owner. Harmless once understood, but it looks like a build error: close TIA, or stop deploying straight out of `bin\Debug\net48`
-- [ ] `config.schema.json` referenced from the file itself via `$schema`. The last piece of
-      the config pipeline still missing, and the one that helps the hand-edit path: it
-      validates while the file is being typed, before any of `Core`'s validators run
+- [x] **`config.schema.json`** (2026-09-11), embedded in `Satellite.ConfigEditor`, written
+      beside `config.json` and referenced as `"$schema": "./config.schema.json"` — the first
+      key in the file. **The config pipeline is complete.** It is the only validator that
+      runs while the file is being typed, which is the hand-edit path's first safety net.
+      Accepting a **third statement of one contract** was the deliberate cost; the test is
+      what keeps the three from drifting. Worth carrying:
+      **four rules are beyond JSON Schema** — `implements` naming an existing rule, `id`
+      uniqueness, sibling `name` uniqueness, and a regex that compiles — so the schema never
+      replaces `Core`'s validators, and the test asserts those four **pass** rather than
+      trusting the prose.
+      **`additionalProperties` stays open**, or it would flag exactly the unknown keys the
+      editor exists to preserve. **Required strings use `"pattern": "\\S"`, not
+      `minLength: 1`**, because `Issues.Required` counts whitespace as missing and `"   "`
+      passing one validator while failing the other is the worst kind of disagreement.
+      **Written into the project, not fetched**: a URL 404s on a private repo and stops
+      validation silently, an absolute path gets committed and is wrong elsewhere, an editor
+      setting is per machine. **Rewritten every save** because it is generated — but a
+      `$schema` aimed somewhere else is left alone and nothing is written. **It never fails a
+      save**: it costs autocomplete, not the configuration
 - [ ] Verify on the VM what `Assembly.GetExecutingAssembly().Location` returns for a loaded `.addin`. No longer blocking anything, but worth knowing — the old project assumed `UserAddIns` and may well get an empty string
 - [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
 - [x] **Deployment to the VM automated** (2026-09-09): `scripts\step1-stage-host.ps1` on the

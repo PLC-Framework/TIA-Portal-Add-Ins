@@ -1,9 +1,9 @@
 {
   "metadata":
   {
-    "version" : "v2.0",
+    "version" : "v1.0",
     "author" : "",
-    "description" : " ",
+    "description" : "",
     "coreSource" : "local"
   },
   "coreRemoteRepositoryConfig" :

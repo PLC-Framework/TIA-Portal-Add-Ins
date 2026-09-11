@@ -1578,6 +1578,95 @@ Three decisions worth keeping:
   That is already reported once, and a second complaint about the same mistake trains the
   reader to skim the report.
 
+### The JSON Schema: the only validator that runs while you type
+
+`config.schema.json`, built 2026-09-11. **Three statements of one contract now exist** — the
+table above, `Core`'s validators, and this — and that is a deliberate cost with a specific
+payoff: the other two run before a save and after a load, while this one runs on every
+keystroke, in whatever editor opened the file. It is the first safety net the hand-edit path
+has ever had, and the only one that offers autocomplete over the closed sets.
+
+**It expresses the mechanical half.** Required fields, types, the five closed `type` sets,
+`coreSource` deciding which repository section is required (`if`/`then`), the recursive
+`Group` through a `$ref` to itself, the `version` pattern, an `apiUrl` that is absolute and
+`http`/`https`, and lists that may be empty but must exist.
+
+**Four rules are beyond it, and they are the ones a typo breaks silently:**
+
+| Not expressible | Why |
+|---|---|
+| `implements` naming an existing `rules[].id` | JSON Schema has no cross-references |
+| `rules[].id` unique file-wide | `uniqueItems` compares whole objects, not one field |
+| `Group.name` unique among siblings | same |
+| a `regex` that compiles | `format: "regex"` is annotation-only in most validators |
+
+So **the schema does not replace `Core`'s validators; it takes the boring half earlier.**
+Anyone who mistakes it for the authority will ship a file the Add-In then refuses.
+
+Two details that are easy to get wrong:
+
+- **`additionalProperties` stays open.** The editor deliberately preserves keys the model has
+  never heard of, and a schema flagging them would contradict that in the same breath.
+- **Blank is not "present".** `Core`'s `Required` treats whitespace as missing, so every
+  required string carries `"pattern": "\\S"` rather than `minLength: 1` — otherwise `"   "`
+  passes here and fails there, which is the worst possible disagreement between two
+  validators.
+
+Draft-07 rather than 2020-12: nothing here needs the newer draft, and Draft-07 is what
+editors support most completely.
+
+#### Where it lives, and why in the project
+
+```jsonc
+{ "$schema": "./config.schema.json", "metadata": { … } }
+```
+
+`Satellite.ConfigEditor` embeds it, writes a copy next to `config.json`, and adds that
+relative `$schema` as the **first** key. The alternatives each fail in a way that only shows
+later: a URL needs the network and answers 404 on a private repository, which stops
+validation with no message at all; an absolute path into the install folder gets committed
+and is wrong on the next station; an editor setting is per machine, so whoever clones the
+project inherits nothing. A copy per project is the price of it working for a stranger who
+opens the file. Nothing secret is in a schema, so `.plc-framework\` being under version
+control is fine here — that rule is about credentials.
+
+**It is rewritten on every save**, because it is generated rather than authored: a project
+open across a framework upgrade would otherwise keep validating against last month's
+contract. Hand edits to it are therefore lost — the right trade for a derived file, and the
+exact opposite of `config.template.json`, where customising is the whole point. **A `$schema`
+pointing somewhere else is left alone** and no file is written: aiming at a shared copy on a
+network drive is a deliberate act, and overwriting it every save would be the editor arguing
+with its user.
+
+**A schema that cannot be written never fails a save.** It costs autocomplete, not the
+configuration, so it is reported beside "Saved to …" and stepped over.
+
+#### Keeping the three in step
+
+`scripts\check-config-schema.js` is what stops the drift a third statement invites. Add a
+type to a closed set in `CodingStyleValidator.cs` and the schema does not follow on its own;
+this turns that into a failing run.
+
+```
+npm install --prefix %TEMP%\plcfw-tools ajv@8
+set NODE_PATH=%TEMP%\plcfw-tools\node_modules
+node scripts\check-config-schema.js
+```
+
+**`ajv` is resolved from outside the repo deliberately** — this is a .NET solution, and a
+`node_modules\` inside it would be the only one, kept alive by a single test.
+`Newtonsoft.Json.Schema` would have been the in-house choice, since `Newtonsoft.Json` is
+already here, and it is commercially licensed beyond 1000 validations an hour: a poor thing
+to bury in a test.
+
+It checks both real configurations, thirty-three broken variants — every one rejected, at the
+right path — and the four rules above, **which must pass**: the test asserts the limits
+rather than trusting this prose. The wiring was then exercised end to end through the real
+`ConfigDocument`: the schema lands beside the file, `$schema` is first, `Core` still loads
+and validates a document carrying a key its model does not know, a second save neither
+duplicates nor moves it, a `$schema` aimed elsewhere survives untouched with no file written,
+and the file the editor wrote validates against the copy it wrote next to it.
+
 ### The environmental pass is separate, and that is the point
 
 `EnvironmentValidator.Validate(config, lookup)` checks what depends on the machine: that a

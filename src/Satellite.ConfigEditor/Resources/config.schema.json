@@ -1,0 +1,476 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://plc-framework/config.schema.json",
+  "title": "PLC-Framework project configuration",
+  "description": "Structural contract for .plc-framework/config.json. It is the only one of the three validators that runs while the file is being typed - Core's run before a save and after a load, and they catch the four rules JSON Schema cannot express: that an implements entry names a rule that exists, that rule ids are unique, that sibling folder names are unique, and that a regex compiles. Draft-07 rather than 2020-12, for editor support; nothing here needs the newer draft.",
+
+  "type": "object",
+  "required": [
+    "metadata",
+    "projectConfig"
+  ],
+
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Points at this file, which is what makes an editor validate while you type."
+    },
+    "metadata": {
+      "$ref": "#/definitions/metadata"
+    },
+    "coreRemoteRepositoryConfig": {
+      "$ref": "#/definitions/remoteRepository"
+    },
+    "coreLocalRepositoryConfig": {
+      "$ref": "#/definitions/localRepository"
+    },
+    "projectConfig": {
+      "$ref": "#/definitions/projectConfig"
+    }
+  },
+
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "metadata"
+        ],
+        "properties": {
+          "metadata": {
+            "required": [
+              "coreSource"
+            ],
+            "properties": {
+              "coreSource": {
+                "const": "remote"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "coreRemoteRepositoryConfig"
+        ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "metadata"
+        ],
+        "properties": {
+          "metadata": {
+            "required": [
+              "coreSource"
+            ],
+            "properties": {
+              "coreSource": {
+                "const": "local"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "coreLocalRepositoryConfig"
+        ]
+      }
+    }
+  ],
+
+  "definitions": {
+    "metadata": {
+      "type": "object",
+      "description": "Holds coreSource, which decides the rest of the file.",
+      "required": [
+        "coreSource"
+      ],
+      "properties": {
+        "coreSource": {
+          "enum": [
+            "local",
+            "remote"
+          ],
+          "description": "Which repository section this configuration uses, and therefore which one is required. The other is not validated at all."
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^v\\d{1,2}(\\.\\d{1,2}){1,3}$",
+          "description": "Two to four components of up to two digits each: v2.0, v1.12.3, v9.9.9.9."
+        },
+        "author": {
+          "type": "string",
+          "description": "Informative. Not validated."
+        },
+        "description": {
+          "type": "string",
+          "description": "Informative. Not validated."
+        }
+      }
+    },
+
+    "remoteRepository": {
+      "type": "object",
+      "description": "The GitHub repository holding the core. Required when coreSource is remote, ignored otherwise.",
+      "required": [
+        "apiUrl",
+        "owner",
+        "repository",
+        "branch",
+        "folder",
+        "dependencyFile"
+      ],
+      "properties": {
+        "apiUrl": {
+          "type": "string",
+          "pattern": "^https?://",
+          "description": "GitHub API endpoint, absolute and http or https: https://api.github.com/"
+        },
+        "owner": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Repository owner."
+        },
+        "repository": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Repository name."
+        },
+        "branch": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Branch to read from. The template ships main."
+        },
+        "folder": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Path inside the repository down to the core."
+        },
+        "dependencyFile": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Dependency graph file name, today core.json."
+        },
+        "token": {
+          "type": "string",
+          "description": "Always the literal ${GITHUB_TOKEN}: this file lives in a TIA project and TIA projects are under version control, so the secret goes to the per-user .env instead. Absent or empty means a public repository."
+        }
+      }
+    },
+
+    "localRepository": {
+      "type": "object",
+      "description": "A core on this machine or a mapped drive. Required when coreSource is local, ignored otherwise.",
+      "required": [
+        "repository",
+        "folder",
+        "dependencyFile"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Local path to the repository. That it exists is environmental, and checked separately: a configuration is not wrong because a drive is not mapped here."
+        },
+        "folder": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Path inside the repository down to the core."
+        },
+        "dependencyFile": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Dependency graph file name, today core.json."
+        }
+      }
+    },
+
+    "projectConfig": {
+      "type": "object",
+      "description": "What the Add-In applies to the TIA project.",
+      "required": [
+        "hierarchy",
+        "codingStyle"
+      ],
+      "properties": {
+        "hierarchy": {
+          "$ref": "#/definitions/hierarchy"
+        },
+        "codingStyle": {
+          "$ref": "#/definitions/codingStyle"
+        }
+      }
+    },
+
+    "hierarchy": {
+      "type": "object",
+      "description": "The folder tree to create. Every list is required but may be empty: [] says this concern has no folders, while a missing key says nothing at all.",
+      "required": [
+        "blocks",
+        "technologyObjects",
+        "tagTables",
+        "types"
+      ],
+      "properties": {
+        "blocks": {
+          "$ref": "#/definitions/groupList"
+        },
+        "technologyObjects": {
+          "$ref": "#/definitions/groupList"
+        },
+        "tagTables": {
+          "$ref": "#/definitions/groupList"
+        },
+        "types": {
+          "$ref": "#/definitions/groupList"
+        },
+        "softwareUnits": {
+          "$ref": "#/definitions/softwareUnits"
+        }
+      }
+    },
+
+    "softwareUnits": {
+      "type": "object",
+      "description": "Applied inside every software unit. Optional as a whole - only the S7-1500 has them, and on an S7-1200 the section is ignored - but once present all three lists are required. There is deliberately no technologyObjects here: a software unit exposes blocks, tag tables and types only.",
+      "required": [
+        "blocks",
+        "tagTables",
+        "types"
+      ],
+      "properties": {
+        "blocks": {
+          "$ref": "#/definitions/groupList"
+        },
+        "tagTables": {
+          "$ref": "#/definitions/groupList"
+        },
+        "types": {
+          "$ref": "#/definitions/groupList"
+        }
+      }
+    },
+
+    "groupList": {
+      "type": "array",
+      "description": "Folders for one concern. May be empty.",
+      "items": {
+        "$ref": "#/definitions/group"
+      }
+    },
+
+    "group": {
+      "type": "object",
+      "description": "One folder, and whatever nests inside it.",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Folder name. Must be unique among siblings of the same parent - which JSON Schema cannot check, so Core's validator does. The same name in a different branch is legal: they are different folders."
+        },
+        "groups": {
+          "type": "array",
+          "description": "Sub-folders. Same rules, all the way down.",
+          "items": {
+            "$ref": "#/definitions/group"
+          }
+        }
+      }
+    },
+
+    "codingStyle": {
+      "type": "object",
+      "description": "Naming rules, and which TIA object types are held to them. Same rule as the hierarchy: every list is required and may be empty.",
+      "required": [
+        "rules",
+        "blocks",
+        "technologyObjects",
+        "tagTables",
+        "types",
+        "alarmTextLists"
+      ],
+      "properties": {
+        "rules": {
+          "type": "array",
+          "description": "The catalogue of naming rules. This is what every implements entry points at.",
+          "items": {
+            "$ref": "#/definitions/rule"
+          }
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/blockObject"
+          }
+        },
+        "technologyObjects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/technologyObject"
+          }
+        },
+        "tagTables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/tagTableObject"
+          }
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/typeObject"
+          }
+        },
+        "alarmTextLists": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/alarmTextListObject"
+          }
+        }
+      }
+    },
+
+    "rule": {
+      "type": "object",
+      "description": "One naming rule.",
+      "required": [
+        "id",
+        "regex"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Unique across the whole file - which JSON Schema cannot check, so Core's validator does. This is what implements points at."
+        },
+        "regex": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Naming pattern. That it compiles is checked by Core's validator: a pattern that cannot compile is a broken file, not a broken machine. Note an empty pattern would match every name ever written."
+        },
+        "descriptions": {
+          "type": "array",
+          "description": "Human-readable explanation of the rule, one line each.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+
+    "implements": {
+      "type": "array",
+      "description": "The rules this object type is held to. Not empty, and every entry must name an existing rules[].id - the reference itself is what Core's validator checks, since JSON Schema cannot look across the document.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "\\S"
+      }
+    },
+
+    "blockObject": {
+      "type": "object",
+      "required": [
+        "type",
+        "implements"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "OB",
+            "ArrayDB",
+            "GlobalDB",
+            "InstanceDB",
+            "FC",
+            "FB"
+          ],
+          "description": "Closed set. A value outside it cannot ever match a real object."
+        },
+        "implements": {
+          "$ref": "#/definitions/implements"
+        }
+      }
+    },
+
+    "technologyObject": {
+      "type": "object",
+      "required": [
+        "type",
+        "implements"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "TechnologicalInstanceDB"
+          ],
+          "description": "Closed set."
+        },
+        "implements": {
+          "$ref": "#/definitions/implements"
+        }
+      }
+    },
+
+    "tagTableObject": {
+      "type": "object",
+      "required": [
+        "type",
+        "implements"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "PlcTagTable"
+          ],
+          "description": "Closed set."
+        },
+        "implements": {
+          "$ref": "#/definitions/implements"
+        }
+      }
+    },
+
+    "typeObject": {
+      "type": "object",
+      "required": [
+        "type",
+        "implements"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "PlcStruct"
+          ],
+          "description": "Closed set."
+        },
+        "implements": {
+          "$ref": "#/definitions/implements"
+        }
+      }
+    },
+
+    "alarmTextListObject": {
+      "type": "object",
+      "required": [
+        "type",
+        "implements"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "AlarmTexts"
+          ],
+          "description": "Closed set."
+        },
+        "implements": {
+          "$ref": "#/definitions/implements"
+        }
+      }
+    }
+  }
+}
