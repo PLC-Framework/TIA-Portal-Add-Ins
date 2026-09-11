@@ -92,9 +92,12 @@ foreach ($name in @("step2-deploy-vm.cmd", "step2-deploy-vm.ps1")) {
 }
 
 Write-Host "`nstaged in $deploy" -ForegroundColor Green
-Write-Host "on the VM, either:"
-Write-Host "   run it from the share   <shared>\tia-portal-addins\scripts\step2-deploy-vm.cmd"
-Write-Host "   or copy .deploy\ to a local disk and run the step2-deploy-vm.cmd inside it,"
-Write-Host "   which is what an elevated session needs when the share is a mapped drive."
+Write-Host "on the VM, in an ELEVATED PowerShell - V20 installs under Program Files:" -ForegroundColor Cyan
+Write-Host '   & "\\vmware-host\Shared Folders\E\PlcFramework\tia-portal-addins\scripts\step2-deploy-vm.cmd"'
+Write-Host ""
+Write-Host "   By UNC, not by the Z: mapping: a mapped drive belongs to the logon session" -ForegroundColor DarkGray
+Write-Host "   that created it, so an elevated one does not have it. Where a station's UNC" -ForegroundColor DarkGray
+Write-Host "   does not cross either, copy .deploy\ to a local disk - it carries its own" -ForegroundColor DarkGray
+Write-Host "   installer - and run the step2-deploy-vm.cmd inside it." -ForegroundColor DarkGray
 
 exit 0
