@@ -179,9 +179,16 @@ if (-not $AddInsOnly) {
 if (-not $ToolsOnly) {
     Write-Host "`npackages" -ForegroundColor Cyan
 
-    # The scope belongs to the TIA VERSION, not to the run. On the station this is built
-    # for, V20 takes the machine-wide folder inside its own installation while V21 takes
-    # the per-user one - so a single switch for both could only ever describe one of them.
+    # The scope belongs to the TIA VERSION, not to the run, so a single switch for both
+    # could only ever describe one of them:
+    #
+    #   V20   <ProgramFiles>\Siemens\Automation\Portal V20\AddIns       machine-wide
+    #   V21   %AppData%\Siemens\Automation\Portal V21\UserAddIns        per user
+    #
+    # Stated by the maintainer as how TIA installs, not measured across machines - so if an
+    # Add-In fails to appear on a station, this table is the first thing to doubt. It fails
+    # loudly rather than quietly: a missing parent folder is reported per version, with the
+    # full path it looked in, and a package found in the OTHER folder is reported too.
     # -Scope overrides the pair for a station set up differently.
     $targets = @(
         @{ Package = "PLC-Framework.V20.addin"; Portal = "Portal V20"; Scope = "Machine" },
