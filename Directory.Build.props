@@ -30,12 +30,19 @@
 
       Restating all three would recreate the drift this file exists to remove: raise Version
       alone and the assemblies would keep reporting the old number, silently.
+
+      THREE COMPONENTS EVERYWHERE A PERSON LOOKS. The Config.xml files carry 1.0.0 too - the
+      Publisher's schema allows one to four - so About, both window titles, and TIA's Add-Ins
+      list all read the same shape. The four-component form survives only where Windows
+      insists on it: AssemblyVersion and FileVersion are System.Version, which has four
+      integer fields and no way to have three, and the assembly part names inside the .addin
+      inherit that. Nobody sees those, and they are not an inconsistency to go and fix.
     -->
     <Version>1.0.0</Version>
 
     <Product>PLC-Framework</Product>
     <Company>PLC-Framework</Company>
-    <Authors>cyanezf (PLC-Framework)</Authors>
+    <Authors>cyanezf</Authors>
     <Copyright>Copyright (c) 2026 PLC-Framework</Copyright>
   </PropertyGroup>
 

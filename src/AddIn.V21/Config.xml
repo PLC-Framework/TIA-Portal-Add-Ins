@@ -4,14 +4,14 @@
 	
 	<!-- This custom file is used to create the .addin file in /bin/[Debug|Release]/net48/<name>.[addin|dll|pdb] -->
 	
-	<Author>cyanezf (PLC-Framework)</Author>
+	<Author>cyanezf</Author>
 	<Description>PLC-Framework Add-In for TIA Portal V21</Description>
-	<AddInVersion>1.0.0.0</AddInVersion>
+	<AddInVersion>1.0.0</AddInVersion>
 	
 	<Product>
 		<Name>PLC-Framework Add-In</Name>
 		<Id>PLC-Framework.V21</Id>
-		<Version>1.0.0.0</Version>
+		<Version>1.0.0</Version>
 	</Product>
 
 	<FeatureAssembly>
