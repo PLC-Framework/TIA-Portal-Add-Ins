@@ -661,15 +661,63 @@ binaries, so a level named after them said nothing the folder did not already sa
 
 **`<TIA project>\.plc-framework\`** — what belongs to the project
 
-| | Written by | Read by |
+| | Written by | Versioned |
 |---|---|---|
-| `config.json` | the user by hand, and `Satellite.ConfigEditor` | the Add-In |
-| `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx` | the user |
+| `config.json` | the user by hand, and `Satellite.ConfigEditor` | **yes** |
+| `config.schema.json` | `Satellite.ConfigEditor` | **yes** — `config.json` points at it relatively |
+| `.gitignore` | `Satellite.ConfigEditor`, only when absent | **yes** |
+| `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx` | no |
+| `logs\` | what a run recorded about itself | no |
+| `tmp\` | scratch space for one action | no |
+| `reports\` | generated reports, the coding-style check first | no |
+
+The four folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and
+`ConfigPaths.FolderFor(projectDirectory, name)` resolves one. **Three of them have no writer
+yet, which is exactly when two components drift apart on a string** — the same reason the
+other literals are there. Nothing creates them: whoever writes the first file creates it
+then, so a project that never ran an action does not collect four empty folders, and git
+would not record them anyway.
 
 **Not one secret lives here, and that is deliberate**: this folder is under version control,
 with `.version-control\` sitting right beside it. It is why the PLC credentials live under
 `%LOCALAPPDATA%` and why `config.json` carries the literal `${GITHUB_TOKEN}` rather than the
 token.
+
+#### The `.gitignore` the editor leaves behind
+
+Being under version control cuts both ways: no secrets may live here, and most of what the
+framework *writes* here must not be committed either. `Satellite.ConfigEditor` therefore
+drops a `.gitignore` in the folder, and it **ignores everything and re-admits what must be
+versioned** rather than listing what to skip:
+
+```gitignore
+*
+
+!.gitignore
+!config.json
+!config.schema.json
+```
+
+- **A deny-list only knows today's folders.** `exports\`, `logs\`, `tmp\`, `reports\` — the
+  next generated thing the framework writes would be committed by default, and nobody would
+  notice until it was already in the history. For a folder whose purpose is generated
+  output, that default is backwards. `reports\` proved the point before the ink was dry: it
+  was named after this file was written, and needed no change to it.
+- **The stake is higher than tidiness.** `exports\` holds workbooks of values read out of a
+  live CPU: plant configuration, sitting one folder away from `.version-control\`. Two lines
+  of allow-list are a cheap way never to have that conversation.
+- **`config.schema.json` is re-admitted deliberately, and it is not optional.** `config.json`
+  points at it by relative path, so a clone without it validates nothing and says nothing
+  about why — the exact failure that ruled out referencing the schema by URL.
+- **Written only when absent**, unlike the schema beside it. A team may add a line for their
+  own tooling, and rewriting it every save would be the editor overruling them. The schema is
+  derived and therefore ours to replace; this is a starting point and therefore theirs.
+
+Checked against real `git` in a real repository: `git add .plc-framework` stages exactly
+those three files, while a snapshot workbook, a log, a `tmp\` file, the coding-style report
+and an invented file that does not exist yet are all ignored — that last one being the point
+of the allow-list. And across a second save, a hand-added line survives while a hand-edited
+`config.schema.json` is restored.
 
 ### Where the satellites live
 

@@ -472,6 +472,10 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
       empty-project and broken-file states, creating from the template, saving, `Metadata`,
       `Repository` with the token in the `.env`, and the whole of `Coding style`. Every
       state driven through UI Automation against the running binary.
+      **The empty-project path confirmed in TIA on the VM** (2026-09-11), on a project
+      created from scratch with no `.plc-framework\` at all — which is the case the decision
+      "a missing folder is a normal state, not an error" exists for, and the one a new user
+      meets first.
 - [x] `ConfigEditorAction` on the project root of both Add-Ins, with its payload serialised
       **inside a restricted `AppDomain`** — and **confirmed in TIA on the VM**, including the
       one-instance-per-TIA guard, which is what proves the parent process really is TIA.
@@ -555,6 +559,26 @@ and **one consumer** (the Add-In). Decisions taken:
       setting is per machine. **Rewritten every save** because it is generated — but a
       `$schema` aimed somewhere else is left alone and nothing is written. **It never fails a
       save**: it costs autocomplete, not the configuration
+- [x] **A `.gitignore` inside `.plc-framework\`** (2026-09-11), written by the editor.
+      **Allow-list, not deny-list**: `*` then `!.gitignore`, `!config.json`,
+      `!config.schema.json`. A deny-list only knows the folders that exist today, so the next
+      generated thing the framework writes would be committed by default — backwards for a
+      folder whose purpose is generated output, and the stake is not tidiness: `exports\`
+      holds workbooks of values read out of a live CPU, one folder from `.version-control\`.
+      **`config.schema.json` is re-admitted and that is not optional** — `config.json` points
+      at it relatively, so a clone without it validates nothing and says nothing about why.
+      **Written only when absent**, unlike the schema: a team may add a line of their own, and
+      the schema is derived while this is a starting point. Verified against real `git`:
+      `git add .plc-framework` stages exactly those three, an invented future file included
+      in the ignored set, and a hand-added line survives a save while a hand-edited schema
+      does not.
+      **The four generated folders — `exports\`, `logs\`, `tmp\`, `reports\` — are named in
+      `ConfigPaths`**, with `FolderFor(projectDirectory, name)` to resolve one. Three have no
+      writer yet, which is exactly when two components drift apart on a string; `reports\`
+      proved the allow-list immediately, being named after the `.gitignore` was written and
+      needing no change to it. **Nothing creates them**: whoever writes the first file does,
+      so a project that never ran an action collects no empty folders — and git would not
+      record them anyway
 - [x] **`Assembly.GetExecutingAssembly().Location` answered by measurement** (2026-09-11),
       which is why `InstallPaths` never derives a path from it. Both possible answers are
       unusable, and neither announces itself:

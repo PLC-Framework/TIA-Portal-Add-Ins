@@ -236,7 +236,7 @@ namespace Satellite.ConfigEditor.Document
                 // Before serialising, so the $schema it adds is part of what gets written
                 // and part of what _saved compares against - otherwise the document would
                 // read as dirty the instant it was saved.
-                note = ConfigSchema.Ensure(_root, Path);
+                note = Join(ConfigSchema.Ensure(_root, Path), ProjectGitIgnore.Ensure(Path));
 
                 string text = Serialise();
 
@@ -253,6 +253,17 @@ namespace Satellite.ConfigEditor.Document
             {
                 return "It could not be saved: " + exception.Message;
             }
+        }
+
+        /// <summary>
+        /// Both companion files report the same way and neither is fatal, so whichever of
+        /// them had something to say gets said. Nulls, the ordinary case, collapse to null.
+        /// </summary>
+        private static string Join(string first, string second)
+        {
+            if (string.IsNullOrEmpty(first)) return string.IsNullOrEmpty(second) ? null : second;
+
+            return string.IsNullOrEmpty(second) ? first : first + "  " + second;
         }
 
         /// <summary>
