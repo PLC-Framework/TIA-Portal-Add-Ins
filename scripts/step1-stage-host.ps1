@@ -80,7 +80,21 @@ foreach ($v in $versions) {
     Write-Host ("   {0,-46} {1}" -f $v.Package, (Get-Item $package).LastWriteTime.ToString("HH:mm:ss"))
 }
 
+# The installer travels WITH what it installs, so .deploy\ is one self-contained thing the
+# VM can copy to a local disk - which is the only way in when the share is a mapped drive,
+# because a mapped drive belongs to the logon session that made it and is simply not there
+# in an elevated one. Refreshed on every run, since .deploy\ is cleared above: that is what
+# stops the copy on the VM from quietly becoming last week's deployer.
+Write-Host "`ninstaller -> .deploy\" -ForegroundColor Cyan
+foreach ($name in @("step2-deploy-vm.cmd", "step2-deploy-vm.ps1")) {
+    Copy-Item (Join-Path $PSScriptRoot $name) $deploy -Force
+    Write-Host ("   {0,-46} {1}" -f $name, (Get-Item (Join-Path $deploy $name)).LastWriteTime.ToString("HH:mm:ss"))
+}
+
 Write-Host "`nstaged in $deploy" -ForegroundColor Green
-Write-Host "on the VM, run:  <shared>\tia-portal-addins\scripts\step2-deploy-vm.cmd"
+Write-Host "on the VM, either:"
+Write-Host "   run it from the share   <shared>\tia-portal-addins\scripts\step2-deploy-vm.cmd"
+Write-Host "   or copy .deploy\ to a local disk and run the step2-deploy-vm.cmd inside it,"
+Write-Host "   which is what an elevated session needs when the share is a mapped drive."
 
 exit 0

@@ -531,15 +531,50 @@ and **one consumer** (the Add-In). Decisions taken:
       per-invocation bypass needs no elevation and changes nothing on the machine;
       `Set-ExecutionPolicy` would loosen a machine-wide setting for one script and would
       have to be repeated on the next station.
-      **`-Scope User|Machine` picks the Add-In folder**, added 2026-09-09: TIA reads a
-      per-user `UserAddIns` *and* a per-machine `AddIns` inside its own installation, so
-      this is the same per-user / per-machine choice as `%LOCALAPPDATA%` vs `%ProgramData%`
-      — only made by Siemens. `User` is the default because it needs nothing; `Machine`
-      needs elevation, which the script demands **by name and only once it has somewhere to
-      write**, since otherwise it arrives as an `Access denied` indistinguishable from a
-      package locked by a running TIA. **The package must be in one folder, not both** — TIA
-      reads both and would load it twice, leaving the copy under test undecided — so the
-      script reports a leftover in the other folder rather than deleting it
+      **The Add-In folder is per TIA version, not per run** (2026-09-09). TIA reads a
+      per-user `UserAddIns` *and* a per-machine `AddIns` inside its own installation — the
+      same per-user / per-machine split as `%LOCALAPPDATA%` vs `%ProgramData%`, only made by
+      Siemens — and **which one a version uses belongs to that installation, not to us**: on
+      the VM, V20 is `C:\Program Files\Siemens\Automation\Portal V20\AddIns` and V21 is
+      `%AppData%\...\Portal V21\UserAddIns`. So the scope sits in the `$targets` table beside
+      the package name; a single `-Scope` for the run could only ever be right about one of
+      the two, and it survives only as an override for a station set up differently.
+      Consequences worth keeping:
+      **the script asks whether it can *write*, not whether it is elevated** — elevation is
+      only a proxy, a TIA outside `Program Files` is writable without it, and the probe also
+      creates the folder, which was needed anyway. It asks once, up front, and only for
+      versions actually present, because sending someone to find an administrator for a TIA
+      the station does not have would be a lie; left to the copy it arrives as an
+      `Access denied`, indistinguishable from a package locked by a running TIA.
+      **The parent folder is Siemens', the leaf is ours** — a missing `Portal V2x` means
+      that version is not installed, a missing `AddIns`/`UserAddIns` is just one to create,
+      and the same rule serves both scopes.
+      **The package must be in one folder, not both** — TIA reads both and would load it
+      twice, leaving the copy under test undecided — so a leftover in the other folder is
+      reported with its full path rather than deleted.
+      **Every destination is printed before anything is attempted**, including for a package
+      that was not staged: it is the only thing that catches an elevated run whose
+      `%AppData%` is the administrator's rather than the engineer's, which would land the
+      package where TIA never looks.
+      **A mapped drive does not survive elevation; the UNC behind it does** (confirmed on
+      the VM, 2026-09-11). `Z:` belongs to the logon session that created it, so an elevated
+      session reports *"A drive with the name 'Z' does not exist"* — and the machine-wide
+      Add-In folder needs elevation, so the two requirements collide. **`\\vmware-host\Shared
+      Folders` is reachable from the elevated session**, being VMware Tools' HGFS network
+      provider rather than a mapping, so step 2 runs from there with no copy at all; that is
+      the route to use. `(Get-PSDrive Z).DisplayRoot`, from the *normal* session, prints the
+      UNC a mapping stands for. Note the first symptom misleads: typing the folder as a
+      command gives `CommandNotFoundException`, which reads the same whether the path is
+      missing or is a directory — `Test-Path Z:\` is the one that answers.
+      **`.deploy\` carries its own installer** as the fallback: `step1` copies
+      `step2-deploy-vm.cmd|ps1` into it every run, so it is one self-contained folder to copy
+      to a local disk where a station's UNC does not cross either.
+      **Copying the script alone does not work**:
+      it resolves the payload relative to itself and stops with "Nothing staged". And a
+      deployer copied by hand goes stale silently, which is the same disease as testing a
+      stale build with nothing printing the installer's age — so the installer is paired
+      with the payload and rewritten every run instead. `StagingFolder` decides which case
+      it is **by looking for `tools\` and `addins\` beside itself**, not by being told
 - [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to shorten the test cycle
 - [ ] Decide how many satellites there will be and whether they need live TIA data or just a snapshot
 

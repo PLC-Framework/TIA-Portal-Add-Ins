@@ -508,10 +508,14 @@ for, not about which one works:
 
 | | Path | For | Elevation |
 |---|---|---|---|
-| **Per user** | `%AppData%\Siemens\Automation\Portal V20\UserAddIns\` | the engineer who is logged in | none |
-| **Per machine** | `C:\Program Files\Siemens\Automation\Portal V20\AddIns\` | every engineer on the station | **yes** |
+| **Per machine** | `C:\Program Files\Siemens\Automation\Portal V2x\AddIns\` | every engineer on the station | **yes** |
+| **Per user** | `%AppData%\Siemens\Automation\Portal V2x\UserAddIns\` | the engineer who is logged in | none |
 
-Substitute `Portal V21` for the V21 package. Each TIA version only looks at its own pair of
+**Which one is not a property of the project — it is a property of each TIA installation.**
+On the VM this is developed against, V20 takes the machine-wide folder and V21 the per-user
+one, so a deployment script with a single setting for both could only ever be right about
+one of them. `step2-deploy-vm.ps1` therefore carries the scope **per version**, in the same
+table that holds the package names. Each TIA version only looks at its own pair of
 folders, so both Add-Ins coexist without interfering. The `.addin` already contains the DLL;
 nothing else needs copying.
 
@@ -529,12 +533,15 @@ Four things that bite:
   `step2-deploy-vm.ps1` reports it whenever it sees the package in the other folder.
 
 The per-machine folder is the same trade the framework already makes for
-`%ProgramData%\PLC-Framework\tools\`: one install serves everyone who logs in, at the price
-of needing an administrator once. The difference is that this one is **Siemens' directory,
-inside their installation**, so it is theirs to overwrite — a repair or an upgrade is
-entitled to clean it out, and nothing in the framework would notice. Not measured, just a
-consequence of whose folder it is; the per-user copy is the safer default for that reason
-alone.
+`%ProgramData%\PLC-Framework\tools\`: one install serves everyone who logs into the station,
+at the price of needing an administrator once. The per-user one is the answer where nobody
+will grant that.
+
+One caveat about the machine folder, unmeasured and worth stating as such: it is **Siemens'
+directory, inside their installation**, so it is theirs to overwrite. A repair or an upgrade
+is entitled to clean it out and nothing in the framework would notice. That is a consequence
+of whose folder it is, not something observed here — but it is the reason to re-run the
+deployment after touching a TIA installation rather than assuming the package survived.
 
 ### What a `.addin` actually is
 
@@ -600,9 +607,10 @@ versions — V20 and V21 never share a folder.
 
 **The last two are the same choice as the first two, made by Siemens instead of by us**:
 one folder per user that anybody can write, one per machine that only an administrator can.
-The Add-In goes in exactly one of them — `step2-deploy-vm.ps1` picks with `-Scope`, and
-reports if it finds the package in the other, because **TIA reads both and would load it
-twice**.
+**Which one a version uses is a property of that TIA installation, not of the project** — on
+the VM, V20 is machine-wide and V21 per-user — so `step2-deploy-vm.ps1` records the scope
+per version rather than per run. The package goes in exactly one of the two, and the script
+reports finding it in the other, because **TIA reads both and would load it twice**.
 
 `PLC_FRAMEWORK_HOME` replaces the first row entirely, which is how a test run or the VM
 points at a staging folder without installing anything.
@@ -713,51 +721,126 @@ of the artefact, and the build only ever touches one of them.
 
 ```
 .deploy\
-├── tools\      the three satellites, already merged as InstallPaths.Tools expects them
-└── addins\     PLC-Framework.V20.addin, PLC-Framework.V21.addin
+├── tools\                   the three satellites, merged as InstallPaths.Tools expects them
+├── addins\                  PLC-Framework.V20.addin, PLC-Framework.V21.addin
+├── step2-deploy-vm.cmd      a copy of the installer, refreshed every run
+└── step2-deploy-vm.ps1
 ```
 
 The three satellites share `Core.dll` and `UI.Shared.dll`, and the copies are identical
 because they were built together — which is what lets one folder serve all of them. `.pdb`
 files are excluded; add `/XF` back if a crash needs chasing on the VM.
 
+#### Reaching the repo from an elevated session
+
+The VM mounts a folder of the host — the host knows nothing of the VM — and the everyday
+route is the mapped drive `Z:`. **That route dies the moment you need elevation**, and the
+machine-wide Add-In folder needs it:
+
+```
+PS C:\WINDOWS\system32> cd Z:\E\PlcFramework\tia-portal-addins\scripts
+cd : Cannot find drive. A drive with the name 'Z' does not exist.
+```
+
+Not a permission problem: **a mapped drive belongs to the logon session that created it**,
+and elevating gives a different token, so the letter is simply absent. Worth knowing that
+the first symptom is misleading — typing the folder as a command answers
+`CommandNotFoundException`, which says the same thing whether the path is missing *or* is a
+directory, so it is no evidence either way. `Test-Path Z:\` is what settles it.
+
+**The UNC behind the mapping does cross, and that is the answer.** `\\vmware-host\Shared
+Folders` is VMware Tools' HGFS provider — a network provider rather than a mapping — and it
+is reachable from the elevated session. Confirmed on this VM, which exposes `C`, `D` and `E`:
+
+```powershell
+& "\\vmware-host\Shared Folders\E\PlcFramework\tia-portal-addins\scripts\step2-deploy-vm.cmd"
+```
+
+No copy, nothing to keep in step. `(Get-PSDrive Z).DisplayRoot` in the **normal** session
+prints the UNC a mapping stands for, which is how to find it on another machine.
+
+**The fallback, if a station's UNC does not cross either**: `.deploy\` carries its own
+installer, so it is one self-contained folder to copy to a local disk — from the normal
+session, which is the one that can see `Z:` — and run from there elevated.
+
+```powershell
+robocopy Z:\...\tia-portal-addins\.deploy C:\PLC-Framework-deploy /E /PURGE   # normal session
+C:\PLC-Framework-deploy\step2-deploy-vm.cmd                                   # elevated
+```
+
+**Copying the script alone does not work, and copying it once is worse than not copying
+it.** It resolves the payload relative to itself, so a lone copy looks for `.deploy\` beside
+itself and stops with *"Nothing staged"*. And a deployer copied by hand goes stale silently
+— the same disease as testing a stale build, one level up, except nothing prints the
+installer's age. Pairing it with the payload fixes both: `step1` clears `.deploy\` and
+rewrites the script into it on every run, so the thing you copy is always current and there
+is only ever one thing to copy.
+
+`StagingFolder` works out which case it is by **looking for the payload rather than being
+told**: `tools\` and `addins\` beside the script means this is the staged copy, otherwise
+the staging folder is `.deploy\` one level up from `scripts\`.
+
 `step2-deploy-vm.ps1` copies `tools\` with `/PURGE`, so a renamed executable does not linger,
 and puts each package in its TIA version's Add-In folder. Two switches for the common cases:
 `-ToolsOnly` when TIA is open and holding the packages, `-AddInsOnly` when only the Add-In
 changed.
 
-**`-Scope` picks which of the two Add-In folders**, and the default is the one that needs
-nothing:
+**The Add-In folder is chosen per TIA version, not per run**, because that is how the VM is
+actually set up — and a single switch for both could only ever be right about one of them:
+
+```powershell
+$targets = @(
+    @{ Package = "PLC-Framework.V20.addin"; Portal = "Portal V20"; Scope = "Machine" },
+    @{ Package = "PLC-Framework.V21.addin"; Portal = "Portal V21"; Scope = "User"    }
+)
+```
 
 ```
-step2-deploy-vm.cmd                     %AppData%\...\Portal V2x\UserAddIns\   this user
-step2-deploy-vm.cmd -Scope Machine      C:\Program Files\...\Portal V2x\AddIns\   everyone
+V20  ->  C:\Program Files\Siemens\Automation\Portal V20\AddIns\        needs elevation
+V21  ->  %AppData%\Siemens\Automation\Portal V21\UserAddIns\           needs nothing
 ```
 
-Machine scope writes inside TIA's installation, so it needs elevation — run the `.cmd` as
-administrator. Three things it does rather than let Windows explain them badly:
+So the everyday run is `step2-deploy-vm.cmd` **as administrator**, and V21 rides along in
+the same pass. `-Scope Machine` or `-Scope User` overrides *both* versions, for a station
+set up differently; `-InstallRoot` moves the machine-wide root when TIA is not under
+`%ProgramFiles%`. Four things the script does rather than let Windows explain them badly:
 
-- **It asks for elevation by name, and only once it has somewhere to write.** Left to the
-  copy, the refusal arrives as an `Access denied`, which reads exactly like the *other*
-  thing that fails here — a package locked by a running TIA. And demanding an administrator
-  for a TIA version the station does not have would simply be a lie.
-- **A missing `Portal V2x` folder means TIA is not installed there; a missing `AddIns`
-  inside it is just a folder to create.** Only the second is created. `-InstallRoot` points
-  at the folder holding `Portal V20` when TIA is not under `%ProgramFiles%`.
-- **It reports the package sitting in the other folder.** Both are read by TIA, so a
-  leftover per-user copy after switching to machine scope means the Add-In is loaded twice
-  and the copy under test is whichever TIA reached first. It says which file to delete
-  rather than deleting it — that folder may hold somebody else's decision.
+- **It asks whether it can write, not whether it is elevated**, once and up front. Elevation
+  is only a proxy: a TIA installed outside `Program Files` is writable without it, and
+  refusing that run would be wrong. The probe creates the folder and a temporary file in it,
+  which is work that had to happen anyway. Left to the copy, the refusal arrives as an
+  `Access denied`, which reads exactly like the *other* thing that fails here — a package
+  locked by a running TIA. It is asked only for versions that are present, since being sent
+  to find an administrator for a TIA the station does not have would simply be a lie. And if
+  the session is already elevated and still refused, it says so instead of repeating advice
+  that has already been taken.
+- **A missing `Portal V2x` folder means TIA is not installed there; a missing `AddIns` or
+  `UserAddIns` inside it is just a folder to create.** The parent is Siemens' — the
+  installation in one scope, the per-user settings folder in the other — and the leaf is
+  ours: neither exists until an Add-In is installed. One rule serves both scopes, and
+  reading a missing leaf as "TIA is not installed" would be wrong in either.
+- **It reports the package sitting in the other folder.** TIA reads both, so a leftover copy
+  after a version changed scope means the Add-In is loaded twice and the one under test is
+  whichever TIA reached first. It prints the full path of the file to delete rather than
+  deleting it — that folder may hold somebody else's decision.
+- **It prints every destination before attempting anything.** That is also the only way to
+  catch an elevated run whose `%AppData%` belongs to the administrator rather than to the
+  engineer TIA runs as: the printed path reads `C:\Users\<somebody else>\…` and the package
+  lands where TIA will never look. Nothing else in the run would say so.
 
 Exercised here without TIA installed, by redirecting `%AppData%` and pointing `-InstallRoot`
-at a fake installation: both packages copied, the duplicate warning firing for the one
-version that had a leftover and not for the other, the elevation refusal, and the
-not-installed report.
+at a simulated installation shaped like the VM — V20 machine-wide, V21 per-user. Both
+packages landed in their own folder with the leaf created, and separately: the write refusal
+listing only the versions present, the duplicate warning firing for one version and not the
+other, the `-Scope User` override, and the not-installed report.
 
-**It prints the age of everything it installs — "2 min ago" — and that is the point.** The
-failure worth preventing is testing a stale build and spending an afternoon debugging
-something already fixed, and that failure never announces itself. "It is deployed" has to
-be something you can read.
+**It prints the destination folder and the age of everything it installs — "2 min ago" —
+and that is the point.** The failure worth preventing is testing a stale build and spending
+an afternoon debugging something already fixed, and that failure never announces itself.
+"It is deployed" has to be something you can read, and once `-Scope` and `-InstallRoot` can
+move the target, *where* it was deployed must be readable too rather than reconstructed from
+the switches afterwards. Both are printed before anything is attempted, so a package that
+was not staged still shows the folder it would have gone to.
 
 Two things it reports rather than fails on, because both are ordinary: a TIA version that
 is not installed, and a package locked by a running TIA. The second says which TIA to close.
