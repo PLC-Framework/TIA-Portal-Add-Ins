@@ -57,11 +57,25 @@ if (-not (Test-Path $deploy)) {
 
 # Roaming, not Local, and UserAddIns, not AddIns. Both are easy to get wrong and both fail
 # silently: TIA simply never shows the Add-In.
+#
+# Never a literal "C:\Program Files". The physical folder is not translated - Windows has
+# not localised it since Vista, only the name the Explorer displays - but it does move: a
+# Windows installed on another drive, and WOW64. TIA Portal is 64-bit only, so this must
+# resolve to the 64-bit Program Files even when a 32-bit PowerShell is asking; otherwise it
+# looks in "Program Files (x86)\Siemens\Automation", finds nothing, and reports that TIA is
+# not installed on a machine where it plainly is.
+function ProgramFiles64
+{
+    if ($env:ProgramW6432) { return $env:ProgramW6432 }
+
+    return $env:ProgramFiles
+}
+
 function AddInFolder($portal, $scope)
 {
     if ($scope -eq "Machine") {
         $root = $InstallRoot
-        if (-not $root) { $root = Join-Path $env:ProgramFiles "Siemens\Automation" }
+        if (-not $root) { $root = Join-Path (ProgramFiles64) "Siemens\Automation" }
 
         return Join-Path $root "$portal\AddIns"
     }
@@ -120,12 +134,7 @@ if (-not $AddInsOnly) {
     #   still installs where the x64 Add-In inside TIA is going to look.
     $install = $env:PLC_FRAMEWORK_HOME
 
-    if (-not $install) {
-        $programFiles = $env:ProgramW6432
-        if (-not $programFiles) { $programFiles = $env:ProgramFiles }
-
-        $install = Join-Path $programFiles "PLC-Framework"
-    }
+    if (-not $install) { $install = Join-Path (ProgramFiles64) "PLC-Framework" }
 
     Write-Host "satellites -> $install" -ForegroundColor Cyan
 
