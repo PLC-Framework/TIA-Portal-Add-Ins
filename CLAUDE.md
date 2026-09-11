@@ -456,10 +456,10 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
       own pair, the same CPU name in two projects not colliding, re-saving not duplicating,
       passwords with quotes and newlines surviving the round trip, a corrupt file and a
       foreign DPAPI blob both degrading to "nothing remembered", and the window itself
-      opening pre-filled with the box ticked. **Not yet verified against a CPU that
-      *rejects* the credentials** — both test PLCs were off the network that day, so only
-      the connection-failure path was seen to skip the save. Same code path either way, but
-      it deserves one run when the network is back.
+      opening pre-filled with the box ticked. **Confirmed against a CPU that *rejects* the
+      credentials** (2026-09-11): the window reports the refusal and nothing is written, which
+      was the last open question — a wrong password reaching disk would have to be un-stored,
+      and the `authenticated` callback firing only after `client.Login()` is what prevents it.
 - [x] **`Core` finished** (2026-09-09): the structural validator per concern plus
       `ConfigValidator`, the environmental one, `Core/Secrets/` (`DotEnv` + `${VAR}`), and
       `InstallPaths.UserRoot` / `UserFile`. Exercised against the real `config.json` and
@@ -555,7 +555,20 @@ and **one consumer** (the Add-In). Decisions taken:
       setting is per machine. **Rewritten every save** because it is generated — but a
       `$schema` aimed somewhere else is left alone and nothing is written. **It never fails a
       save**: it costs autocomplete, not the configuration
-- [ ] Verify on the VM what `Assembly.GetExecutingAssembly().Location` returns for a loaded `.addin`. No longer blocking anything, but worth knowing — the old project assumed `UserAddIns` and may well get an empty string
+- [x] **`Assembly.GetExecutingAssembly().Location` answered by measurement** (2026-09-11),
+      which is why `InstallPaths` never derives a path from it. Both possible answers are
+      unusable, and neither announces itself:
+      **under partial trust, reading `Location` throws `SecurityException`** — it demands
+      `FileIOPermission`, measured in the restricted `AppDomain`. **Loaded from bytes, which
+      is how a host reads parts out of a package, `Location` is the empty string** — not
+      null, so a null check does not catch it. **`CodeBase` is worse than useless as a
+      fallback**: it throws under partial trust, and under full trust it answered
+      `System.dll` in the GAC — a plausible path to somewhere entirely unrelated.
+      And an empty `Location` fails *quietly* downstream: `Path.Combine("", "x")` returns a
+      relative `x`, which `Path.GetFullPath` then resolves against the current working
+      directory into a confident absolute path pointing wherever the host happened to
+      start. Only `Path.GetDirectoryName("")` throws. Confirming which of the two TIA gives
+      is now a curiosity, not a decision
 - [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
 - [x] **Deployment to the VM automated** (2026-09-09): `scripts\step1-stage-host.ps1` on the
       development PC, `scripts\step2-deploy-vm.cmd` inside the VM — the names carry the order
@@ -615,7 +628,10 @@ and **one consumer** (the Add-In). Decisions taken:
       stale build with nothing printing the installer's age — so the installer is paired
       with the payload and rewritten every run instead. `StagingFolder` decides which case
       it is **by looking for `bin\` and `addins\` beside itself**, not by being told
-- [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to shorten the test cycle
+- [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to
+      shorten the test cycle. **Planned for the next Add-In** rather than retrofitted onto
+      the existing ones: the point is a shorter loop while writing something, and the two
+      that exist are already validated on the VM
 - [ ] Decide how many satellites there will be and whether they need live TIA data or just a snapshot
 
 ---

@@ -935,6 +935,44 @@ That is the tightest partial trust there is, so code that survives it survives T
 > with `MSB3073`. The Restart Manager names `vmware-vmx.exe` as the owner. Close TIA, or
 > copy the package somewhere else before loading it.
 
+### Why the Add-In cannot find itself
+
+`InstallPaths` resolves a well-known folder rather than asking the running assembly where it
+is, and that is not caution — it is measured. **Both answers `Assembly.Location` can give
+inside TIA are unusable, and neither announces itself.**
+
+| | `Location` | `CodeBase` |
+|---|---|---|
+| Partial trust, any load | **throws `SecurityException`** | **throws `SecurityException`** |
+| Full trust, loaded from bytes | `""` — empty, **not null** | `System.dll` in the GAC |
+| Full trust, loaded from a file | the real path | the real path |
+
+Read in the restricted `AppDomain` described above, `Location` demands `FileIOPermission` and
+is refused. That alone settles it: an Add-In runs in partial trust. But the second row is the
+one worth remembering, because a host that reads assemblies out of a package loads them from
+**bytes**, and a byte-loaded assembly has no file to point at:
+
+- `Location` is the **empty string, not null**, so the obvious `if (path == null)` guard does
+  not fire.
+- `CodeBase` is not a fallback. Under full trust it answered the *calling* assembly's
+  codebase — `System.dll` from the GAC — which is a perfectly well-formed path to something
+  entirely unrelated, and would be believed.
+
+And an empty `Location` then fails **quietly** rather than loudly:
+
+```
+Path.Combine("", "tools", "app.exe")      -> "tools\app.exe"        relative, no exception
+Path.GetFullPath(Path.Combine("", "x"))   -> <current directory>\x  confident, and wrong
+Path.GetDirectoryName("")                 -> throws ArgumentException
+```
+
+Only the third throws. The other two produce a path that looks right, resolved against
+whatever directory the host process happens to be in — which for TIA Portal is nothing to do
+with where the Add-In lives. A "not installed" error would then name a folder nobody chose.
+
+`Environment.GetFolderPath` needs no permission of this kind and no discovery, which is why
+the framework agrees on a location instead of deriving one.
+
 ### Reading a CPU's addresses out of the project
 
 The satellite cannot ask TIA anything, so the Add-In gathers the addresses and hands them
