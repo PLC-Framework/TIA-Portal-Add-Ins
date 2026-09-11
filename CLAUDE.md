@@ -158,8 +158,29 @@ seconds an acceptable way to take a "snapshot".
   addresses. See the credential note below.
 - **One PLC per instance**; several blocks of it per run. Several PLCs means several
   windows, which decision 6 now allows.
-- **The blocks are only the ones the Add-In passed.** The satellite does not offer to
-  browse for more, even though one call to the program root would list them.
+- **The blocks are the ones the Add-In passed, plus any the operator types.** A `+` and an
+  `✕` under the list add and remove rows by name (2026-09-11), which is what makes the
+  window usable started by hand — the mode the docs always claimed worked, and which in
+  practice showed an empty list and a message sending you back to TIA Portal. That message
+  now names both ways in.
+  - **Still no browsing.** One call to the program root would list every block on the CPU,
+    and that is deliberately not offered: the satellite would then be a block explorer with
+    a capture button, and the Add-In's selection would stop being the thing that decides
+    what a capture contains. Typing a name is a statement of intent; picking from a list of
+    four hundred is a different feature.
+  - **A duplicate is refused, case-insensitively** — it is one block on the CPU either way,
+    so a second row would capture it twice and write two workbooks differing only by the
+    ` (2)` a filename collision adds.
+  - **Enter adds**, and the handler marks the key handled: otherwise it travels on to the
+    window's default button and starts a capture, which is the opposite of what was meant.
+  - **Remove stays disabled until a row is selected**, and re-selects a neighbour after
+    removing, so clearing several is one click each.
+  - **Two rows in separate grids line up with `Grid.IsSharedSizeScope` + `SharedSizeGroup`,
+    never with a `Width`.** The `Block` and `Folder` rows share their label column and their
+    button column, so both fields start and end at the same x at any window size. A constant
+    width matches at exactly one: the field beside it lives in a star column that grows, and
+    this window resizes from 660 upwards. Same lesson as the absolute margins in the
+    connection grid.
 - **Existence is always checked before capturing.** The block names come from the TIA
   project, and the operator may point the window at a different CPU.
 - **Cancel acts between blocks.** Fine-grained cancellation would mean threading a

@@ -64,6 +64,15 @@ namespace Satellite.DataBlockSnapshot.Capture
             Detail = string.Empty;
         }
 
+        /// <summary>
+        /// Not decoration: a <c>ListViewItem</c> takes its **automation name** from the bound
+        /// object's ToString(), so without this every row announced itself as
+        /// "Satellite.DataBlockSnapshot.Capture.DataBlockItem" — to a screen reader as much
+        /// as to a test. The columns are what the eye reads; this is what everything else
+        /// reads. Same reason GroupNode overrides it in the config editor.
+        /// </summary>
+        public override string ToString() => Name;
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private bool Set<T>(ref T field, T value, [CallerMemberName] string property = null)

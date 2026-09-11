@@ -8,6 +8,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 
 using Core.Config;
 
@@ -30,6 +32,13 @@ namespace Satellite.DataBlockSnapshot
 
         private CancellationTokenSource _cancellation;
 
+        /// <summary>
+        /// Whether a capture is running. Remove's enabled state depends on two things at
+        /// once - this, and whether a row is selected - and only one of them arrives as an
+        /// event, so the other has to be remembered.
+        /// </summary>
+        private bool _busy;
+
         public MainWindow(SnapshotRequest request)
         {
             InitializeComponent();
@@ -49,12 +58,21 @@ namespace Satellite.DataBlockSnapshot
 
             ProjectLine.Text = Describe(request);
 
-            string blocks = _blocks.Count == 0
-                ? "No data blocks were handed over. Start this from the Add-In, with the blocks selected in the project tree."
-                : string.Format(CultureInfo.CurrentCulture, "{0} data block(s) ready.", _blocks.Count);
-
-            StatusLine.Text = Recall() ? blocks + "  Credentials remembered." : blocks;
+            StatusLine.Text = Recall() ? DescribeBlocks() + "  Credentials remembered." : DescribeBlocks();
         }
+
+        /// <summary>
+        /// What the status line says about the list itself.
+        ///
+        /// The empty case names **both** ways of filling it. It used to say only "start this
+        /// from the Add-In", which stopped being true the moment blocks could be typed in —
+        /// and a message that sends the operator back to TIA Portal for something the window
+        /// in front of them can do is worse than no message.
+        /// </summary>
+        private string DescribeBlocks() =>
+            _blocks.Count == 0
+                ? "No data blocks yet. Type a name below, or start this from the Add-In with the blocks selected in the project tree."
+                : string.Format(CultureInfo.CurrentCulture, "{0} data block(s) ready.", _blocks.Count);
 
         /// <summary>
         /// Fill in what was last used successfully against this CPU.
@@ -296,8 +314,75 @@ namespace Satellite.DataBlockSnapshot
                 : 0;
         }
 
+        private void OnAddBlock(object sender, RoutedEventArgs e) => AddTypedBlock();
+
+        /// <summary>
+        /// Enter adds, because the gesture this exists for is typing a handful of names in a
+        /// row. Handled, or the key travels on and the window's default button fires a
+        /// capture instead - which is the opposite of what was meant.
+        /// </summary>
+        private void OnNewBlockKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+
+            AddTypedBlock();
+            e.Handled = true;
+        }
+
+        private void AddTypedBlock()
+        {
+            string name = NewBlockBox.Text.Trim();
+            if (name.Length == 0) return;
+
+            // Case-insensitively: it is one block on the CPU either way, so a second row
+            // would capture it twice and write two workbooks differing only by the " (2)"
+            // that a filename collision adds. Refusing says more than silently allowing it.
+            if (_blocks.Any(block => string.Equals(block.Name, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                StatusLine.Text = name + " is already in the list.";
+                NewBlockBox.SelectAll();
+                NewBlockBox.Focus();
+                return;
+            }
+
+            _blocks.Add(new DataBlockItem(name));
+
+            NewBlockBox.Clear();
+            NewBlockBox.Focus();
+
+            StatusLine.Text = DescribeBlocks();
+        }
+
+        private void OnRemoveBlock(object sender, RoutedEventArgs e)
+        {
+            DataBlockItem selected = BlockList.SelectedItem as DataBlockItem;
+            if (selected == null) return;
+
+            int index = _blocks.IndexOf(selected);
+            _blocks.Remove(selected);
+
+            // Keep a neighbour selected, so removing several in a row is one click each
+            // rather than a click to select and a click to remove.
+            if (_blocks.Count > 0) BlockList.SelectedIndex = Math.Min(index, _blocks.Count - 1);
+
+            StatusLine.Text = DescribeBlocks();
+        }
+
+        /// <summary>
+        /// Remove names a row, so it stays disabled until there is one. A button that looks
+        /// live and does nothing teaches the operator to distrust the others.
+        /// </summary>
+        private void OnBlockSelectionChanged(object sender, SelectionChangedEventArgs e) =>
+            RemoveBlockButton.IsEnabled = !_busy && BlockList.SelectedItem != null;
+
         private void Working(bool busy)
         {
+            _busy = busy;
+
+            NewBlockBox.IsEnabled = !busy;
+            AddBlockButton.IsEnabled = !busy;
+            RemoveBlockButton.IsEnabled = !busy && BlockList.SelectedItem != null;
+
             CaptureButton.IsEnabled = !busy;
             CancelButton.IsEnabled = busy;
             AddressBox.IsEnabled = !busy;

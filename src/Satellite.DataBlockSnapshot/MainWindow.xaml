@@ -11,7 +11,12 @@
         TextOptions.TextFormattingMode="Display">
 
 
-    <Grid Margin="20">
+    <!-- IsSharedSizeScope is what lets the "Block" and "Folder" rows below agree on the
+         width of their label column and of their button column, so both text boxes start
+         and end at exactly the same place. Done with a fixed Width instead, the two line up
+         at one window size and drift apart at every other - this window is resizable from
+         660 upwards, and a star column grows where a constant does not. -->
+    <Grid Margin="20" Grid.IsSharedSizeScope="True">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -102,48 +107,92 @@
         <TextBlock Grid.Row="2" Text="Data blocks" Margin="0,20,0,6"
                    Foreground="{StaticResource InkMuted}" FontWeight="SemiBold" />
 
-        <Border Grid.Row="3" BorderBrush="{StaticResource FieldEdge}" BorderThickness="1"
-                Background="{StaticResource Surface}">
-            <ListView x:Name="BlockList" BorderThickness="0" Background="Transparent"
-                      Foreground="{StaticResource Ink}">
-                <ListView.View>
-                    <GridView>
-                        <GridViewColumn Width="30">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate>
-                                    <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}"
-                                              VerticalAlignment="Center" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
-                        <GridViewColumn Header="Block" Width="200" DisplayMemberBinding="{Binding Name}" />
-                        <GridViewColumn Header="State" Width="110" DisplayMemberBinding="{Binding Status}" />
-                        <GridViewColumn Header="Detail" Width="380" DisplayMemberBinding="{Binding Detail}" />
-                    </GridView>
-                </ListView.View>
-            </ListView>
-        </Border>
+        <!-- The list takes the height that is going, and its Add/Remove row stays put below
+             it - the same shape as the rule list in the config editor, and for the same
+             reason: controls that scroll away with their list are controls you cannot
+             reach when the list is long. -->
+        <Grid Grid.Row="3">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" BorderBrush="{StaticResource FieldEdge}" BorderThickness="1"
+                    Background="{StaticResource Surface}">
+                <ListView x:Name="BlockList" BorderThickness="0" Background="Transparent"
+                          Foreground="{StaticResource Ink}"
+                          SelectionChanged="OnBlockSelectionChanged">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Width="30">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}"
+                                                  VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Block" Width="200" DisplayMemberBinding="{Binding Name}" />
+                            <GridViewColumn Header="State" Width="110" DisplayMemberBinding="{Binding Status}" />
+                            <GridViewColumn Header="Detail" Width="380" DisplayMemberBinding="{Binding Detail}" />
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Border>
+
+            <!-- Typing the name is the whole point: started by hand, with no Add-In to hand
+                 blocks over, this is the only way to fill the list. Enter adds too, so a
+                 handful of names can be typed without reaching for the mouse. -->
+            <Grid Grid.Row="1" Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="RowLabel" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="RowActions" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Text="Block" Style="{StaticResource FieldLabel}" />
+                <TextBox   Grid.Column="1" x:Name="NewBlockBox"
+                           ToolTip="Name of a data block on this CPU, then + or Enter"
+                           KeyDown="OnNewBlockKeyDown" />
+
+                <!-- Right-aligned inside the shared column: it is as wide as the Folder row's
+                     pair of buttons, so these two sit flush with those rather than floating
+                     in the middle of it. -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="AddBlockButton" Content="+" Width="32" Padding="0,4"
+                            FontSize="15" Margin="8,0,0,0" Style="{StaticResource Quiet}"
+                            ToolTip="Add this data block to the list" Click="OnAddBlock" />
+                    <Button x:Name="RemoveBlockButton" Content="✕" Width="32" Padding="0,4"
+                            Margin="8,0,0,0" Style="{StaticResource Destructive}"
+                            IsEnabled="False"
+                            ToolTip="Remove the selected data block from the list"
+                            Click="OnRemoveBlock" />
+                </StackPanel>
+            </Grid>
+        </Grid>
 
         <!-- Destination -->
         <Grid Grid.Row="4" Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" SharedSizeGroup="RowLabel" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" SharedSizeGroup="RowActions" />
             </Grid.ColumnDefinitions>
 
             <TextBlock Grid.Column="0" Text="Folder" Style="{StaticResource FieldLabel}" />
             <TextBox   Grid.Column="1" x:Name="FolderBox" />
-            <Button    Grid.Column="2" x:Name="BrowseButton" Content="..." Width="34"
-                       Margin="8,0,0,0" Padding="0,4" Style="{StaticResource Quiet}"
-                       Click="OnBrowseFolder" />
-            <!-- Stays enabled during a capture: it only looks, and watching the files
-                 appear is exactly when an operator wants it. -->
-            <Button    Grid.Column="3" x:Name="OpenFolderButton" Content="Open" Width="70"
-                       Margin="8,0,0,0" Padding="0,4" Style="{StaticResource Quiet}"
-                       ToolTip="Open the destination folder in Explorer"
-                       Click="OnOpenFolder" />
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="BrowseButton" Content="..." Width="34"
+                        Margin="8,0,0,0" Padding="0,4" Style="{StaticResource Quiet}"
+                        Click="OnBrowseFolder" />
+                <!-- Stays enabled during a capture: it only looks, and watching the files
+                     appear is exactly when an operator wants it. -->
+                <Button x:Name="OpenFolderButton" Content="Open" Width="70"
+                        Margin="8,0,0,0" Padding="0,4" Style="{StaticResource Quiet}"
+                        ToolTip="Open the destination folder in Explorer"
+                        Click="OnOpenFolder" />
+            </StackPanel>
         </Grid>
 
         <!-- Actions -->

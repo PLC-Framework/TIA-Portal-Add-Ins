@@ -1180,6 +1180,52 @@ default. The rules it follows are all about the file being trustworthy later:
 Verified with the OpenXML SDK's own validator — zero errors — and by reading the package
 XML back: 990 numeric cells, 499 boolean, 126 string, none omitted.
 
+### Filling the block list without TIA Portal
+
+Launched from the menu, the list arrives filled: the Add-In hands over whatever was selected
+in the project tree. Launched by hand — the mode every layer below the window was verified
+in — it used to arrive empty, with a message sending the operator back to TIA Portal. **A `+`
+and an `✕` under the list now add and remove blocks by name**, which is what makes this
+satellite as usable standalone as the other two, and the empty-list message names both ways
+in rather than only one.
+
+- **Typing, not browsing.** One call to the program root would list every block on the CPU,
+  and offering that is deliberately still refused: the window would become a block explorer
+  with a capture button, and the Add-In's selection would stop being what decides the
+  contents of a capture. Typing a name is a statement of intent; picking from a list of four
+  hundred is a different feature, and a slower one to use.
+- **A duplicate is refused, case-insensitively.** It is one block on the CPU either way, so
+  a second row would capture it twice and leave two workbooks differing only by the ` (2)`
+  that a filename collision appends.
+- **Enter adds too**, because the gesture is typing several names in a row. The handler marks
+  the key handled — otherwise it reaches the window's default button and starts a capture.
+- **Remove names a row**, so it stays disabled until one is selected, and re-selects a
+  neighbour afterwards so clearing several is one click each.
+- **A typo is not the list's problem.** Existence is checked against the CPU before
+  capturing, and a name that is not there is reported per row as *not on this CPU* — the
+  same path a block renamed in the project already took.
+
+Exercised through UI Automation against the running binary, started with no handoff: adding
+three by button and a fourth with Enter, a duplicate in different case refused with the text
+kept for correction, empty and whitespace-only names refused, selection driving the remove
+button, and the three controls disabling for the length of a capture and coming back after.
+
+**The `Block` row and the `Folder` row line up through `Grid.IsSharedSizeScope`**, not
+through a width. They are two separate grids, so their label columns and their button
+columns carry `SharedSizeGroup` names and WPF gives each pair the wider of the two — both
+text boxes then start and end at the same x, and the `+` / `✕` sit flush with `...` / `Open`.
+Setting `Width` on the new box instead lines the two up at exactly one window size: `Folder`
+lives in a star column that grows, a constant does not, and this window is resizable from
+660 upwards. It is the same lesson the connection grid at the top of the file already
+records about absolute margins. Measured at four widths with the star column growing from
+829 px to 2139: both edges identical at every one.
+
+> **`DataBlockItem.ToString()` returns the name**, and that is not decoration — the same
+> trap `GroupNode` hit in the config editor. A `ListViewItem` takes its **automation name**
+> from the bound object's `ToString()`, so until this was added every row announced itself as
+> `Satellite.DataBlockSnapshot.Capture.DataBlockItem`, to a screen reader as much as to a
+> test. The columns are what the eye reads; `ToString` is what everything else reads.
+
 ### Remembering the web server credentials
 
 Capturing settings across a plant means launching this window many times in an afternoon,
