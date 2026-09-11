@@ -4,7 +4,7 @@
 	
 	<!-- This custom file is used to create the .addin file in /bin/[Debug|Release]/net48/<name>.[addin|dll|pdb] -->	
 	
-	<Author>cyanezf</Author>
+	<Author>cyanezf (PLC-Framework)</Author>
 	<Description>PLC-Framework Add-In for TIA Portal V20</Description>
 	<AddInVersion>1.0.0.0</AddInVersion>
 	

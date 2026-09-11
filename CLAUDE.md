@@ -1,11 +1,21 @@
 # CLAUDE.md — tia-portal-addins
 
-Working instructions for this repo. The full technical documentation (Siemens DLL paths, Publisher mechanics, API surface, gotchas) lives in the README imported at the bottom — **do not duplicate any of it here**.
+Working instructions and the decision record: what was chosen, what was rejected, and why.
+The technical documentation — Siemens DLL paths, Publisher mechanics, API surface, gotchas —
+lives under `docs/`, imported at the bottom. **Do not duplicate any of it here**; this file
+holds reasons, `docs/` holds facts.
+
+**"The VM" throughout means the test machine with TIA Portal V20 and V21 installed.** The
+development PC has neither, and does not need them: everything up to the `.addin` package
+builds without TIA, which is why "verified here" and "confirmed on the VM" are different
+claims and are kept apart.
 
 ## Language
 
-- **All documentation, code, comments and commit messages: English.**
-- **Conversation with the user: Spanish.**
+- **All documentation, code, comments and commit messages: English.** That is the rule for
+  anything committed, and it holds for any contributor.
+- The maintainer works in Spanish, so a conversation may be in Spanish while everything it
+  produces is in English.
 
 ## Rules not to break
 
@@ -503,7 +513,7 @@ A different kind of divergence, and easier to miss because the source is identic
 
 **The class shapes barely moved.** Seven of the eight spine types are identical across versions, base class included; only `ProjectBase` differs, having **lost `Graphics`, `PlantViews` and the two block-compilation flags** and gained `TextCategories`. Those are removals, not relocations — `MultiLingualGraphic` and `PlantView` exist nowhere in V21. Any migrated V20 code touching them stops compiling.
 
-**`.siemens\` holds the reflected reference** for both versions, generated from the assemblies with `GetExportedTypes()`. Consult it before asserting anything about the Openness API, and regenerate rather than hand-edit. It carries type names and counts only, no Siemens code, which is why it can be committed when the DLLs cannot.
+**`docs/reference/` holds the reflected reference** for both versions, generated from the assemblies with `GetExportedTypes()`. Consult it before asserting anything about the Openness API, and regenerate rather than hand-edit. It carries type names and counts only, no Siemens code, which is why it can be committed when the DLLs cannot.
 
 ### `config.json` pipeline — contract settled 2026-09-08, validators built 2026-09-09
 
@@ -593,7 +603,20 @@ and **one consumer** (the Add-In). Decisions taken:
       directory into a confident absolute path pointing wherever the host happened to
       start. Only `Path.GetDirectoryName("")` throws. Confirming which of the two TIA gives
       is now a curiosity, not a decision
-- [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23
+- [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into
+      `Core`, or leave it aside. Deferred on 2026-08-23. That repo is **not public and not
+      part of this solution** — it sits beside this one on the maintainer's machine — which
+      is why the detail lives here rather than in `docs/`. Its value is the **domain logic**
+      only; the csproj, the `Config.xml` and the Publisher cycle are solved better here:
+      `Util\` (`Logger`, `DotEnv`, `EnvVar`, `Report`, `ActionContext`, `Constants`),
+      `UserApp\` (`Project`, `Group`, `Hierarchy`, `Rule`, `Rules`, `CodingStyle`,
+      `Metadata`), `RemoteRepository\` (GitHub client and dependency graph), `Actions\`
+      (project hierarchy, coding style, version checks, GitHub connection).
+      **Do not treat its code or its README as verified truth**: its namespaces are
+      hyphenated (`PLC-Framework.TiaAddIn`), which is illegal in C# and does not compile;
+      its README claims both `Siemens.Engineering.dll` and `.AddIn.dll` are needed with
+      `extern alias`, which is false; and its `.csproj` mixes absolute and relative
+      `HintPath` values, one of them pointing nowhere
 - [x] **Deployment to the VM automated** (2026-09-09): `scripts\step1-stage-host.ps1` on the
       development PC, `scripts\step2-deploy-vm.cmd` inside the VM — the names carry the order
       and the machine, because running either on the wrong one is the easy mistake. It had
@@ -661,3 +684,10 @@ and **one consumer** (the Add-In). Decisions taken:
 ---
 
 @README.md
+@docs/architecture.md
+@docs/openness-notes.md
+@docs/configuration.md
+@docs/satellites.md
+@docs/webserver-api.md
+@docs/development.md
+@docs/getting-started.md

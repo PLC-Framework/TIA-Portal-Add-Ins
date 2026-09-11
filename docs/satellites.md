@@ -1,0 +1,259 @@
+# The satellite apps
+
+A satellite is a WPF application the Add-In launches from the TIA menu. This page covers
+what each one does and the decisions behind it.
+
+## Capturing a data block
+
+`Satellite.DataBlockSnapshot` writes one workbook per block,
+`<ip>-<DB>-snapshot-<timestamp>.xlsx`, into `<TIA project>\.plc-framework\exports\` by
+default. The rules it follows are all about the file being trustworthy later:
+
+- **Every variable that was browsed has a row**, carrying its value or the reason it could
+  not be read. The reference application drops the failures, which leaves a partial
+  capture looking complete.
+- **A file appears only when the block read completely.** An incomplete read is reported in
+  the window and leaves nothing behind to be mistaken for a good capture.
+- **Cells are typed.** A number arrives as a number and a bool as a bool, which is the
+  reason to write `.xlsx` at all rather than let Excel guess at a CSV.
+- **Numbers are written invariant**, because the format stores a numeric cell as an
+  invariant string and lets the reader's locale display it. `6,785` in that slot produces a
+  file no Excel reads as a number, including a Spanish one.
+- **An empty string is written as an empty cell of string type**, not as an absent cell —
+  otherwise "this setting is empty" and "this value could not be read" look identical.
+- **`xml:space="preserve"`**, so a setting whose value ends in a blank keeps it.
+- A second sheet, `Info`, records the PLC, the block, the start and end of the read, the
+  variable and failure counts, and whether the browse was truncated. **A capture is a sweep,
+  not an instant**, so both ends of the window are recorded rather than one timestamp that
+  would imply otherwise.
+
+Verified with the OpenXML SDK's own validator — zero errors — and by reading the package
+XML back: 990 numeric cells, 499 boolean, 126 string, none omitted.
+
+### Filling the block list without TIA Portal
+
+Launched from the menu, the list arrives filled: the Add-In hands over whatever was selected
+in the project tree. Launched by hand — the mode every layer below the window was verified
+in — it used to arrive empty, with a message sending the operator back to TIA Portal. **A `+`
+and an `✕` under the list now add and remove blocks by name**, which is what makes this
+satellite as usable standalone as the other two, and the empty-list message names both ways
+in rather than only one.
+
+- **Typing, not browsing.** One call to the program root would list every block on the CPU,
+  and offering that is deliberately still refused: the window would become a block explorer
+  with a capture button, and the Add-In's selection would stop being what decides the
+  contents of a capture. Typing a name is a statement of intent; picking from a list of four
+  hundred is a different feature, and a slower one to use.
+- **A duplicate is refused, case-insensitively.** It is one block on the CPU either way, so
+  a second row would capture it twice and leave two workbooks differing only by the ` (2)`
+  that a filename collision appends.
+- **Enter adds too**, because the gesture is typing several names in a row. The handler marks
+  the key handled — otherwise it reaches the window's default button and starts a capture.
+- **Remove names a row**, so it stays disabled until one is selected, and re-selects a
+  neighbour afterwards so clearing several is one click each.
+- **A typo is not the list's problem.** Existence is checked against the CPU before
+  capturing, and a name that is not there is reported per row as *not on this CPU* — the
+  same path a block renamed in the project already took.
+
+Exercised through UI Automation against the running binary, started with no handoff: adding
+three by button and a fourth with Enter, a duplicate in different case refused with the text
+kept for correction, empty and whitespace-only names refused, selection driving the remove
+button, and the three controls disabling for the length of a capture and coming back after.
+
+**The `Block` row and the `Folder` row line up through `Grid.IsSharedSizeScope`**, not
+through a width. They are two separate grids, so their label columns and their button
+columns carry `SharedSizeGroup` names and WPF gives each pair the wider of the two — both
+text boxes then start and end at the same x, and the `+` / `✕` sit flush with `...` / `Open`.
+Setting `Width` on the new box instead lines the two up at exactly one window size: `Folder`
+lives in a star column that grows, a constant does not, and this window is resizable from
+660 upwards. It is the same lesson the connection grid at the top of the file already
+records about absolute margins. Measured at four widths with the star column growing from
+829 px to 2139: both edges identical at every one.
+
+> **`DataBlockItem.ToString()` returns the name**, and that is not decoration — the same
+> trap `GroupNode` hit in the config editor. A `ListViewItem` takes its **automation name**
+> from the bound object's `ToString()`, so until this was added every row announced itself as
+> `Satellite.DataBlockSnapshot.Capture.DataBlockItem`, to a screen reader as much as to a
+> test. The columns are what the eye reads; `ToString` is what everything else reads.
+
+### Remembering the web server credentials
+
+Capturing settings across a plant means launching this window many times in an afternoon,
+and the CPU's web server wants a user and a password every time. They are therefore
+remembered — but where, and under what rule, is the whole of the design:
+
+```
+%LOCALAPPDATA%\PLC-Framework\credentials.json
+```
+
+```jsonc
+{
+  "entries": [
+    { "project":  "E:\\proyectos\\Planta1",
+      "plc":      "PLC_1",
+      "address":  "192.168.0.20",
+      "user":     "webclient",
+      "password": "AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAA…" }   // DPAPI, CurrentUser
+  ]
+}
+```
+
+**Keyed by project directory plus PLC name, because one TIA project routinely holds ten
+CPUs and each has its own user and password.** Any design keyed by project alone — a pair
+in `.env`, a pair in `config.json` — has ten CPUs overwriting each other, and two open
+projects overwriting each other again. Both keys already arrive in the handoff, so the
+Add-In needed no change. The device name is the key rather than the address because a CPU
+can be readdressed and has several addresses anyway; the address is the fallback for a
+window started by hand, where no project handed a name over.
+
+**Not inside the TIA project.** That was the first instinct — next to the exports, in
+`.plc-framework\` — and it is wrong for one reason: TIA projects are under version control,
+`.version-control\` sitting right beside it, so a credential file there reaches a commit or
+a zipped copy eventually. Per user, outside the project, is what makes that impossible.
+
+**The password is DPAPI-protected at `CurrentUser` scope**, with application entropy so a
+protected blob from some other program cannot be pasted in and decrypted. State the
+consequence plainly: **the file does not travel.** Another user, or the same project on
+another station, gets nothing back and the credentials are typed once more. That is the
+price of not having a shared key — and a key baked into the executable would not be
+encryption but obfuscation, which is worse than plaintext because it looks safe.
+
+**Nothing is stored until the CPU has accepted the credentials.** `CaptureRunner.Run` takes
+an `authenticated` callback and invokes it on the line after `client.Login()`, so a wrong
+password never reaches disk and never has to be removed from it. The runner itself knows
+nothing about credential storage; it only reports that the login went through.
+
+A *Remember* checkbox sits on the same row as the user and the password, ticked already
+when something is stored for that CPU; its tooltip carries the full sentence the label has
+no room for. Unticking it and capturing **forgets** the entry, which is what unticking
+means. It starts unticked on a CPU never captured before: storing a password nobody asked
+to store is not a good default. The timeout moved down to a row of its own, right-aligned —
+it is a setting one touches once, and giving it a column beside the credentials was what
+squeezed the two fields that matter.
+
+**The store never throws.** A corrupt file, a blob written by another Windows user, a
+missing folder — every one of them degrades to "nothing remembered" and the window opens
+normally. A credential cache that breaks the application it exists to smooth would be worse
+than no cache.
+
+### Showing the password
+
+An eye inside the password field reveals it, and that matters more once credentials are
+remembered rather than typed: when a password arrives pre-filled from the store, revealing
+it is the only way to check *which* one came back.
+
+WPF gives no help here. `PasswordBox` cannot display what it holds, and `Password` is not
+even a dependency property, so there is nothing to bind a "reveal" flag to. The shape that
+works is **twin controls in one grid cell** — the `PasswordBox` and a plain `TextBox` — with
+one of the two always `Collapsed`:
+
+```csharp
+private string CurrentPassword() =>
+    RevealButton.IsChecked == true ? PasswordPlain.Text : PasswordBox.Password;
+```
+
+Three details are what make it feel like one control rather than two:
+
+- **The text is carried across on every toggle**, in both directions, so editing while
+  revealed and then hiding does not lose the change.
+- **Focus and caret follow.** Without that, the operator carries on typing into a control
+  that is no longer on screen, which is indistinguishable from a dead keyboard.
+- **Everything else asks `CurrentPassword()`**, never either control directly, so no caller
+  has to know the value lives in two places.
+
+The icon is drawn in XAML — two paths and an ellipse — rather than loaded from an asset: an
+`.ico` would have to be embedded, resolved and themed for sixteen pixels' worth of picture.
+It shows a **struck-through eye while the password is visible**, stating what is true now
+rather than what clicking would do.
+
+Exercised through UI Automation against the running binary: the plain field is absent from
+the accessibility tree while collapsed, revealing shows the password the store handed back,
+and a value typed while revealed survives the round trip out to the `PasswordBox` and back.
+
+### How the Add-In launches one
+
+`AboutAction` is the worked example and the shape generalises:
+
+```csharp
+string path = InstallPaths.Tool(ExecutableName);
+if (!File.Exists(path)) { /* notifier.Error naming the missing path */ return; }
+
+string error = launcher.Start(path);
+if (error != null) { /* notifier.Error with the reason */ }
+```
+
+Three things there are deliberate:
+
+- **The "not installed" check sits in the action, not in the adapter.** It is the expected failure, and it deserves a message naming the missing path rather than whatever the process API happens to say.
+- **`IProcessLauncher.Start` returns the failure as a `string`, not as an exception**, so the Add-In reports it through `ITiaNotifier` like every other problem.
+- **`ExecutableName` is the satellite's `AssemblyName`.** Renaming that project breaks this at runtime rather than at compile time: the two sit in different layers on purpose, so nothing binds them at build time.
+
+The adapter wraps Siemens' `Process` — what `ProcessStartPermission` authorises — and is duplicated per version for the reason given under [*Known V20 / V21 divergences*](openness-notes.md).
+
+## Editing a configuration
+
+`Satellite.ConfigEditor` opens from **"Config. Editor"** on the project root of both
+Add-Ins. Section navigation down the left rather than tabs — two of the four sections
+subdivide again — and a **dot beside a section** marks where the problems are, which costs
+nothing because the validator already reports per concern.
+
+**The JSON tree is the document.** Editing it in place is what lets a key the model has
+never heard of survive a save, and this file is meant to be hand-edited, so somebody's extra
+key is not a bug to clean up. Every key and its order are preserved; the original whitespace
+is not, because keeping that would mean editing text by character offsets and every edit
+could then corrupt the file.
+
+Three rules the window follows, and each exists because the opposite was worse:
+
+- **Structural problems block `Save`; environmental ones never do.** A configuration
+  prepared here for another station is not wrong because a drive is not mapped on this one.
+- **A file that exists but does not parse is never offered the template button.** That
+  button would overwrite it, and a file somebody broke by hand is still a file somebody
+  wants back. It shows the parser's line and column instead.
+- **Creating from the template writes nothing until `Save`**, so backing out costs nothing.
+
+### The rules, and what a type implements
+
+The `Coding style` section is where the editor stops being a form and starts preventing
+mistakes.
+
+- **`implements` is chosen, never typed.** Each type shows only the rules it implements, as
+  tags with a cross, and a `+` offers the ones it does not have yet. Building the choice
+  from the catalogue makes a dangling reference **impossible** rather than merely
+  detectable — half of what the validator exists to catch, removed at the source. The `type`
+  comes from a drop-down of its section's closed set, which removes the other half.
+- **A reference to a rule that does not exist is shown in red, not hidden**, so the editor
+  can repair a hand-edited file rather than only complain about it. Tick boxes could not:
+  with no box to clear, there was nothing to click.
+- **Renaming a rule carries its references with it**, and refuses to collide. Committed on
+  leaving the field, not per keystroke — an id is a key, and rewriting references on the way
+  from `type` to `typeName` would churn the document through a dozen half-typed names.
+- **The pattern says whether it compiles, and a "Try it" box says whether a sample name
+  matches.** A regex that compiles can still be perfectly wrong, and otherwise that is only
+  discovered once the Add-In has marked half a project.
+- **A type appears at most once per section.** A second row for the same type says nothing
+  the first does not, so a type in use is offered nowhere it could be duplicated.
+
+### The token
+
+`config.json` always carries the literal `${GITHUB_TOKEN}`; the secret goes to the per-user
+`.env`. The field is masked with the same twin-control eye as the PLC password, and the
+`.env` is written **before** the JSON — there is no point leaving a `config.json` behind
+that references a variable nobody managed to set.
+
+### One editor per TIA Portal
+
+The satellite works out which TIA launched it **by itself**, from its own parent process —
+which is TIA because the launcher starts it with `UseShellExecute=false`. The Add-In could
+not tell it: under partial trust `Process.GetCurrentProcess()` throws `SecurityException`,
+measured in a restricted `AppDomain`, and `AddIn.Utilities` holds only `Process` and
+`ProcessStartInfo`. Reading the parent costs ~170 ms once, cannot be forged by editing the
+handoff, and degrades correctly when started by hand: no TIA parent, so the guard falls back
+to one editor per file. Confirmed on the VM.
+
+> **`ConfigLocation.Resolve` accepts all three ways of naming a project** — the project
+> folder, the `.plc-framework` inside it, or the `config.json` itself. Appending the
+> convention to whatever was picked is wrong the moment somebody picks one step deeper,
+> which is the natural thing to do since `.plc-framework` is the folder with the file
+> visibly in it. It produced `…\.plc-framework\.plc-framework\config.json` and a window
+> reporting "no configuration" on a project that had one.
