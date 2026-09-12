@@ -1,0 +1,77 @@
+name: The Add-In does not appear in TIA Portal
+description: It is installed, but there is no menu entry when you right-click the project.
+title: "Does not appear: "
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Five things account for almost every case of this, and **three of them you can fix without us**. Please confirm each one below — TIA gives no clue which is the problem, so ruling them out is the whole job.
+
+  - type: checkboxes
+    id: ruled-out
+    attributes:
+      label: What you have already checked
+      description: Each of these looks exactly like a failed install, and none of them is one.
+      options:
+        - label: My Windows user is in the local **"Siemens TIA Openness"** group, **and I signed out and back in afterwards**. Group membership is read at logon, so a session that was already open does not see it.
+          required: true
+        - label: I opened *Options → Add-Ins*, found it in the list, and **enabled it**. The package is unsigned, so TIA will not load it until you say so.
+          required: true
+        - label: I restarted TIA Portal after copying the package in.
+          required: true
+        - label: The package is in **exactly one** of the two Add-In folders, not both. TIA reads both and would load it twice.
+          required: false
+
+  - type: dropdown
+    id: listed
+    attributes:
+      label: Is it listed at all in *Options → Add-Ins*?
+      description: This is the single most useful fact in the report — it splits "TIA never found the file" from "TIA found it and refused it".
+      options:
+        - "No — it is not in the list"
+        - "Yes, and it is enabled"
+        - "Yes, but it is shown as untrusted / disabled"
+        - "I could not find the Add-Ins page"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tia-version
+    attributes:
+      label: TIA Portal version
+      description: V17 to V20 use the V20 package; V21 uses the V21 one. They do not read each other's folders.
+      options:
+        - "V17"
+        - "V18"
+        - "V19"
+        - "V20"
+        - "V21"
+        - "Two versions installed side by side"
+    validations:
+      required: true
+
+  - type: input
+    id: folder
+    attributes:
+      label: The exact folder you installed into
+      description: Paste the full path. The per-machine one is `AddIns`, the per-user one is `UserAddIns` — neither name is a typo for the other, and the per-user one is under `AppData\Roaming`, not `Local`.
+      placeholder: C:\Program Files\Siemens\Automation\Portal V20\AddIns
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: PLC-Framework version
+      description: From the **About** window, or the title bar of any of its windows. If you cannot open one, give the name of the archive you downloaded.
+      placeholder: 1.0.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: anything-else
+    attributes:
+      label: Anything else
+      description: Whether you installed with `install.cmd` or by hand, what it printed, and anything that looked unusual.

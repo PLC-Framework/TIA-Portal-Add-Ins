@@ -1,0 +1,30 @@
+name: An idea, or something missing
+description: A change you would like, or a case the tool does not cover.
+labels: ["enhancement"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth knowing before you write: **`CLAUDE.md` in the repository root is a decision record** — what was chosen, what was rejected, and why. Several obvious-looking ideas are already in there with the reason they were turned down, and a few were turned down on reasoning that later proved wrong. Either way it is a better starting point than a blank box.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you were trying to do
+      description: The situation, not the solution. What the tool made you do instead is usually the most useful sentence in the report.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like instead
+    validations:
+      required: false
+
+  - type: input
+    id: scale
+    attributes:
+      label: How often, and at what size
+      description: Once a project or once an hour; four folders or four hundred blocks. It changes the answer more than anything else here.

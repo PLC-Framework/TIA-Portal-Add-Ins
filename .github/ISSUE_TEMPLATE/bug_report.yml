@@ -1,0 +1,78 @@
+name: Something went wrong
+description: The Add-In or one of its windows did the wrong thing, or stopped.
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the problem is that **no menu entry appears**, use the other template instead — that one asks the questions that actually settle it.
+
+  - type: input
+    id: version
+    attributes:
+      label: PLC-Framework version
+      description: From the **About** window, or the title bar of the window it happened in. It is there so this report can be matched to a build.
+      placeholder: 1.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tia-version
+    attributes:
+      label: TIA Portal version
+      options:
+        - "V17"
+        - "V18"
+        - "V19"
+        - "V20"
+        - "V21"
+        - "Not involved — I started the application by hand"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where it happened
+      options:
+        - "Config. Editor"
+        - "Create project hierarchy"
+        - "Data block snapshot"
+        - "About"
+        - "install.cmd or uninstall.cmd"
+        - "Somewhere else"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What you did, what you expected, and what happened
+      description: The order matters more than the detail. If a message appeared, paste it as text rather than a screenshot — text is searchable, and the next person with the same problem is searching.
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: The relevant part of config.json, if the problem involves one
+      description: >
+        Please check it for anything you would not publish before pasting it. It should never
+        hold a secret — the GitHub token belongs in the per-user `.env` and the file carries
+        only the literal `${GITHUB_TOKEN}` — but a local repository path can still name a
+        customer.
+      render: json
+
+  - type: input
+    id: cpu
+    attributes:
+      label: CPU, if a data block snapshot was involved
+      description: Family and firmware. Everything measured so far comes from an S7-1500 and an S7-1200 G2, so anything else is genuinely new information.
+      placeholder: S7-1516-3 PN/DP, firmware 2.9
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2

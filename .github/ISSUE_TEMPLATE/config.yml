@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+
+contact_links:
+  - name: The Add-In does not appear — read this first
+    url: https://github.com/PLC-Framework/TIA-Portal-Add-Ins/blob/main/docs/getting-started.md
+    about: Five things account for almost every "nothing happened", and three of them you can fix yourself in two minutes.
+
+  - name: Configuring a project
+    url: https://github.com/PLC-Framework/TIA-Portal-Add-Ins/blob/main/docs/configuration.md
+    about: Every key of config.json, the closed value sets, and what the validators check.
+
+  - name: The Openness API as the assemblies declare it
+    url: https://github.com/PLC-Framework/TIA-Portal-Add-Ins/blob/main/docs/openness-notes.md
+    about: V20 and V21 differences, the Publisher, partial trust. Useful if you are writing an Add-In of your own.
