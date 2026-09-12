@@ -7,8 +7,8 @@ partial-trust sandbox that decides what an Add-In may do.
 Two generated pages accompany this one, built from the assemblies themselves with
 `GetExportedTypes()`:
 
-- [`reference/TIA-Portal-V20-Openness-object-model.html`](reference/TIA-Portal-V20-Openness-object-model.html)
-- [`reference/TIA-Portal-V21-Openness-object-model.html`](reference/TIA-Portal-V21-Openness-object-model.html)
+- [`reference/TIA-Portal-V20-Openness-object-model.md`](reference/TIA-Portal-V20-Openness-object-model.md)
+- [`reference/TIA-Portal-V21-Openness-object-model.md`](reference/TIA-Portal-V21-Openness-object-model.md)
 
 Neither contains Siemens code — only type names, member names and counts, which is what
 lets them live here when the assemblies they describe may not.
@@ -41,14 +41,16 @@ dotnet build src\AddIn.V20\AddIn.V20.csproj -p:SiemensPublicApi=D:\some\other\pa
 
 ### The reflected reference in `docs/reference/`
 
-Two self-contained HTML pages under `reference/`, generated from the assemblies themselves rather than from documentation, and kept in the repo precisely because the assemblies cannot be:
+Two pages under `reference/`, generated from the assemblies themselves rather than from documentation, and kept in the repo precisely because the assemblies cannot be. **They share a section order**, so the same question is answered in the same place in both:
 
 | File                            | Covers                                                                                                                                                                                            |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TIA-Portal-V20-Openness-object-model.html` | the V20 object model as`Siemens.Engineering.AddIn.dll` declares it — the spine from `TiaPortal` down to a block group, the system/user group pattern, software units, and the Add-In surface |
-| `TIA-Portal-V21-Openness-object-model.html` | the same model in V21, where it is **split across sixteen assemblies** — which one declares what, what an Add-In has to reference, and every shape difference found against V20                                                                  |
+| `TIA-Portal-V20-Openness-object-model.md` | the V20 object model as`Siemens.Engineering.AddIn.dll` declares it — the spine from `TiaPortal` down to a block group, the system/user group pattern, software units, and the Add-In surface |
+| `TIA-Portal-V21-Openness-object-model.md` | the same model in V21, where it is **split across sixteen assemblies** — which one declares what, what an Add-In has to reference, and every shape difference found against V20. It does **not** restate the model: seven of the eight spine types are the same surface, which is the finding rather than an omission |
 
-They open in any browser and render their class diagrams from a pinned mermaid build. **Neither contains Siemens code** — only type names, member names and counts read with `GetExportedTypes()`, which is what lets them live in the repo when the DLLs they describe may not.
+**They were self-contained HTML until 2026-09-12, and Markdown is a correction rather than a preference**: GitHub serves an `.html` file in a repository as source, so once this repo went public both pages were a wall of CSS to anybody who followed a link. Markdown renders, and GitHub draws the mermaid class diagrams natively — the designed layout was costing exactly the readers it was meant to serve. It also leaves `reference/` in one format.
+
+**Neither contains Siemens code** — only type names, member names and counts read with `GetExportedTypes()`, which is what lets them live in the repo when the DLLs they describe may not.
 
 Both record where Siemens' own published object-model diagram is incomplete: it omits `ProjectBase` and `HardwareObject` entirely, and attributes their properties to `Project` and `Device` instead.
 
