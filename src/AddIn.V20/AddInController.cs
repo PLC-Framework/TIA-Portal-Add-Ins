@@ -38,7 +38,7 @@ namespace AddIn
             AddAction<Project>(
                 menuAddInRoot,
                 ConfigEditorAction.Title,
-                null,
+                ConfigEditorAction.IconPath,
                 menuSelectionProvider => ConfigEditorAction.Execute(
                     _notifier, _launcher, ProjectDirectory(), ProjectName()));
 

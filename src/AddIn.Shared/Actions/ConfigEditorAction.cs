@@ -22,6 +22,7 @@ namespace AddIn.Shared.Actions
     public static class ConfigEditorAction
     {
         public const string Title = "Config. Editor";
+        public const string IconPath = "AddIn/config-editor.ico";
 
         /// <summary>
         /// File name inside <see cref="InstallPaths.Root"/>. It is the AssemblyName of the
