@@ -20,6 +20,7 @@ namespace AddIn.Shared.Actions
     public static class DataBlockSnapshotAction
     {
         public const string Title = "Snapshot data blocks";
+        public const string IconPath = "AddIn/datablock-snapshot.ico";
 
         /// <summary>
         /// File name inside <see cref="InstallPaths.Root"/>. It is the AssemblyName of

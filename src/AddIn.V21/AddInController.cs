@@ -74,7 +74,7 @@ namespace AddIn
             AddAction<DataBlock>(
                 menuAddInRoot,
                 DataBlockSnapshotAction.Title,
-                null,
+                DataBlockSnapshotAction.IconPath,
                 menuSelectionProvider =>
                 {
                     List<DataBlock> blocks =
