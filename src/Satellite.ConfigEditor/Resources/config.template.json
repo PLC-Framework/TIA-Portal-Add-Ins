@@ -18,7 +18,7 @@
   },
   "coreLocalRepositoryConfig" :
   {
-    "repository" : "e:/plcframework/code",
+    "repository" : "C:/path/to/your/core-repository",
     "folder" : "plc/s7-1x00/core",
     "dependencyFile": "core.json"
   },
