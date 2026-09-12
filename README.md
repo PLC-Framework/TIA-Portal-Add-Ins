@@ -58,7 +58,7 @@ Everything else — the configuration model and its validators, the web server c
 | [The satellite apps](docs/satellites.md)        | what each window does, and the decisions behind it                                             |
 | [Architecture](docs/architecture.md)            | the layering, the naming convention, where everything installs                                 |
 | [Openness notes](docs/openness-notes.md)        | the Add-In API as the assemblies declare it, V20/V21 differences, the Publisher, partial trust |
-| [The CPU web server API](docs/webserver-api.md) | JSON-RPC findings measured against two real CPUs — useful on its own                          |
+| [S7-1x00 Webserver API](docs/reference/S7-1x00-Webserver-API.md) | JSON-RPC findings measured against two real CPUs — useful on its own                          |
 | [Development](docs/development.md)              | building, testing, and how releases are cut                                                    |
 
 ## How this was built

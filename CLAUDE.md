@@ -521,7 +521,7 @@ A different kind of divergence, and easier to miss because the source is identic
 
 **The class shapes barely moved.** Seven of the eight spine types are identical across versions, base class included; only `ProjectBase` differs, having **lost `Graphics`, `PlantViews` and the two block-compilation flags** and gained `TextCategories`. Those are removals, not relocations — `MultiLingualGraphic` and `PlantView` exist nowhere in V21. Any migrated V20 code touching them stops compiling.
 
-**`docs/reference/` holds the reflected reference** for both versions, generated from the assemblies with `GetExportedTypes()`. Consult it before asserting anything about the Openness API, and regenerate rather than hand-edit. It carries type names and counts only, no Siemens code, which is why it can be committed when the DLLs cannot.
+**`docs/reference/` holds what was read off something real rather than reasoned about**: the two Openness object-model pages, one per TIA version, reflected out of the assemblies with `GetExportedTypes()`, and `S7-1x00-Webserver-API.md`, measured against two real CPUs. That is the rule for what belongs there — the vendor's surface as it actually is, not our design. Consult the Openness pages before asserting anything about the API, and regenerate them rather than hand-edit. They carry type names and counts only, no Siemens code, which is why they can be committed when the DLLs cannot.
 
 ### `config.json` pipeline — contract settled 2026-09-08, validators built 2026-09-09
 
@@ -738,6 +738,6 @@ and **one consumer** (the Add-In). Decisions taken:
 @docs/openness-notes.md
 @docs/configuration.md
 @docs/satellites.md
-@docs/webserver-api.md
+@docs/reference/S7-1x00-Webserver-API.md
 @docs/development.md
 @docs/getting-started.md

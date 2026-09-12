@@ -7,8 +7,8 @@ partial-trust sandbox that decides what an Add-In may do.
 Two generated pages accompany this one, built from the assemblies themselves with
 `GetExportedTypes()`:
 
-- [`reference/tia-v20-object-model.html`](reference/tia-v20-object-model.html)
-- [`reference/tia-v21-assembly-split.html`](reference/tia-v21-assembly-split.html)
+- [`reference/TIA-Portal-V20-Openness-object-model.html`](reference/TIA-Portal-V20-Openness-object-model.html)
+- [`reference/TIA-Portal-V21-Openness-object-model.html`](reference/TIA-Portal-V21-Openness-object-model.html)
 
 Neither contains Siemens code — only type names, member names and counts, which is what
 lets them live here when the assemblies they describe may not.
@@ -45,8 +45,8 @@ Two self-contained HTML pages under `reference/`, generated from the assemblies 
 
 | File                            | Covers                                                                                                                                                                                            |
 | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tia-v20-object-model.html`   | the V20 object model as`Siemens.Engineering.AddIn.dll` declares it — the spine from `TiaPortal` down to a block group, the system/user group pattern, software units, and the Add-In surface |
-| `tia-v21-assembly-split.html` | which of the sixteen V21 assemblies declares what, what an Add-In has to reference, and every shape difference found against V20                                                                  |
+| `TIA-Portal-V20-Openness-object-model.html` | the V20 object model as`Siemens.Engineering.AddIn.dll` declares it — the spine from `TiaPortal` down to a block group, the system/user group pattern, software units, and the Add-In surface |
+| `TIA-Portal-V21-Openness-object-model.html` | the same model in V21, where it is **split across sixteen assemblies** — which one declares what, what an Add-In has to reference, and every shape difference found against V20                                                                  |
 
 They open in any browser and render their class diagrams from a pinned mermaid build. **Neither contains Siemens code** — only type names, member names and counts read with `GetExportedTypes()`, which is what lets them live in the repo when the DLLs they describe may not.
 

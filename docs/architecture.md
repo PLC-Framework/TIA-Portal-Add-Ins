@@ -8,7 +8,7 @@ type's layer is decided by **what it depends on**, not by who calls it today.
 ```
 TIA-Portal-Add-Ins.slnx
 ├── assets/                   shared binary assets, grouped by feature (see below)
-├── docs/reference/           the Openness API reflected out of the assemblies
+├── docs/reference/           the Openness API and the CPU web server, as measured
 └── src/
     ├── Core/                 (net48, AnyCPU) — model, no host types at all          ← EXISTS
     ├── AddIn.Shared/         (net48, AnyCPU) — the Add-In layer, NO Siemens          ← EXISTS

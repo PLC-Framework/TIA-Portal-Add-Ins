@@ -1,4 +1,4 @@
-# The CPU web server API
+# S7-1x00 Webserver API
 
 Nothing to do with Openness. This is the JSON-RPC service an S7-1200 / S7-1500 exposes on
 its own web server, and everything here was **measured against two real CPUs** rather than
