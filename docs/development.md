@@ -72,11 +72,13 @@ Since `Siemens.Engineering.AddIn.dll` already carries the whole object model, re
 
 ### Deploying to the VM
 
-Two scripts, one on each machine, because the copy has to happen where the destination is.
+Two scripts, one on each machine, because the copy has to happen where the destination is,
+and a third that turns the same payload into a release archive.
 
 ```
-development PC:   scripts\step1-stage-host.ps1    builds, then gathers into .deploy\
-VM:               scripts\step2-deploy-vm.cmd     installs what was gathered
+development PC:   scripts\deploy\step1-stage-host.ps1       builds, then gathers into .deploy\
+VM:               scripts\deploy\step2-deploy-vm.cmd        installs what was gathered
+development PC:   scripts\release\step3-package-release.ps1  wraps it as PLC-Framework-for-TIA-vX.Y.Z.zip
 ```
 
 The names carry the order and the machine, because getting either wrong is the easy
@@ -149,7 +151,7 @@ directory, so it is no evidence either way. `Test-Path Z:\` is what settles it.
 is reachable from the elevated session. Confirmed on this VM, which exposes `C`, `D` and `E`:
 
 ```powershell
-& "\\vmware-host\Shared Folders\<share>\tia-portal-addins\scripts\step2-deploy-vm.cmd"
+& "\\vmware-host\Shared Folders\<share>\tia-portal-addins\scripts\deploy\step2-deploy-vm.cmd"
 ```
 
 No copy, nothing to keep in step. `(Get-PSDrive Z).DisplayRoot` in the **normal** session
@@ -162,7 +164,7 @@ itself and a lone script stops with *"Nothing staged"*.
 
 ```powershell
 robocopy Z:\...\tia-portal-addins C:\PLC-Framework-deploy /E /PURGE .deploy scripts
-C:\PLC-Framework-deploy\scripts\step2-deploy-vm.cmd                          # elevated
+C:\PLC-Framework-deploy\scripts\deploy\step2-deploy-vm.cmd                          # elevated
 ```
 
 **A deployer copied by hand goes stale silently** — the same disease as testing a stale
@@ -247,6 +249,79 @@ is not installed, and a package locked by a running TIA. The second says which T
 > Both scripts are **ASCII only**, deliberately. PowerShell 5.1 reads a UTF-8 file with no
 > BOM as ANSI, so a single accented character becomes a parse error.
 
+### How `scripts\` is laid out
+
+```
+scripts/
+|-- paths.ps1     where everything installs - shared, so no two scripts can disagree
+|-- deploy/       step1 (stage on the dev PC), step2 (install on the VM)
+|-- release/      step3 (build the archive), uninstall
+`-- schemas/      the JSON Schema drift test
+```
+
+**`paths.ps1` sits above the folders that use it**, because `deploy\step2` and
+`release\uninstall` both need it and neither owns it. In the release archive the same file
+ends up beside both, so every script **searches upwards** for it rather than assuming a
+depth.
+
+That is now the rule everywhere a path is worked out here: `StagingFolder` searches for
+`bin\`/`addins\`, `RepoRoot` searches for the `.slnx`, and the schema test does the same
+in JavaScript. **Four path calculations broke the first time these files moved**, each of
+them silently - resolving to a folder that simply had nothing in it. None can break that
+way again, which is worth more than the loop costs.
+
+### Cutting a release
+
+`scripts\release\step3-package-release.ps1` builds the archive a stranger downloads. It reads the
+version from `Directory.Build.props` — the one place that states it — and names the archive
+`PLC-Framework-for-TIA-v<version>.zip`. **The `v` is added here and nowhere else**: NuGet refuses to
+parse `v1.0.0` as a version, and the Publisher's schema allows digits and dots only, so the
+prefix can only live where a person reads it.
+
+```
+PLC-Framework-for-TIA-v1.0.0/
+├── install.cmd               what somebody unpacking it should double-click
+├── uninstall.cmd
+├── bin/                      the satellites and their DLLs
+├── addins/                   the two .addin packages
+├── .installer/               install.ps1, uninstall.ps1, paths.ps1
+└── README.md  LICENSE  THIRD-PARTY-NOTICES.md
+```
+
+**The PowerShell is one level down so the two launchers stand alone.** What is visible at the
+top is what somebody should run; the rest is machinery. Note a leading dot hides nothing on
+Windows — Explorer shows `.installer` like any other folder — so it is a convention borrowed
+from Unix, not a mechanism.
+
+That move is why `StagingFolder` checks **two levels**: `bin\` and `addins\` beside the
+script, or one above it. Still looked for rather than configured, so the same file works from
+`scripts\` in the repo, from a folder copied next to the payload, and from inside the
+archive, with no switch to get wrong.
+
+**`install.ps1` is `step2-deploy-vm.ps1` copied, not rewritten.** A second implementation of
+the install would be the one nobody tests, and `StagingFolder` already handles the archive's
+shape: `bin\` and `addins\` beside the script means "this folder is the payload". The
+script names itself in its own messages — `Launcher $PSCommandPath` — so it says
+*right-click install.cmd* in the archive and *step2-deploy-vm.cmd* in the repo, without a
+hardcoded name being wrong in one of them.
+
+**`paths.ps1` is shared rather than duplicated, and that is correctness rather than tidiness.**
+An uninstaller has to look in exactly the places the installer wrote to; two copies of that
+path arithmetic would drift, and the failure would be an uninstall reporting "nothing found"
+on a machine that plainly has it installed.
+
+It refuses to package when no `.addin` was staged: the Publisher target is skipped on a
+machine without the Siemens tools, and an archive of satellites nobody can launch is not a
+release.
+
+> **This cannot run in CI.** The packages are built by Siemens' Publisher against licensed
+> assemblies that cannot be redistributed, so no hosted runner has them. Releases are cut
+> from a machine that does, and the script says so in its own header.
+
+Verified end to end by unpacking the archive into a simulated station — `PLC_FRAMEWORK_HOME`,
+`%APPDATA%` and `%LOCALAPPDATA%` all redirected — installing, removing two of the four items
+through the menu, removing the rest with `-All`, and confirming the "nothing to remove" path.
+
 ### Installing a satellite
 
 Copy the project's **whole build output** into `tools\`, not just the executable:
@@ -264,7 +339,7 @@ The three `.pdb` files are optional: they only add line numbers to stack traces,
 robocopy "src\Satellite.About\bin\Debug\net48" "C:\Program Files\PLC-Framework" /E
 ```
 
-That is the manual form; `scripts\step2-deploy-vm.ps1` does it for all three satellites at
+That is the manual form; `scripts\deploy\step2-deploy-vm.ps1` does it for all three satellites at
 once. Either way `C:\Program Files\PLC-Framework\` needs elevation. To test without it,
 point `PLC_FRAMEWORK_HOME` at any folder holding the executables — the deploy script honours
 it too — and **restart TIA Portal afterwards**, since a running process does not see an

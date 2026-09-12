@@ -20,8 +20,24 @@ not see it.
 
 ## Installing
 
-> **No release has been cut yet.** Until there is one, install by hand — the steps below are
-> what the installer will do, and they are what the maintainer runs today.
+Unpack the release archive anywhere, then **right-click `install.cmd` and pick "Run as
+administrator"**.
+
+It asks nothing. It copies the applications, puts each `.addin` in the folder its TIA
+version reads, and **prints every destination before it writes** — so "it is installed" is
+something you can read rather than assume. A TIA version you do not have is reported and
+skipped, not treated as a failure.
+
+Administrator is needed because the V20 package goes inside TIA's own installation. The
+script checks whether it can actually *write* there rather than whether you are elevated,
+so a TIA installed somewhere unusual still works, and it asks for elevation by name instead
+of failing with an `Access denied` that reads like something else.
+
+**To undo it, run `uninstall.cmd`** — that one does ask, because deleting is where you want
+a say. It lists only what it finds and keeps your per-user data unless you tick it.
+
+The rest of this section is what the installer does, for anyone who would rather do it by
+hand or needs to check its work.
 
 Two things go onto the machine:
 
@@ -65,16 +81,31 @@ missing configuration as a normal starting point and offers to create one.
 
 ## Uninstalling
 
-1. Close TIA Portal.
-2. Delete the `.addin` from whichever Add-In folder you put it in.
-3. Delete `C:\Program Files\PLC-Framework\`.
+Close TIA Portal, then run **`uninstall.cmd`** — as administrator if you installed the V20
+package or the applications, since both live in machine-wide folders.
 
-Two things are deliberately left behind, because they are yours rather than the product's:
+It lists only what it actually finds and asks which of them to remove:
 
-- `%LOCALAPPDATA%\PLC-Framework\` — your remembered PLC credentials, your `.env`, your
-  customised template. Delete it too if you want nothing kept.
-- `.plc-framework\` inside each TIA project — that is the project's configuration, and it
-  belongs to the project.
+```
+   [1] the applications          C:\Program Files\PLC-Framework
+   [2] your data                 %LOCALAPPDATA%\PLC-Framework    NOT RECOMMENDED
+   [3] the Add-In for TIA V20    ...\Portal V20\AddIns\...
+   [4] the Add-In for TIA V21    ...\Portal V21\UserAddIns\...
+```
+
+**It looks in both Add-In folders for each version**, not only the one the installer uses,
+because a package put in the other one by hand would otherwise stay loaded after an
+uninstall that reported success.
+
+**[2] is marked not recommended for a reason**: it holds your saved PLC credentials, your
+`.env` with the GitHub token, and your customised template. Nothing reinstalls those.
+Whatever you leave, it says so afterwards rather than leaving you to wonder.
+
+**`.plc-framework\` inside each TIA project is never touched**, by any option. That is the
+project's configuration and it belongs to the project.
+
+By hand, it is: delete the `.addin` from whichever Add-In folder it is in, and delete
+`C:\Program Files\PLC-Framework\`.
 
 ## When it does not appear
 

@@ -618,8 +618,8 @@ and **one consumer** (the Add-In). Decisions taken:
       its README claims both `Siemens.Engineering.dll` and `.AddIn.dll` are needed with
       `extern alias`, which is false; and its `.csproj` mixes absolute and relative
       `HintPath` values, one of them pointing nowhere
-- [x] **Deployment to the VM automated** (2026-09-09): `scripts\step1-stage-host.ps1` on the
-      development PC, `scripts\step2-deploy-vm.cmd` inside the VM — the names carry the order
+- [x] **Deployment to the VM automated** (2026-09-09): `scripts\deploy\step1-stage-host.ps1` on the
+      development PC, `scripts\deploy\step2-deploy-vm.cmd` inside the VM — the names carry the order
       and the machine, because running either on the wrong one is the easy mistake. It had
       grown to five manual copies — two `.addin` and three satellites — and the cost was
       never the time but the silent failure of testing a stale build, so step 2 prints the
@@ -676,6 +676,42 @@ and **one consumer** (the Add-In). Decisions taken:
       decides which case it is **by looking for `bin\` and `addins\` beside itself**, not
       by being told — and that second case is what the release package will use, with the
       files named what a stranger expects
+- [x] **The release archive** (2026-09-12): `scripts\release\step3-package-release.ps1` turns what
+      step1 staged into `PLC-Framework-for-TIA-v<version>.zip`. **A ZIP with a script, not an MSI**,
+      and the audience decided it: an automation engineer rightly distrusts an unsigned MSI
+      from the internet and can read forty lines of PowerShell instead. An MSI would also
+      move the signing problem rather than solve it — SmartScreen would flag the installer
+      exactly as TIA flags the package — and it buys only *Add or remove programs*, which
+      nobody has asked for. Revisit if a tester does.
+      **The `v` and the host both live in the archive name and nowhere else**: NuGet
+      refuses to parse `v1.0.0` and the Publisher's schema allows digits and dots only,
+      both measured. And `PLC-Framework` is the product while TIA Portal is one host it
+      plugs into — a second host would still share `Core`, `UI.Shared` and the config
+      editor — so the brand stays put and `PLC-Framework-for-TIA-v1.0.0.zip` says what
+      the download is for. Naming the *product* after one host would be a rename later.
+      **Before a second host is real, `Core` has to be split**: its validators carry
+      TIA's closed sets (`OB`, `FC`, `FB`, `PlcTagTable`) and `S7PlcWebserverApi` is
+      Siemens-only, so `Core` is not vendor-neutral today whatever its name suggests.
+      **`install.ps1` is `step2-deploy-vm.ps1` copied, not rewritten** — a second
+      implementation of the install is the one nobody tests — and the script names itself in
+      its own messages so a hardcoded filename cannot be wrong under the other name.
+      **The PowerShell sits in `.installer/` and only the two `.cmd` launchers are visible**,
+      so what a stranger sees on unpacking is what they should double-click — which is why
+      `StagingFolder` checks two levels for `bin`/`addins` rather than one. A leading dot
+      hides nothing on Windows; it is a convention, not a mechanism.
+      **`paths.ps1` is shared between installer and uninstaller**, which is correctness and
+      not tidiness: an uninstaller must look exactly where the installer wrote, and two
+      copies of that arithmetic drift into "nothing found" on a machine that has it.
+      **The installer asks nothing; the uninstaller asks everything.** Installing is safe and
+      reversible; deleting is where somebody wants a say, above all over the per-user folder
+      holding credentials and a token that no reinstall brings back — so it is listed, marked
+      NOT RECOMMENDED, and what is left behind is said out loud rather than left to guess.
+      The uninstaller **looks in both Add-In folders per version**, since a package put in
+      the other one by hand would otherwise survive an uninstall that reported success.
+      **The installer does not create the `.env`.** It runs elevated, so `%LOCALAPPDATA%`
+      could be the administrator's profile rather than the engineer's — the same trap as
+      `%AppData%` in step 2 — and the config editor already creates it in the right place on
+      first use
 - [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to
       shorten the test cycle. **Planned for the next Add-In** rather than retrofitted onto
       the existing ones: the point is a shorter loop while writing something, and the two

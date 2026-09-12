@@ -31,65 +31,61 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# There are two places this runs from, and it works out which by looking for the payload
-# rather than by being told:
+# paths.ps1 holds everything the installer and the uninstaller must agree on, but finding it
+# cannot itself depend on it - so this one walk is written out here.
+function FindUpPaths($from)
+{
+    $dir = $from
+    while ($dir) {
+        $candidate = Join-Path $dir "paths.ps1"
+        if (Test-Path $candidate) { return $candidate }
+
+        $parent = Split-Path $dir -Parent
+        if ($parent -eq $dir) { break }
+        $dir = $parent
+    }
+
+    throw "paths.ps1 not found at or above $from."
+}
+
+# Shared with the uninstaller, which has to look in exactly the places this writes to.
+# Beside this script in the release archive, one level up in the repo. Loaded here, before
+# anything that needs it: StagingFolder below calls FindUp, which lives in there.
+. (FindUpPaths $PSScriptRoot)
+
+# Three places this runs from, and it works out which by LOOKING FOR THE PAYLOAD rather than
+# by being told:
 #
-#   from the repo         scripts\step2-deploy-vm.ps1   ->  ..\.deploy\
-#   from a staged copy    .deploy\step2-deploy-vm.ps1   ->  this very folder
+#   from the repo        scripts\deploy\step2-deploy-vm.ps1  ->  the repo's .deploy\
+#   beside the payload   <anywhere>\install.ps1              ->  this very folder
+#   from the archive     <pkg>\.installer\install.ps1        ->  one level up
 #
-# The second is what lets the VM hold a local copy: step1 puts this script inside .deploy\,
-# so the folder is one self-contained thing to copy - payload and installer together. That
-# pairing is the point. A deployer copied on its own goes stale silently, which is the same
-# disease as testing a stale build, one level up and with nothing printing its age.
+# The last one is the release layout: the two .cmd launchers stay in plain sight and the
+# PowerShell goes out of the way, so what somebody sees on unpacking is what they should
+# double-click. Looking rather than being told means the same file serves every case with no
+# switch to get wrong - and it has already survived two rearrangements on that basis.
 function StagingFolder
 {
-    if ((Test-Path (Join-Path $PSScriptRoot "bin")) -and
-        (Test-Path (Join-Path $PSScriptRoot "addins"))) { return $PSScriptRoot }
+    foreach ($candidate in @($PSScriptRoot, (Split-Path $PSScriptRoot -Parent))) {
+        if ((Test-Path (Join-Path $candidate "bin")) -and
+            (Test-Path (Join-Path $candidate "addins"))) { return $candidate }
+    }
 
-    return Join-Path (Split-Path $PSScriptRoot -Parent) ".deploy"
+    $staged = FindUp $PSScriptRoot @(".deploy")
+    if ($staged) { return $staged }
+
+    return Join-Path (RepoRoot $PSScriptRoot) ".deploy"
 }
 
 $deploy = StagingFolder
 
 if (-not (Test-Path $deploy)) {
-    throw "Nothing staged at $deploy. Run scripts\step1-stage-host.ps1 on the development PC first."
+    throw "Nothing staged at $deploy. Run scripts\deploy\step1-stage-host.ps1 on the development PC first."
 }
 
-# Roaming, not Local, and UserAddIns, not AddIns. Both are easy to get wrong and both fail
-# silently: TIA simply never shows the Add-In.
-#
-# Never a literal "C:\Program Files". The physical folder is not translated - Windows has
-# not localised it since Vista, only the name the Explorer displays - but it does move: a
-# Windows installed on another drive, and WOW64. TIA Portal is 64-bit only, so this must
-# resolve to the 64-bit Program Files even when a 32-bit PowerShell is asking; otherwise it
-# looks in "Program Files (x86)\Siemens\Automation", finds nothing, and reports that TIA is
-# not installed on a machine where it plainly is.
-function ProgramFiles64
-{
-    if ($env:ProgramW6432) { return $env:ProgramW6432 }
-
-    return $env:ProgramFiles
-}
-
-function AddInFolder($portal, $scope)
-{
-    if ($scope -eq "Machine") {
-        $root = $InstallRoot
-        if (-not $root) { $root = Join-Path (ProgramFiles64) "Siemens\Automation" }
-
-        return Join-Path $root "$portal\AddIns"
-    }
-
-    return Join-Path $env:AppData "Siemens\Automation\$portal\UserAddIns"
-}
-
-function IsElevated
-{
-    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal $identity
-
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
+# What to tell somebody to right-click. This file ships under two names - step2-deploy-vm
+# in the repo, install in the release - so a hardcoded one would be wrong in the other.
+$launcher = Launcher $PSCommandPath
 
 # Answers the question actually being asked - can this process write there - instead of
 # "is it elevated", which is only a proxy for it. A TIA installed outside Program Files is
@@ -132,9 +128,7 @@ if (-not $AddInsOnly) {
     #   PLC_FRAMEWORK_HOME wins, so a run without elevation can stage into a folder the Add-In
     #   will also look in; and ProgramW6432 rather than ProgramFiles, so a 32-bit PowerShell
     #   still installs where the x64 Add-In inside TIA is going to look.
-    $install = $env:PLC_FRAMEWORK_HOME
-
-    if (-not $install) { $install = Join-Path (ProgramFiles64) "PLC-Framework" }
+    $install = InstallRoot
 
     Write-Host "satellites -> $install" -ForegroundColor Cyan
 
@@ -146,7 +140,7 @@ if (-not $AddInsOnly) {
         Write-Host "`n   Cannot write into $install" -ForegroundColor Red
 
         if (-not (IsElevated)) {
-            Write-Host "   Program Files needs elevation: right-click scripts\step2-deploy-vm.cmd" -ForegroundColor Red
+            Write-Host ("   Program Files needs elevation: right-click {0}" -f $launcher) -ForegroundColor Red
             Write-Host "   and pick 'Run as administrator'." -ForegroundColor Red
         }
         else {
@@ -190,14 +184,11 @@ if (-not $ToolsOnly) {
     # loudly rather than quietly: a missing parent folder is reported per version, with the
     # full path it looked in, and a package found in the OTHER folder is reported too.
     # -Scope overrides the pair for a station set up differently.
-    $targets = @(
-        @{ Package = "PLC-Framework.V20.addin"; Portal = "Portal V20"; Scope = "Machine" },
-        @{ Package = "PLC-Framework.V21.addin"; Portal = "Portal V21"; Scope = "User" }
-    )
+    $targets = Targets
 
     foreach ($t in $targets) {
         if ($Scope) { $t.Scope = $Scope }
-        $t.Folder = AddInFolder $t.Portal $t.Scope
+        $t.Folder = AddInFolder $t.Portal $t.Scope $InstallRoot
     }
 
     # Checked once, up front, and only for the machine-scoped versions actually present:
@@ -215,7 +206,7 @@ if (-not $ToolsOnly) {
         foreach ($b in $blocked) { Write-Host ("      {0}" -f $b.Folder) -ForegroundColor Red }
 
         if (-not (IsElevated)) {
-            Write-Host "`n   Right-click scripts\step2-deploy-vm.cmd and pick 'Run as administrator'," -ForegroundColor Red
+            Write-Host ("`n   Right-click {0} and pick ''Run as administrator''," -f $launcher) -ForegroundColor Red
             Write-Host "   or pass -Scope User to send every version to UserAddIns instead." -ForegroundColor Red
         }
         else {
@@ -280,7 +271,7 @@ if (-not $ToolsOnly) {
         # TIA reads both folders, so the same package in both is loaded twice - and the
         # copy being tested is then whichever one TIA picked, which is not something to
         # find out by guessing. Report it; deleting the other one is the operator's call.
-        $other = AddInFolder $t.Portal $(if ($t.Scope -eq "Machine") { "User" } else { "Machine" })
+        $other = AddInFolder $t.Portal $(if ($t.Scope -eq "Machine") { "User" } else { "Machine" }) $InstallRoot
 
         if (Test-Path (Join-Path $other $t.Package)) {
             Write-Host ("      {0,-43} ALSO INSTALLED, so TIA loads it twice:" -f "") -ForegroundColor Yellow

@@ -250,14 +250,14 @@ configuration, so it is reported beside "Saved to …" and stepped over.
 
 #### Keeping the three in step
 
-`scripts\check-config-schema.js` is what stops the drift a third statement invites. Add a
+`scripts\schemas\check-config-schema.js` is what stops the drift a third statement invites. Add a
 type to a closed set in `CodingStyleValidator.cs` and the schema does not follow on its own;
 this turns that into a failing run.
 
 ```
 npm install --prefix %TEMP%\plcfw-tools ajv@8
 set NODE_PATH=%TEMP%\plcfw-tools\node_modules
-node scripts\check-config-schema.js
+node scripts\schemas\check-config-schema.js
 ```
 
 **`ajv` is resolved from outside the repo deliberately** — this is a .NET solution, and a

@@ -24,7 +24,23 @@ const fs = require("fs");
 const path = require("path");
 const Ajv = require("ajv");
 
-const repo = path.resolve(__dirname, "..");
+// Found by the solution file rather than by counting folders up from here. This script has
+// already moved once - scripts\ into scripts\schemas\ - and a hardcoded "..\.." breaks
+// silently the next time, resolving to a folder that simply has no config.json in it.
+function repoRoot(from) {
+    let dir = from;
+
+    for (;;) {
+        if (fs.existsSync(path.join(dir, "tia-portal-addins.slnx"))) return dir;
+
+        const parent = path.dirname(dir);
+        if (parent === dir) throw new Error("tia-portal-addins.slnx not found above " + from);
+
+        dir = parent;
+    }
+}
+
+const repo = repoRoot(__dirname);
 const schema = JSON.parse(fs.readFileSync(
     path.join(repo, "src/Satellite.ConfigEditor/Resources/config.schema.json"), "utf8"));
 

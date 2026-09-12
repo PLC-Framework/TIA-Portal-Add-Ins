@@ -16,7 +16,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repo    = Split-Path $PSScriptRoot -Parent
+. (Join-Path (Split-Path $PSScriptRoot -Parent) "paths.ps1")
+
+$repo    = RepoRoot $PSScriptRoot
 $deploy  = Join-Path $repo ".deploy"
 $binaries = Join-Path $deploy "bin"
 $addins  = Join-Path $deploy "addins"
@@ -91,7 +93,7 @@ foreach ($v in $versions) {
 # resolves the payload relative to itself and stops with "Nothing staged" without it.
 Write-Host "`nstaged in $deploy" -ForegroundColor Green
 Write-Host "on the VM, in an ELEVATED PowerShell - V20 installs under Program Files:" -ForegroundColor Cyan
-Write-Host '   & "\\vmware-host\Shared Folders\E\PlcFramework\tia-portal-addins\scripts\step2-deploy-vm.cmd"'
+Write-Host '   & "\\vmware-host\Shared Folders\E\PlcFramework\tia-portal-addins\scripts\deploy\step2-deploy-vm.cmd"'
 Write-Host ""
 Write-Host "   By UNC, not by the Z: mapping: a mapped drive belongs to the logon session" -ForegroundColor DarkGray
 Write-Host "   that created it, so an elevated one does not have it. Where a station's UNC" -ForegroundColor DarkGray
