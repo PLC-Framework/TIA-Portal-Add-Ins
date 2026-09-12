@@ -708,6 +708,12 @@ and **one consumer** (the Add-In). Decisions taken:
       NOT RECOMMENDED, and what is left behind is said out loud rather than left to guess.
       The uninstaller **looks in both Add-In folders per version**, since a package put in
       the other one by hand would otherwise survive an uninstall that reported success.
+      **The archive was installed from, on two real machines** (2026-09-12): Windows 10
+      with only TIA V20, and Windows 11 with V20 and V21. That is what the simulated runs
+      could not reach — real `Program Files` permissions, real elevation, the real Add-In
+      folders, TIA loading a package that `install.cmd` put there, and enabling an
+      unsigned Add-In. The single-version machine also confirmed that a TIA that is not
+      installed is *reported and stepped over* rather than failing the run.
       **The installer does not create the `.env`.** It runs elevated, so `%LOCALAPPDATA%`
       could be the administrator's profile rather than the engineer's — the same trap as
       `%AppData%` in step 2 — and the config editor already creates it in the right place on

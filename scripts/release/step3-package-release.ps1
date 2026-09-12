@@ -116,7 +116,7 @@ $readme = @"
 # PLC-Framework for TIA Portal v$version
 
 A TIA Portal Add-In and the desktop apps it launches.
-https://github.com/PLC-Framework/tia-portal-addins
+https://github.com/PLC-Framework/TIA-Portal-Add-Ins
 
 ## Install
 
@@ -158,24 +158,34 @@ Not affiliated with or endorsed by Siemens. No Siemens binary is redistributed h
 # ------------------------------------------------------------------------- the archive
 
 $zip = Join-Path $release "$name.zip"
-Compress-Archive -Path $staging -DestinationPath $zip -CompressionLevel Optimal
 
-$size = [math]::Round((Get-Item $zip).Length / 1MB, 1)
-
-# Collected and then written, rather than piped: Write-Host goes straight to the host while
-# pipeline output is buffered, so a bare pipeline here prints the listing AFTER the summary
-# it is supposed to precede.
+# Read before compressing, because the folder does not survive this block. Collected into a
+# variable rather than piped, too: Write-Host goes straight to the host while pipeline output
+# is buffered, so a bare pipeline would print the listing AFTER the summary it precedes.
 $listing = @(Get-ChildItem $staging -Recurse -File -Force |
              ForEach-Object { $_.FullName.Substring($staging.Length + 1) } |
              Sort-Object)
 
+try
+{
+    # -Force because this folder is the script's own output and re-running is the normal
+    # case. Without it an archive left by the previous run stops the next one, and the
+    # Remove-Item at the top cannot be relied on to have cleared it: anything still holding
+    # the file makes that removal fail silently.
+    Compress-Archive -Path $staging -DestinationPath $zip -CompressionLevel Optimal -Force
+}
+finally
+{
+    # In the finally, so a failed compress leaves no scaffolding either. The folder is a step
+    # on the way to the archive; left behind it becomes a second copy of the release that
+    # somebody eventually edits, ships, or mistakes for the real one.
+    Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+$size = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+
 Write-Host "`ncontents" -ForegroundColor Cyan
 foreach ($line in $listing) { Write-Host "   $line" }
-
-# The folder was scaffolding for the archive and nothing reads it afterwards. Left behind it
-# becomes a second copy of the release that somebody eventually edits, ships or mistakes for
-# the real one - and the listing above already says what went in.
-Remove-Item $staging -Recurse -Force
 
 Write-Host "`n$zip" -ForegroundColor Green
 Write-Host ("   {0} MB, {1} files" -f $size, $listing.Count)
