@@ -37,8 +37,7 @@ Full instructions, including uninstalling and what to do when the Add-In does no
 
 ## What to expect
 
-This is **early**. It is used daily on one engineer's projects and has been exercised
-against two real CPUs and both TIA versions, but you are among the first people outside that. In particular:
+This is **early**. It is used daily on one engineer's projects and has been exercised against two real CPUs and both TIA versions, but you are among the first people outside that. In particular:
 
 - The hierarchy and the naming rules come from **your** `config.json`. Without one you get the editor and a template to start from, not a result — try it on a scratch project first.
 - There is no migration story yet between versions of the configuration format.
@@ -46,8 +45,7 @@ against two real CPUs and both TIA versions, but you are among the first people 
 
 ## Building
 
-**You cannot build this from a clean clone**, and that is not an oversight. It compiles
-against Siemens Openness assemblies that are licensed and must not be redistributed, so they live outside the repository. Without them the Add-In projects do not build and no `.addin` can be produced. Released binaries are the supported way to run it.
+**You cannot build this from a clean clone**, and that is not an oversight. It compiles against Siemens Openness assemblies that are licensed and must not be redistributed, so they live outside the repository. Without them the Add-In projects do not build and no `.addin` can be produced. Released binaries are the supported way to run it.
 
 Everything else — the configuration model and its validators, the web server client, the windows — builds and is exercised without TIA Portal installed at all. See **[docs/development.md](docs/development.md)**.
 
@@ -65,20 +63,14 @@ Everything else — the configuration model and its validators, the web server c
 
 ## How this was built
 
-Written with the help of **[Claude Code](https://claude.com/claude-code)**. Every design
-decision, and every claim of "verified" in these pages, is the maintainer's: the Openness
-findings were read out of the assemblies, the web server measurements taken against two
-real CPUs, and the release installed on two real machines.
+Written with the help of **[Claude Code](https://claude.com/claude-code)**. Every design decision, and every claim of "verified" in these pages, is the maintainer's: the Openness findings were read out of the assemblies, the web server measurements taken against two real CPUs, and the release installed on two real machines.
 
-A side effect worth knowing about: [CLAUDE.md](CLAUDE.md) is a far more complete decision
-record than a project this size would normally carry — what was chosen, what was rejected,
-and why. Read it before proposing a change that looks obvious.
+A side effect worth knowing about: [CLAUDE.md](CLAUDE.md) is a far more complete decision record than a project this size would normally carry — what was chosen, what was rejected, and why. Read it before proposing a change that looks obvious.
 
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
 
-The released binaries include third-party components under their own terms; see
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+The released binaries include third-party components under their own terms; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
 **Not affiliated with or endorsed by Siemens.** TIA Portal and Openness are Siemens products, licensed separately, and you need them for any of this to do anything. No Siemens binary is redistributed here.
