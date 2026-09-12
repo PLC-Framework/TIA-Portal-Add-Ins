@@ -1,8 +1,6 @@
 <h1 align="center">TIA Portal V20, V21 Add-Ins and Satellite apps</h1>
 
-<p align="center">
-  <img src="assets/Brand/favicon.svg" alt="PLC-Framework" width="140" height="140">
-</p>
+<p align="center"> <img src="assets/Brand/favicon.svg" alt="PLC-Framework" width="140" height="140"> </p>
 
 A <b>TIA Portal Add-In</b> that brings a project's folder structure and naming rules under one versioned configuration file,  plus the <b>desktop apps it launches</b> from the TIA menu.
 
@@ -12,11 +10,11 @@ Written against Siemens Openness for <b>TIA Portal V17–V20 and V21</b>.
 
 Right-click the project, or a PLC, or a selection of blocks, and:
 
-|                                    |                                                                                                                                                                                                          |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Config. Editor**           | edits`.plc-framework\config.json` — the folder hierarchy to create and the naming rules to enforce — with validation while you type, so a broken reference is caught before the Add-In ever reads it |
-| **Create project hierarchy** | creates that folder tree inside the PLC: program blocks, technology objects, tag tables, PLC data types, and inside every software unit                                                                  |
-| **Data block snapshot**      | reads every variable of the selected data blocks over the CPU's own web server and writes one`.xlsx` per block — for capturing settings, not live process values                                      |
+|  |  |
+| --- | --- |
+| **Config. Editor** | edits `.plc-framework\config.json` — the folder hierarchy to create and the naming rules to enforce — with validation while you type, so a broken reference is caught before the Add-In ever reads it |
+| **Create project hierarchy** | creates that folder tree inside the PLC: program blocks, technology objects, tag tables, PLC data types, and inside every software unit |
+| **Data block snapshot** | reads every variable of the selected data blocks over the CPU's own web server and writes one `.xlsx` per block — for capturing settings, not live process values |
 
 The configuration lives **inside the TIA project**, in `.plc-framework\`, so it travels with the project and belongs to it rather than to whoever last ran the tool.
 
@@ -29,11 +27,9 @@ The configuration lives **inside the TIA project**, in `.plc-framework\`, so it 
 
 ## Installing
 
-Download the release archive, unpack it anywhere, and run `install.cmd` as administrator.
-Full instructions, including uninstalling and what to do when the Add-In does not show up, are in **[docs/getting-started.md](docs/getting-started.md)**.
+Download the release archive, unpack it anywhere, and run `install.cmd` as administrator. Full instructions, including uninstalling and what to do when the Add-In does not show up, are in **[docs/getting-started.md](docs/getting-started.md)**.
 
-> The `.addin` package is **not signed**. TIA Portal will list it as untrusted and you have
-> to enable it by hand the first time. That is expected, not a fault — see the same page.
+> The `.addin` package is **not signed**. TIA Portal will list it as untrusted and you have to enable it by hand the first time. That is expected, not a fault — see the same page.
 
 ## What to expect
 
@@ -51,15 +47,15 @@ Everything else — the configuration model and its validators, the web server c
 
 ## Documentation
 
-|                                                |                                                                                                |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [Getting started](docs/getting-started.md)      | requirements, installing, uninstalling, troubleshooting                                        |
-| [Configuring a project](docs/configuration.md)  | the`config.json` contract, its validators, the JSON Schema, and how secrets stay out of it   |
-| [The satellite apps](docs/satellites.md)        | what each window does, and the decisions behind it                                             |
-| [Architecture](docs/architecture.md)            | the layering, the naming convention, where everything installs                                 |
-| [Openness notes](docs/openness-notes.md)        | the Add-In API as the assemblies declare it, V20/V21 differences, the Publisher, partial trust |
-| [S7-1x00 Webserver API](docs/reference/S7-1x00-Webserver-API.md) | JSON-RPC findings measured against two real CPUs — useful on its own                          |
-| [Development](docs/development.md)              | building, testing, and how releases are cut                                                    |
+|  |  |
+| --- | --- |
+| [Getting started](docs/getting-started.md) | requirements, installing, uninstalling, troubleshooting |
+| [Configuring a project](docs/configuration.md) | the `config.json` contract, its validators, the JSON Schema, and how secrets stay out of it |
+| [The satellite apps](docs/satellites.md) | what each window does, and the decisions behind it |
+| [Architecture](docs/architecture.md) | the layering, the naming convention, where everything installs |
+| [Openness notes](docs/openness-notes.md) | the Add-In API as the assemblies declare it, V20/V21 differences, the Publisher, partial trust |
+| [S7-1x00 Webserver API](docs/reference/S7-1x00-Webserver-API.md) | JSON-RPC findings measured against two real CPUs — useful on its own |
+| [Development](docs/development.md) | building, testing, and how releases are cut |
 
 ## How this was built
 

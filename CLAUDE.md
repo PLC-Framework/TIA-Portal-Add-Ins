@@ -1,21 +1,13 @@
 # CLAUDE.md — TIA-Portal-Add-Ins
 
-Working instructions and the decision record: what was chosen, what was rejected, and why.
-The technical documentation — Siemens DLL paths, Publisher mechanics, API surface, gotchas —
-lives under `docs/`, imported at the bottom. **Do not duplicate any of it here**; this file
-holds reasons, `docs/` holds facts.
+Working instructions and the decision record: what was chosen, what was rejected, and why. The technical documentation — Siemens DLL paths, Publisher mechanics, API surface, gotchas — lives under `docs/`, imported at the bottom. **Do not duplicate any of it here**; this file holds reasons, `docs/` holds facts.
 
-**"The VM" throughout means the test machine with TIA Portal V20 and V21 installed.** The
-development PC has neither, and does not need them: everything up to the `.addin` package
-builds without TIA, which is why "verified here" and "confirmed on the VM" are different
-claims and are kept apart.
+**"The VM" throughout means the test machine with TIA Portal V20 and V21 installed.** The development PC has neither, and does not need them: everything up to the `.addin` package builds without TIA, which is why "verified here" and "confirmed on the VM" are different claims and are kept apart.
 
 ## Language
 
-- **All documentation, code, comments and commit messages: English.** That is the rule for
-  anything committed, and it holds for any contributor.
-- The maintainer works in Spanish, so a conversation may be in Spanish while everything it
-  produces is in English.
+- **All documentation, code, comments and commit messages: English.** That is the rule for anything committed, and it holds for any contributor.
+- The maintainer works in Spanish, so a conversation may be in Spanish while everything it produces is in English.
 
 ## Rules not to break
 
@@ -46,7 +38,7 @@ claims and are kept apart.
 ## Naming convention (settled 2026-08-29)
 
 | Project / folder | `AssemblyName` | `RootNamespace` |
-|---|---|---|
+| --- | --- | --- |
 | `Core` | `PLC-Framework.Core` | `Core` |
 | `AddIn.Shared` | `PLC-Framework.AddIn.Shared` | `AddIn.Shared` |
 | `UI.Shared` | `PLC-Framework.UI.Shared` | `UI.Shared` |
@@ -61,17 +53,9 @@ The namespace says which layer a type is in: `AddIn.Shared.*` is version-agnosti
 
 `AddIn` is spelled with a capital `I` everywhere — project, folder, namespace and class names — matching Siemens' own `Siemens.Engineering.AddIn`.
 
-**One thing stays lowercase**, and it is not a style choice at all: the **`.addin` package
-extension**, which is what the Publisher requires.
+**One thing stays lowercase**, and it is not a style choice at all: the **`.addin` package extension**, which is what the Publisher requires.
 
-**The repository, the folder and the solution file are `TIA-Portal-Add-Ins`** (2026-09-12).
-They were `tia-portal-addins` on a lowercase-kebab convention, and that convention lost its
-subject the day the public repository was created as `TIA-Portal-Add-Ins`: `git clone`
-writes *that* folder on every contributor's machine, so a lowercase solution inside it would
-be a mismatch nobody could fix locally. The rename went the way it did rather than the other
-because the repository name is the one that is published, linked to and typed by strangers —
-the cheap half to keep is the local one. Note the two differ by more than case (`addins` vs
-`Add-Ins`), so a clone is a genuinely different path and not a Windows case-folding curiosity.
+**The repository, the folder and the solution file are `TIA-Portal-Add-Ins`** (2026-09-12). They were `tia-portal-addins` on a lowercase-kebab convention, and that convention lost its subject the day the public repository was created as `TIA-Portal-Add-Ins`: `git clone` writes *that* folder on every contributor's machine, so a lowercase solution inside it would be a mismatch nobody could fix locally. The rename went the way it did rather than the other because the repository name is the one that is published, linked to and typed by strangers — the cheap half to keep is the local one. Note the two differ by more than case (`addins` vs `Add-Ins`), so a clone is a genuinely different path and not a Windows case-folding curiosity.
 
 > This replaces an earlier all-lowercase convention. Anything still written as `core`, `addin` or `.v20` is a leftover, not a deliberate choice.
 
@@ -102,7 +86,7 @@ Do not relitigate without new information:
 A type's layer is decided by **what it depends on**, not by who happens to call it today:
 
 | Layer | May depend on | Holds |
-|---|---|---|
+| --- | --- | --- |
 | `Core` | only what **every** consumer needs | `Config` model + loader + **validators**, `Secrets` (`.env`, `${VAR}`), `DependencyGraph` model, `InstallPaths`, `Product` |
 | `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`), its ports (`ITiaNotifier`, `IGroupNode`, `IProcessLauncher`, `HierarchyTargets`, `Icons`), and the embedded `assets\` with their `Assets` loader |
 | `UI.Shared` | `Core` + WPF | brand resources (`BrandLogo.xaml`, `Theme.xaml`), the dark-theme control styles (`Controls.xaml`) and the single-instance guard |
@@ -122,18 +106,12 @@ PLC-Framework.S7PlcWebserverApi   -> mscorlib, Newtonsoft.Json, System, System.N
 PLC-Framework.V20                 -> + Siemens.Engineering.AddIn
 ```
 
-**`UI.Shared` emits no reference to `Core` even though its `.csproj` declares one**, and no
-WPF reference either. Both are worth understanding rather than "fixing":
+**`UI.Shared` emits no reference to `Core` even though its `.csproj` declares one**, and no WPF reference either. Both are worth understanding rather than "fixing":
 
-- The only thing it takes from `Core` is `Product.Title`, a `const string` — and a constant
-  is **inlined at compile time**, so the dependency disappears from the metadata. The
-  project reference still has to be there for the compiler, and `Core.dll` still has to
-  travel next to the executable for everything else.
-- Its WPF content is XAML, compiled to BAML resources rather than to code. `SingleInstance`
-  is plain `Mutex` plus two `DllImport`s, which is `mscorlib` and `System`.
+- The only thing it takes from `Core` is `Product.Title`, a `const string` — and a constant is **inlined at compile time**, so the dependency disappears from the metadata. The project reference still has to be there for the compiler, and `Core.dll` still has to travel next to the executable for everything else.
+- Its WPF content is XAML, compiled to BAML resources rather than to code. `SingleInstance` is plain `Mutex` plus two `DllImport`s, which is `mscorlib` and `System`.
 
-That is exactly why the layering is read from the metadata and not from the `using`
-statements: the answer is sometimes surprising, and only one of the two can be wrong.
+That is exactly why the layering is read from the metadata and not from the `using` statements: the answer is sometimes surprising, and only one of the two can be wrong.
 
 **`S7PlcWebserverApi` deliberately does not reference `Core`.** It knows nothing about `Product`, `InstallPaths` or the config model, and keeping it that way is what lets it be exercised from PowerShell against a real CPU without dragging the rest of the framework in — which is how every one of its behaviours was verified. It is also why it must never go **into** `Core`: it pulls `System.Net.Http`, and `Core` is loaded inside TIA Portal's process.
 
@@ -150,296 +128,114 @@ Consequences worth remembering:
 
 ### `Satellite.DataBlockSnapshot` — settled 2026-09-04
 
-Captures the current value of every variable in the selected data blocks, over the CPU's
-web server, and writes them to a workbook. **It is for settings and configuration that do
-not change**, not for live process values — which is what makes a sweep lasting tens of
-seconds an acceptable way to take a "snapshot".
+Captures the current value of every variable in the selected data blocks, over the CPU's web server, and writes them to a workbook. **It is for settings and configuration that do not change**, not for live process values — which is what makes a sweep lasting tens of seconds an acceptable way to take a "snapshot".
 
-- **Reliability beats speed, and they are mostly the same axis.** The read window *is* a
-  data-quality property; shortening it was never about impatience.
-- **Every variable that was browsed gets a row**, holding its value or the reason it could
-  not be read. The Python app this was ported from drops the failures, which turns a
-  partial capture into one that looks complete — the worst possible outcome here.
-- **One file per data block**, named `<ip>-<DB>-snapshot-<timestamp>.xlsx`. A collision
-  gets ` (n)` appended rather than overwriting.
-- **A file is written only when the block read completely.** An incomplete read is
-  reported in the window, with its reason, and leaves nothing on disk to be mistaken for
-  a good capture.
-- **Destination defaults to `<TIA project>\.plc-framework\exports\`**, editable. The
-  project directory arrives in the handoff; `Core.Config.ConfigPaths` owns the literals so
-  the Add-In and the satellite cannot drift apart. Check the folder exists and is writable
-  *before* reading, not after thirty seconds of work.
-- **Credentials are remembered per Windows user, keyed by project directory + PLC name,**
-  in `%LOCALAPPDATA%\PLC-Framework\credentials.json`, with the password protected by DPAPI
-  at `CurrentUser` scope. Written **only after the CPU has accepted them**, so a typo is
-  never stored. The PLC address is an editable combo box filled from the project's own
-  addresses. See the credential note below.
-- **One PLC per instance**; several blocks of it per run. Several PLCs means several
-  windows, which decision 6 now allows.
-- **The blocks are the ones the Add-In passed, plus any the operator types.** A `+` and an
-  `✕` under the list add and remove rows by name (2026-09-11), which is what makes the
-  window usable started by hand — the mode the docs always claimed worked, and which in
-  practice showed an empty list and a message sending you back to TIA Portal. That message
-  now names both ways in.
-  - **Still no browsing.** One call to the program root would list every block on the CPU,
-    and that is deliberately not offered: the satellite would then be a block explorer with
-    a capture button, and the Add-In's selection would stop being the thing that decides
-    what a capture contains. Typing a name is a statement of intent; picking from a list of
-    four hundred is a different feature.
-  - **A duplicate is refused, case-insensitively** — it is one block on the CPU either way,
-    so a second row would capture it twice and write two workbooks differing only by the
-    ` (2)` a filename collision adds.
-  - **Enter adds**, and the handler marks the key handled: otherwise it travels on to the
-    window's default button and starts a capture, which is the opposite of what was meant.
-  - **Remove stays disabled until a row is selected**, and re-selects a neighbour after
-    removing, so clearing several is one click each.
-  - **Two rows in separate grids line up with `Grid.IsSharedSizeScope` + `SharedSizeGroup`,
-    never with a `Width`.** The `Block` and `Folder` rows share their label column and their
-    button column, so both fields start and end at the same x at any window size. A constant
-    width matches at exactly one: the field beside it lives in a star column that grows, and
-    this window resizes from 660 upwards. Same lesson as the absolute margins in the
-    connection grid.
-- **Existence is always checked before capturing.** The block names come from the TIA
-  project, and the operator may point the window at a different CPU.
-- **Cancel acts between blocks.** Fine-grained cancellation would mean threading a
-  `CancellationToken` through `BrowseDb` and `Read`; not worth it while a block is seconds.
+- **Reliability beats speed, and they are mostly the same axis.** The read window *is* a data-quality property; shortening it was never about impatience.
+- **Every variable that was browsed gets a row**, holding its value or the reason it could not be read. The Python app this was ported from drops the failures, which turns a partial capture into one that looks complete — the worst possible outcome here.
+- **One file per data block**, named `<ip>-<DB>-snapshot-<timestamp>.xlsx`. A collision gets ` (n)` appended rather than overwriting.
+- **A file is written only when the block read completely.** An incomplete read is reported in the window, with its reason, and leaves nothing on disk to be mistaken for a good capture.
+- **Destination defaults to `<TIA project>\.plc-framework\exports\`**, editable. The project directory arrives in the handoff; `Core.Config.ConfigPaths` owns the literals so the Add-In and the satellite cannot drift apart. Check the folder exists and is writable *before* reading, not after thirty seconds of work.
+- **Credentials are remembered per Windows user, keyed by project directory + PLC name,** in `%LOCALAPPDATA%\PLC-Framework\credentials.json`, with the password protected by DPAPI at `CurrentUser` scope. Written **only after the CPU has accepted them**, so a typo is never stored. The PLC address is an editable combo box filled from the project's own addresses. See the credential note below.
+- **One PLC per instance**; several blocks of it per run. Several PLCs means several windows, which decision 6 now allows.
+- **The blocks are the ones the Add-In passed, plus any the operator types.** A `+` and an `✕` under the list add and remove rows by name (2026-09-11), which is what makes the window usable started by hand — the mode the docs always claimed worked, and which in practice showed an empty list and a message sending you back to TIA Portal. That message now names both ways in.
+  - **Still no browsing.** One call to the program root would list every block on the CPU, and that is deliberately not offered: the satellite would then be a block explorer with a capture button, and the Add-In's selection would stop being the thing that decides what a capture contains. Typing a name is a statement of intent; picking from a list of four hundred is a different feature.
+  - **A duplicate is refused, case-insensitively** — it is one block on the CPU either way, so a second row would capture it twice and write two workbooks differing only by the ` (2)` a filename collision adds.
+  - **Enter adds**, and the handler marks the key handled: otherwise it travels on to the window's default button and starts a capture, which is the opposite of what was meant.
+  - **Remove stays disabled until a row is selected**, and re-selects a neighbour after removing, so clearing several is one click each.
+  - **Two rows in separate grids line up with `Grid.IsSharedSizeScope` + `SharedSizeGroup`, never with a `Width`.** The `Block` and `Folder` rows share their label column and their button column, so both fields start and end at the same x at any window size. A constant width matches at exactly one: the field beside it lives in a star column that grows, and this window resizes from 660 upwards. Same lesson as the absolute margins in the connection grid.
+- **Existence is always checked before capturing.** The block names come from the TIA project, and the operator may point the window at a different CPU.
+- **Cancel acts between blocks.** Fine-grained cancellation would mean threading a `CancellationToken` through `BrowseDb` and `Read`; not worth it while a block is seconds.
 - **The request timeout is a field in the window**, not a constant.
-- Running with no handoff at all must keep working, with everything typed by hand. That
-  mode is how every layer below the window was verified without TIA installed.
+- Running with no handoff at all must keep working, with everything typed by hand. That mode is how every layer below the window was verified without TIA installed.
 
 #### Remembering credentials — settled 2026-09-07
 
-A capture session is an hour of launches, and retyping a web server password per launch is
-the friction that made this necessary. Four designs were rejected before this one, and the
-reasons are worth keeping because each looks reasonable until one fact lands on it:
+A capture session is an hour of launches, and retyping a web server password per launch is the friction that made this necessary. Four designs were rejected before this one, and the reasons are worth keeping because each looks reasonable until one fact lands on it:
 
 | Rejected | Why |
-|---|---|
+| --- | --- |
 | Windows Credential Manager | a second store to manage, and nothing else in the framework uses it |
 | `.env` with `PLC_USER` / `PLC_PASSWORD` | **one TIA project holds N CPUs, each with its own user and password.** Two open projects, or ten CPUs in one, and a single pair is overwritten |
 | the same pair in `config.json` | same defect, and `config.json` is versioned |
 | reusing one window for several captures | decision 6 deliberately allows several instances; one window per PLC is the point |
 
-**The mechanism came from the operator, and it is the better half of the design: the
-credentials are learned from use, not written by hand.** What changed was the location.
-The first proposal put `tmp.json` inside the TIA project, at
-`.plc-framework\tmp\` — but a TIA project is under version control (`.version-control\`
-sits right next to `.plc-framework\`), so a credential file there reaches a commit or a
-zipped copy sooner or later. Hence:
+**The mechanism came from the operator, and it is the better half of the design: the credentials are learned from use, not written by hand.** What changed was the location. The first proposal put `tmp.json` inside the TIA project, at `.plc-framework\tmp\` — but a TIA project is under version control (`.version-control\` sits right next to `.plc-framework\`), so a credential file there reaches a commit or a zipped copy sooner or later. Hence:
 
 ```
 %LOCALAPPDATA%\PLC-Framework\credentials.json     per user, never versioned
 ```
 
-- **Keyed by project directory + PLC name.** Both already arrive in the handoff, so the
-  Add-In needed no change at all. The device name is the key rather than the address
-  because a CPU can be readdressed and has several addresses anyway; the address is the
-  fallback for a window started by hand, where no project handed a name over.
-- **The password is DPAPI-protected at `CurrentUser` scope**, with application entropy so a
-  blob from another program cannot be dropped in and decrypted. The blunt consequence:
-  **it does not travel.** Another user, or another machine, gets nothing back and types the
-  credentials again. That is the price of not having a shared key, and **a key baked into
-  the `.exe` is not encryption but obfuscation — worse than plaintext, because it looks
-  safe.**
-- **Saved only after `client.Login()` succeeds**, never on clicking Capture. `CaptureRunner`
-  takes an `authenticated` callback it invokes on the line after the login and nowhere
-  else; the runner stays ignorant of credential storage. A wrong password is therefore
-  never persisted, and never has to be un-persisted.
-- **A *Remember* checkbox next to the password**, pre-ticked when something is already
-  stored for that CPU. Unticking it and capturing **forgets** the stored entry — that is
-  what unticking means. It starts unticked on a CPU never captured before: storing a
-  password nobody asked to store is not a default worth having.
-- **Nothing in the store throws.** A corrupt file, a blob written by another user, a
-  missing directory: all return "nothing remembered" and the window opens normally. A
-  credential cache that breaks the application it exists to smooth is worse than none.
-- **The fields stay editable and show exactly what was loaded**, so the window looks the
-  same as if the operator had typed it.
-- **An eye reveals the password.** `PasswordBox` cannot show what it holds and its
-  `Password` is not a dependency property, so the only way is a twin `TextBox` in the same
-  cell with one of the two always collapsed; the eye swaps them and carries the text
-  across, then moves the focus and the caret so typing does not fall into a field that is
-  no longer on screen. Everything else asks `CurrentPassword()` rather than either control,
-  so no caller has to know the value lives in two places. The icon shows a **struck-through
-  eye while the password is on screen** — it states what is true now, not what clicking
-  would do. Worth remembering when a credential is remembered rather than typed: revealing
-  it is the only way to check *which* password came back.
+- **Keyed by project directory + PLC name.** Both already arrive in the handoff, so the Add-In needed no change at all. The device name is the key rather than the address because a CPU can be readdressed and has several addresses anyway; the address is the fallback for a window started by hand, where no project handed a name over.
+- **The password is DPAPI-protected at `CurrentUser` scope**, with application entropy so a blob from another program cannot be dropped in and decrypted. The blunt consequence: **it does not travel.** Another user, or another machine, gets nothing back and types the credentials again. That is the price of not having a shared key, and **a key baked into the `.exe` is not encryption but obfuscation — worse than plaintext, because it looks safe.**
+- **Saved only after `client.Login()` succeeds**, never on clicking Capture. `CaptureRunner` takes an `authenticated` callback it invokes on the line after the login and nowhere else; the runner stays ignorant of credential storage. A wrong password is therefore never persisted, and never has to be un-persisted.
+- **A *Remember* checkbox next to the password**, pre-ticked when something is already stored for that CPU. Unticking it and capturing **forgets** the stored entry — that is what unticking means. It starts unticked on a CPU never captured before: storing a password nobody asked to store is not a default worth having.
+- **Nothing in the store throws.** A corrupt file, a blob written by another user, a missing directory: all return "nothing remembered" and the window opens normally. A credential cache that breaks the application it exists to smooth is worse than none.
+- **The fields stay editable and show exactly what was loaded**, so the window looks the same as if the operator had typed it.
+- **An eye reveals the password.** `PasswordBox` cannot show what it holds and its `Password` is not a dependency property, so the only way is a twin `TextBox` in the same cell with one of the two always collapsed; the eye swaps them and carries the text across, then moves the focus and the caret so typing does not fall into a field that is no longer on screen. Everything else asks `CurrentPassword()` rather than either control, so no caller has to know the value lives in two places. The icon shows a **struck-through eye while the password is on screen** — it states what is true now, not what clicking would do. Worth remembering when a credential is remembered rather than typed: revealing it is the only way to check *which* password came back.
 
 ### `Satellite.ConfigEditor` — decided 2026-09-08, phases 1 and 2 built 2026-09-09
 
-Edits `config.json` with a UI. Launched from the menu by `ConfigEditorAction`, labelled
-**"Config. Editor"**. The contract it enforces is the README table; these are the decisions
-about the application itself:
+Edits `config.json` with a UI. Launched from the menu by `ConfigEditorAction`, labelled **"Config. Editor"**. The contract it enforces is the README table; these are the decisions about the application itself:
 
-- **Missing `.plc-framework\` or missing `config.json` is a normal state, not an error.**
-  The window says so and offers to create one, folders included.
-- **The template is `config.template.json`, embedded *and* on disk at
-  `%LOCALAPPDATA%\PLC-Framework\`.** The file on disk wins when it is present and parses;
-  otherwise the embedded copy is used **and written out**, so a station repairs itself and
-  the operator gets something to customise. Seeded from the `config.json` in `.example\`.
-  **Per user, not the install folder** — that was the first plan and it carries the same
-  defect as the old `.env`: the install folder is `Program Files`, where ordinary users have
-  read and execute but **not write**, so the self-repair would work on a developer's machine
-  and fail on a real station. Anything this satellite *writes* goes to the per-user folder;
-  `Program Files` is for what the installer puts there.
-- **One instance per running TIA Portal**, and the satellite works that out **by itself**:
-  it reads its own parent process, which is TIA because `ProcessLauncher` starts it with
-  `UseShellExecute=false`. **The Add-In cannot supply the PID** — measured in the restricted
-  `AppDomain`, `Process.GetCurrentProcess()` throws `SecurityException` under partial trust,
-  for `Id` and `ProcessName` alike, and `AddIn.Utilities` holds only `Process` and
-  `ProcessStartInfo`, neither of which offers it. Reading the parent costs ~170 ms once at
-  startup, cannot be forged by editing the handoff, and degrades correctly when started by
-  hand: no TIA parent, no tie. The mutex name hashes it — `SingleInstance.Claim` builds
-  `Local\<Product>.<appId>`, and a backslash **separates the mutex namespace**, so no raw
-  path can go in there.
-- **`Newtonsoft.Json` for reading and writing**, in the satellite only — `Core` keeps
-  `DataContractJsonSerializer`, which is fine for loading but wrong for saving: it does not
-  indent, it orders members its own way, and a read-write round trip **drops every key the
-  model does not know**. This file is meant to be hand-edited, so edits are surgical over
-  the JSON tree, leaving untouched anything the editor did not change.
-- **The GitHub token never enters `config.json`.** The file always carries the literal
-  `${GITHUB_TOKEN}`; the secret goes to the `.env`, which lives at
-  **`%LOCALAPPDATA%\PLC-Framework\.env`** for two reasons — the token is personal, and the
-  install folder is not writable by ordinary users, so an editor saving there would work
-  here and fail on a real station. The field is masked with the same show/hide twin-control
-  as the PLC password.
-- **The validator came first**, and it was the right order: it is `Core`'s, this satellite
-  is its first consumer, and the Add-In needs it too.
+- **Missing `.plc-framework\` or missing `config.json` is a normal state, not an error.** The window says so and offers to create one, folders included.
+- **The template is `config.template.json`, embedded *and* on disk at `%LOCALAPPDATA%\PLC-Framework\`.** The file on disk wins when it is present and parses; otherwise the embedded copy is used **and written out**, so a station repairs itself and the operator gets something to customise. Seeded from the `config.json` in `.example\`. **Per user, not the install folder** — that was the first plan and it carries the same defect as the old `.env`: the install folder is `Program Files`, where ordinary users have read and execute but **not write**, so the self-repair would work on a developer's machine and fail on a real station. Anything this satellite *writes* goes to the per-user folder; `Program Files` is for what the installer puts there.
+- **One instance per running TIA Portal**, and the satellite works that out **by itself**: it reads its own parent process, which is TIA because `ProcessLauncher` starts it with `UseShellExecute=false`. **The Add-In cannot supply the PID** — measured in the restricted `AppDomain`, `Process.GetCurrentProcess()` throws `SecurityException` under partial trust, for `Id` and `ProcessName` alike, and `AddIn.Utilities` holds only `Process` and `ProcessStartInfo`, neither of which offers it. Reading the parent costs ~170 ms once at startup, cannot be forged by editing the handoff, and degrades correctly when started by hand: no TIA parent, no tie. The mutex name hashes it — `SingleInstance.Claim` builds `Local\<Product>.<appId>`, and a backslash **separates the mutex namespace**, so no raw path can go in there.
+- **`Newtonsoft.Json` for reading and writing**, in the satellite only — `Core` keeps `DataContractJsonSerializer`, which is fine for loading but wrong for saving: it does not indent, it orders members its own way, and a read-write round trip **drops every key the model does not know**. This file is meant to be hand-edited, so edits are surgical over the JSON tree, leaving untouched anything the editor did not change.
+- **The GitHub token never enters `config.json`.** The file always carries the literal `${GITHUB_TOKEN}`; the secret goes to the `.env`, which lives at **`%LOCALAPPDATA%\PLC-Framework\.env`** for two reasons — the token is personal, and the install folder is not writable by ordinary users, so an editor saving there would work here and fail on a real station. The field is masked with the same show/hide twin-control as the PLC password.
+- **The validator came first**, and it was the right order: it is `Core`'s, this satellite is its first consumer, and the Add-In needs it too.
 
 #### Hierarchy — phase 3 built 2026-09-09
 
-**Seven trees, not four**: the four top-level concerns plus three inside `softwareUnits`.
-One `TreeView` serves all seven — the tab decides which array it is bound to — because seven
-tree views would be seven copies of the same twenty lines.
+**Seven trees, not four**: the four top-level concerns plus three inside `softwareUnits`. One `TreeView` serves all seven — the tab decides which array it is bound to — because seven tree views would be seven copies of the same twenty lines.
 
-- **Add, rename and remove. No moving**, decided deliberately: the folder names carry
-  numeric prefixes (`00-OB`, `01-FSL`) and TIA orders them by name, so a reordering gesture
-  would cost real work to change nothing anybody sees.
-- **A duplicated name is marked red on the node itself**, and on *both* offenders, while
-  typing. The validator already reports the path; in a tree the position is what makes the
-  mistake obvious. Case-insensitive, because "core" and "Core" are the same folder to
-  anybody reading it.
-- **`softwareUnits` is optional as a whole**, so the section can be added or removed
-  entire — and it is added with all three of its lists, because the contract requires every
-  one of them once the section exists. Removing it throws away folders somebody built, so it
-  is **the only confirmation prompt in the window**, and it earns it.
-- **Removing the last child drops the `groups` key** rather than leaving `[]`. `groups` is
-  optional and most folders are leaves; an empty array would be noise that means nothing.
-- **`GroupNode.ToString()` returns the name, and that is not decoration.** A `TreeViewItem`
-  takes its **automation name** from the bound object's `ToString()`, so without it every
-  node announced itself as `Satellite.ConfigEditor.Editing.GroupNode` — to a screen reader
-  as much as to a test. The `TextBlock` in the template is what the eye sees; `ToString` is
-  what everything else sees.
+- **Add, rename and remove. No moving**, decided deliberately: the folder names carry numeric prefixes (`00-OB`, `01-FSL`) and TIA orders them by name, so a reordering gesture would cost real work to change nothing anybody sees.
+- **A duplicated name is marked red on the node itself**, and on *both* offenders, while typing. The validator already reports the path; in a tree the position is what makes the mistake obvious. Case-insensitive, because "core" and "Core" are the same folder to anybody reading it.
+- **`softwareUnits` is optional as a whole**, so the section can be added or removed entire — and it is added with all three of its lists, because the contract requires every one of them once the section exists. Removing it throws away folders somebody built, so it is **the only confirmation prompt in the window**, and it earns it.
+- **Removing the last child drops the `groups` key** rather than leaving `[]`. `groups` is optional and most folders are leaves; an empty array would be noise that means nothing.
+- **`GroupNode.ToString()` returns the name, and that is not decoration.** A `TreeViewItem` takes its **automation name** from the bound object's `ToString()`, so without it every node announced itself as `Satellite.ConfigEditor.Editing.GroupNode` — to a screen reader as much as to a test. The `TextBlock` in the template is what the eye sees; `ToString` is what everything else sees.
 
-Verified against the real config: eleven root folders and their children loaded, renaming
-`03-ALL`, a deliberate duplicate blocking `Save` with `blocks[3].name` named in the footer,
-adding a sub-folder, and both software-unit lists. The saved file kept `codingStyle` and its
-15 rules untouched.
+Verified against the real config: eleven root folders and their children loaded, renaming `03-ALL`, a deliberate duplicate blocking `Save` with `blocks[3].name` named in the footer, adding a sub-folder, and both software-unit lists. The saved file kept `codingStyle` and its 15 rules untouched.
 
 #### The window — phase 1 built 2026-09-09
 
-Section navigation down the left, not tabs: two of the sections subdivide again, and nested
-tabs stop being readable. A **dot beside a section** says that section has problems, which
-is exactly how the validator already reports them — per concern.
+Section navigation down the left, not tabs: two of the sections subdivide again, and nested tabs stop being readable. A **dot beside a section** says that section has problems, which is exactly how the validator already reports them — per concern.
 
-- **Structural problems block saving; environmental ones never do.** A configuration
-  prepared here for another station is not wrong because a drive is not mapped on this one,
-  so those are shown as warnings. `Save` is simply disabled while the structure is broken.
-- **A file that exists but does not parse is never offered the template button.** That
-  button would overwrite it, and a file somebody broke by hand is still a file somebody
-  wants back. It shows the parser's line and column instead.
-- **Both repository sections stay visible and editable**; the one `coreSource` does not
-  select is dimmed. A project often carries both and switches between them, and hiding the
-  other one makes it look lost.
+- **Structural problems block saving; environmental ones never do.** A configuration prepared here for another station is not wrong because a drive is not mapped on this one, so those are shown as warnings. `Save` is simply disabled while the structure is broken.
+- **A file that exists but does not parse is never offered the template button.** That button would overwrite it, and a file somebody broke by hand is still a file somebody wants back. It shows the parser's line and column instead.
+- **Both repository sections stay visible and editable**; the one `coreSource` does not select is dimmed. A project often carries both and switches between them, and hiding the other one makes it look lost.
 - **Creating from the template writes nothing until Save**, so backing out costs nothing.
-- **`ConfigLocation.Resolve` accepts all three ways of naming a project**: the project
-  folder, the `.plc-framework` inside it, or the `config.json` itself. Appending the
-  convention to whatever was picked is wrong the moment somebody picks one step deeper —
-  which is the natural thing to do, since `.plc-framework` is the folder with the file
-  visibly in it. It produced `…\.plc-framework\.plc-framework\config.json` and a window
-  reporting "no configuration" on a project that had one. It is **shared with `App`** rather
-  than private to the window, because the single-instance guard keys on the same path: two
-  ways of working it out would let two windows open one file each believing it was alone.
-- The token uses the same twin-control eye as the PLC password, and writes to the `.env`
-  **before** the JSON: there is no point leaving a `config.json` behind that references a
-  variable nobody managed to set.
-- `Hierarchy` still shows a panel saying it is not editable here yet, and that saving
-  leaves it untouched — which is true, and is what the JSON-tree editing buys.
+- **`ConfigLocation.Resolve` accepts all three ways of naming a project**: the project folder, the `.plc-framework` inside it, or the `config.json` itself. Appending the convention to whatever was picked is wrong the moment somebody picks one step deeper — which is the natural thing to do, since `.plc-framework` is the folder with the file visibly in it. It produced `…\.plc-framework\.plc-framework\config.json` and a window reporting "no configuration" on a project that had one. It is **shared with `App`** rather than private to the window, because the single-instance guard keys on the same path: two ways of working it out would let two windows open one file each believing it was alone.
+- The token uses the same twin-control eye as the PLC password, and writes to the `.env` **before** the JSON: there is no point leaving a `config.json` behind that references a variable nobody managed to set.
+- `Hierarchy` still shows a panel saying it is not editable here yet, and that saving leaves it untouched — which is true, and is what the JSON-tree editing buys.
 
 #### Coding style — phase 2 built 2026-09-09
 
 Two tabs inside the section: the **rule catalogue**, and the **types that implement them**.
 
-- **`implements` shows only what the type implements, as tags with a cross**, and a `+`
-  offers the rules it does not have yet. Never a text field: building the choice from the
-  catalogue makes a dangling reference *impossible* rather than merely detectable — half of
-  what the validator exists to catch, removed at the source. The `type` comes from a
-  drop-down of its section's closed set, which removes the other half.
-  - Tick boxes were tried first and were wrong: fifteen rules across ten types is a hundred
-    and fifty controls, nearly all empty, and the noise hides the one thing worth reading.
-    A tick box that *disappears* when cleared would also behave like nothing else in Windows.
-  - **A reference to a rule that does not exist is shown in red, not hidden.** With boxes
-    built from the catalogue there was no box to clear, so the editor could report that
-    problem and not repair it — which is the wrong half. As a tag, removing it is one click,
-    and `Save` unblocks itself. Verified against a file doctored to hold one.
-  - Written back in **catalogue order, with anything unrecognised kept at the end**: the
-    file must not change because two people clicked in a different sequence, and a dangling
-    reference has to survive a save so it can be seen and removed rather than silently
-    dropped.
-- **Renaming a rule carries its references with it.** `CodingStyleEditor.RenameRule` rewrites
-  every `implements` entry; without that, renaming breaks four places silently and at a
-  distance. It also refuses to collide, appending `_2` rather than leaving the validator to
-  complain afterwards. Committed on **leaving the field**, not per keystroke: an id is a
-  key, and rewriting references on the way from `type` to `typeName` would churn the
-  document through a dozen half-typed names.
+- **`implements` shows only what the type implements, as tags with a cross**, and a `+` offers the rules it does not have yet. Never a text field: building the choice from the catalogue makes a dangling reference *impossible* rather than merely detectable — half of what the validator exists to catch, removed at the source. The `type` comes from a drop-down of its section's closed set, which removes the other half.
+  - Tick boxes were tried first and were wrong: fifteen rules across ten types is a hundred and fifty controls, nearly all empty, and the noise hides the one thing worth reading. A tick box that *disappears* when cleared would also behave like nothing else in Windows.
+  - **A reference to a rule that does not exist is shown in red, not hidden.** With boxes built from the catalogue there was no box to clear, so the editor could report that problem and not repair it — which is the wrong half. As a tag, removing it is one click, and `Save` unblocks itself. Verified against a file doctored to hold one.
+  - Written back in **catalogue order, with anything unrecognised kept at the end**: the file must not change because two people clicked in a different sequence, and a dangling reference has to survive a save so it can be seen and removed rather than silently dropped.
+- **Renaming a rule carries its references with it.** `CodingStyleEditor.RenameRule` rewrites every `implements` entry; without that, renaming breaks four places silently and at a distance. It also refuses to collide, appending `_2` rather than leaving the validator to complain afterwards. Committed on **leaving the field**, not per keystroke: an id is a key, and rewriting references on the way from `type` to `typeName` would churn the document through a dozen half-typed names.
 - **Removing a rule removes its references too**, for the same reason.
-- **The pattern reports whether it compiles, and a "Try it" box says whether a sample name
-  matches.** A regex that compiles can still be perfectly wrong, and today that is only
-  discovered when the Add-In marks half a project. Verified: `OB_MAIN` matches the interrupt
-  rule, `ob_main` and `OB_` do not.
-- **A new rule gets `^$`, which matches nothing.** An empty pattern matches *everything* —
-  a naming rule that approves every name ever written.
-- **No `ScrollViewer` wraps the whole section, and that is deliberate.** One there hands
-  every panel infinite height, so a `*` row inside behaves like `Auto`: the rule list grew
-  without end and pushed its own Add/Remove buttons off screen. Each panel now brings the
-  scrolling it needs — the list scrolls inside itself, the description takes what height is
-  left and scrolls, and the buttons stay put. Checked at the window's minimum size, where
-  the list drops from 556 px to 345 and nothing goes off screen.
-- **A hint under a `*` field competes with it for the last of the height, and wins.** The
-  "one line each" note left the description two lines tall with the note overlapping it;
-  beside the heading it costs nothing.
-- **Tick-box labels are a `TextBlock`, not `Content`.** WPF reads `_` as a keyboard
-  accelerator and hides it, so `data_container` rendered as "datacontainer". An id is an
-  exact key; it has to read exactly. Same for a `MenuItem` header.
-- **A type appears at most once per section.** A second row for the same `type` says
-  nothing the first does not — the pairing with its rules is already complete — and only
-  raises the question of which one counts. So a type in use is offered **nowhere it could be
-  duplicated**: "Add type" lists only the free ones and disables itself when there are none,
-  and each row's drop-down holds the free ones **plus its own**, without which the row could
-  not display the value it already has. `AppliesSection.Refresh` recomputes both after any
-  change, and the section wraps the callback so the window cannot forget to ask.
-- **The drop-down lists are updated in place, never cleared and refilled.** A `ComboBox`
-  whose `ItemsSource` empties loses its selection, and the row would come back blank — which
-  then writes an empty type into the document.
+- **The pattern reports whether it compiles, and a "Try it" box says whether a sample name matches.** A regex that compiles can still be perfectly wrong, and today that is only discovered when the Add-In marks half a project. Verified: `OB_MAIN` matches the interrupt rule, `ob_main` and `OB_` do not.
+- **A new rule gets `^$`, which matches nothing.** An empty pattern matches *everything* — a naming rule that approves every name ever written.
+- **No `ScrollViewer` wraps the whole section, and that is deliberate.** One there hands every panel infinite height, so a `*` row inside behaves like `Auto`: the rule list grew without end and pushed its own Add/Remove buttons off screen. Each panel now brings the scrolling it needs — the list scrolls inside itself, the description takes what height is left and scrolls, and the buttons stay put. Checked at the window's minimum size, where the list drops from 556 px to 345 and nothing goes off screen.
+- **A hint under a `*` field competes with it for the last of the height, and wins.** The "one line each" note left the description two lines tall with the note overlapping it; beside the heading it costs nothing.
+- **Tick-box labels are a `TextBlock`, not `Content`.** WPF reads `_` as a keyboard accelerator and hides it, so `data_container` rendered as "datacontainer". An id is an exact key; it has to read exactly. Same for a `MenuItem` header.
+- **A type appears at most once per section.** A second row for the same `type` says nothing the first does not — the pairing with its rules is already complete — and only raises the question of which one counts. So a type in use is offered **nowhere it could be duplicated**: "Add type" lists only the free ones and disables itself when there are none, and each row's drop-down holds the free ones **plus its own**, without which the row could not display the value it already has. `AppliesSection.Refresh` recomputes both after any change, and the section wraps the callback so the window cannot forget to ask.
+- **The drop-down lists are updated in place, never cleared and refilled.** A `ComboBox` whose `ItemsSource` empties loses its selection, and the row would come back blank — which then writes an empty type into the document.
 
-**Verified end to end**: opening a real config, the empty-project and broken-file states,
-creating from the template, and saving. The saved file kept all 15 rules with their
-descriptions, the 11 block groups and the four root keys in their original order, and Core
-loads and validates it clean.
+**Verified end to end**: opening a real config, the empty-project and broken-file states, creating from the template, and saving. The saved file kept all 15 rules with their descriptions, the 11 block groups and the four root keys in their original order, and Core loads and validates it clean.
 
-`ConfigEditorAction` puts it on the **project root** of both Add-Ins, labelled
-**"Config. Editor"**, and deliberately does **not** check that `config.json` exists — its
-absence is the case the editor is most useful for. It carries its own
-`ConfigEditorPayload` rather than reusing `HandoffPayload`, which would send a null `plc`
-and a null `dataBlocks` on every launch. All five paths exercised with doubles, and the
-payload serialised **inside a restricted `AppDomain`** — a new data-contract type is exactly
-what partial trust rejected once before.
+`ConfigEditorAction` puts it on the **project root** of both Add-Ins, labelled **"Config. Editor"**, and deliberately does **not** check that `config.json` exists — its absence is the case the editor is most useful for. It carries its own `ConfigEditorPayload` rather than reusing `HandoffPayload`, which would send a null `plc` and a null `dataBlocks` on every launch. All five paths exercised with doubles, and the payload serialised **inside a restricted `AppDomain`** — a new data-contract type is exactly what partial trust rejected once before.
 
 ### Sharing code between `AddIn.V20` and `AddIn.V21`
 
 Three mechanisms, each for a different case:
 
 | Situation | Mechanism |
-|---|---|
+| --- | --- |
 | Code that **diverges** between versions | port in `AddIn.Shared` + one thin adapter per version |
 | Identical code with **no** Siemens dependency | put it in `AddIn.Shared` — one binary serves both |
 | Identical code **with** Siemens dependencies | must be compiled twice; a shared assembly is impossible |
@@ -469,49 +265,24 @@ That last row is not a preference: `Siemens.Engineering.AddIn` (V20) and `Siemen
 - [x] The XLSX exporter in `Satellite.DataBlockSnapshot`, checked with the OpenXML SDK's own validator (0 errors) and by inspecting the package XML: typed cells, invariant numbers, and no omitted cell that could pass for an unread value.
 - [x] `Satellite.DataBlockSnapshot` complete: window, handoff, capture and export. Its layers were each verified against two real CPUs from PowerShell, without TIA.
 - [x] **The whole chain validated in TIA on the VM (2026-09-04)**: menu entry on a multiple selection of data blocks → `TiaPlcSelection` gathers the CPU and its addresses → JSON over the child's standard input → the satellite opens with everything filled in. This is what proves `RedirectStandardInput` survives partial trust.
-- [x] **Credentials remembered per user and per CPU** (2026-09-07), so an hour of captures
-      is not an hour of typing. Exercised here: ten CPUs of one project each keeping their
-      own pair, the same CPU name in two projects not colliding, re-saving not duplicating,
-      passwords with quotes and newlines surviving the round trip, a corrupt file and a
-      foreign DPAPI blob both degrading to "nothing remembered", and the window itself
-      opening pre-filled with the box ticked. **Confirmed against a CPU that *rejects* the
-      credentials** (2026-09-11): the window reports the refusal and nothing is written, which
-      was the last open question — a wrong password reaching disk would have to be un-stored,
-      and the `authenticated` callback firing only after `client.Login()` is what prevents it.
-- [x] **`Core` finished** (2026-09-09): the structural validator per concern plus
-      `ConfigValidator`, the environmental one, `Core/Secrets/` (`DotEnv` + `${VAR}`), and
-      `InstallPaths.UserRoot` / `UserFile`. Exercised against the real `config.json` and
-      against thirty-odd deliberately broken variants, with no UI in sight.
-- [x] **The dark theme moved to `UI.Shared/Resources/Controls.xaml`** (2026-09-09) when the
-      second windowed consumer appeared, and the move was verified by **pixel comparison**
-      rather than by eye: pre-refactor against a control run, 0.096 % of pixels different,
-      maximum delta 4.
-- [x] **`Satellite.ConfigEditor`, phases 1 and 2** (2026-09-09): window, navigation, the
-      empty-project and broken-file states, creating from the template, saving, `Metadata`,
-      `Repository` with the token in the `.env`, and the whole of `Coding style`. Every
-      state driven through UI Automation against the running binary.
-      **The empty-project path confirmed in TIA on the VM** (2026-09-11), on a project
-      created from scratch with no `.plc-framework\` at all — which is the case the decision
-      "a missing folder is a normal state, not an error" exists for, and the one a new user
-      meets first.
-- [x] `ConfigEditorAction` on the project root of both Add-Ins, with its payload serialised
-      **inside a restricted `AppDomain`** — and **confirmed in TIA on the VM**, including the
-      one-instance-per-TIA guard, which is what proves the parent process really is TIA.
+- [x] **Credentials remembered per user and per CPU** (2026-09-07), so an hour of captures is not an hour of typing. Exercised here: ten CPUs of one project each keeping their own pair, the same CPU name in two projects not colliding, re-saving not duplicating, passwords with quotes and newlines surviving the round trip, a corrupt file and a foreign DPAPI blob both degrading to "nothing remembered", and the window itself opening pre-filled with the box ticked. **Confirmed against a CPU that *rejects* the credentials** (2026-09-11): the window reports the refusal and nothing is written, which was the last open question — a wrong password reaching disk would have to be un-stored, and the `authenticated` callback firing only after `client.Login()` is what prevents it.
+- [x] **`Core` finished** (2026-09-09): the structural validator per concern plus `ConfigValidator`, the environmental one, `Core/Secrets/` (`DotEnv` + `${VAR}`), and `InstallPaths.UserRoot` / `UserFile`. Exercised against the real `config.json` and against thirty-odd deliberately broken variants, with no UI in sight.
+- [x] **The dark theme moved to `UI.Shared/Resources/Controls.xaml`** (2026-09-09) when the second windowed consumer appeared, and the move was verified by **pixel comparison** rather than by eye: pre-refactor against a control run, 0.096 % of pixels different, maximum delta 4.
+- [x] **`Satellite.ConfigEditor`, phases 1 and 2** (2026-09-09): window, navigation, the empty-project and broken-file states, creating from the template, saving, `Metadata`, `Repository` with the token in the `.env`, and the whole of `Coding style`. Every state driven through UI Automation against the running binary. **The empty-project path confirmed in TIA on the VM** (2026-09-11), on a project created from scratch with no `.plc-framework\` at all — which is the case the decision "a missing folder is a normal state, not an error" exists for, and the one a new user meets first.
+- [x] `ConfigEditorAction` on the project root of both Add-Ins, with its payload serialised **inside a restricted `AppDomain`** — and **confirmed in TIA on the VM**, including the one-instance-per-TIA guard, which is what proves the parent process really is TIA.
 - [x] **`Satellite.ConfigEditor` phase 3** (2026-09-09): the seven `hierarchy` trees — one TreeView, add/rename/remove, duplicates marked on the node, and the optional software-unit section added or removed whole. **The editor is feature-complete.**
 - [ ] `IPC` — not started, and now unlikely ever to be: decision 5 settles the handoff on stdio.
 
 ### The first NuGet dependencies (2026-09-04)
 
-The repo went without packages until the web API client. Two were taken, both confined to
-projects that never load inside TIA Portal:
+The repo went without packages until the web API client. Two were taken, both confined to projects that never load inside TIA Portal:
 
 | Package | Where | Why |
-|---|---|---|
+| --- | --- | --- |
 | `Newtonsoft.Json` 13.0.4 | `S7PlcWebserverApi` | the JSON-RPC `result` is a different shape per method and a variable's `value` arrives as bool, integer, real or string. `DataContractJsonSerializer`, which `Core` uses, is the wrong tool for a document whose type is only known at runtime |
 | `DocumentFormat.OpenXml` 3.5.1 | `Satellite.DataBlockSnapshot` | writing a real `.xlsx` by hand is five XML parts in a zip whose only true test is whether Excel opens it. Microsoft's own SDK, MIT, and it ships a validator that can be run in the build loop |
 
-**Neither may reach `Core`, `AddIn.Shared` or a version project.** What loads into TIA's
-process stays on the framework's own assemblies.
+**Neither may reach `Core`, `AddIn.Shared` or a version project.** What loads into TIA's process stays on the framework's own assemblies.
 
 ### Known V20/V21 divergence
 
@@ -525,27 +296,17 @@ A different kind of divergence, and easier to miss because the source is identic
 
 ### `config.json` pipeline — contract settled 2026-09-08, validators built 2026-09-09
 
-**The field-by-field contract lives in the README, under *The `config.json` contract*** —
-required, type and meaning for every key, plus the closed sets, the internal references and
-the uniqueness rules. It is the authority; do not restate it here and do not infer
-requiredness from the model, which is permissive on purpose.
+**The field-by-field contract lives in the README, under *The `config.json` contract*** — required, type and meaning for every key, plus the closed sets, the internal references and the uniqueness rules. It is the authority; do not restate it here and do not infer requiredness from the model, which is permissive on purpose.
 
 The shape of it, worth carrying in your head:
 
-- **`metadata.coreSource` decides the file.** `local` or `remote`, and that selects which of
-  the two repository sections is required. The other one is not validated at all.
-- **Lists are required but may be empty.** `[]` says "no folders for this concern"; a
-  missing key says nothing. Applies to all four `hierarchy` lists and all six of
-  `codingStyle`.
-- **Two internal references** are what a typo breaks silently, so both are checked:
-  `implements` must name an existing `rules[].id`, and `rules[].id` is unique file-wide.
-- **`Group.name` is unique among siblings only** — the same name in another branch is fine,
-  because they are different folders.
-- **A `regex` that does not compile is a structural error**, not an environmental one: it is
-  a broken file, not a broken machine.
+- **`metadata.coreSource` decides the file.** `local` or `remote`, and that selects which of the two repository sections is required. The other one is not validated at all.
+- **Lists are required but may be empty.** `[]` says "no folders for this concern"; a missing key says nothing. Applies to all four `hierarchy` lists and all six of `codingStyle`.
+- **Two internal references** are what a typo breaks silently, so both are checked: `implements` must name an existing `rules[].id`, and `rules[].id` is unique file-wide.
+- **`Group.name` is unique among siblings only** — the same name in another branch is fine, because they are different folders.
+- **A `regex` that does not compile is a structural error**, not an environmental one: it is a broken file, not a broken machine.
 
-`config.json` has **two producers** (`Satellite.ConfigEditor`, and the user editing by hand)
-and **one consumer** (the Add-In). Decisions taken:
+`config.json` has **two producers** (`Satellite.ConfigEditor`, and the user editing by hand) and **one consumer** (the Add-In). Decisions taken:
 
 - **DTOs stay permissive**, validation is a separate pass. A serializer that throws stops at the first problem and loses the rest; a validator reports all of them with their location.
 - **Validation lives in `Core` and runs twice**: in the satellite before saving, in the Add-In after loading. Validating only in the UI is useless — hand-editing bypasses it.
@@ -558,177 +319,13 @@ and **one consumer** (the Add-In). Decisions taken:
 ### Pending
 
 - [ ] **Building while TIA has the Add-In loaded fails.** The Publisher cannot overwrite a `.addin` that the VM holds open through a shared folder — `vmware-vmx.exe` shows up as the owner. Harmless once understood, but it looks like a build error: close TIA, or stop deploying straight out of `bin\Debug\net48`
-- [x] **`config.schema.json`** (2026-09-11), embedded in `Satellite.ConfigEditor`, written
-      beside `config.json` and referenced as `"$schema": "./config.schema.json"` — the first
-      key in the file. **The config pipeline is complete.** It is the only validator that
-      runs while the file is being typed, which is the hand-edit path's first safety net.
-      Accepting a **third statement of one contract** was the deliberate cost; the test is
-      what keeps the three from drifting. Worth carrying:
-      **four rules are beyond JSON Schema** — `implements` naming an existing rule, `id`
-      uniqueness, sibling `name` uniqueness, and a regex that compiles — so the schema never
-      replaces `Core`'s validators, and the test asserts those four **pass** rather than
-      trusting the prose.
-      **`additionalProperties` stays open**, or it would flag exactly the unknown keys the
-      editor exists to preserve. **Required strings use `"pattern": "\\S"`, not
-      `minLength: 1`**, because `Issues.Required` counts whitespace as missing and `"   "`
-      passing one validator while failing the other is the worst kind of disagreement.
-      **Written into the project, not fetched**: a URL 404s on a private repo and stops
-      validation silently, an absolute path gets committed and is wrong elsewhere, an editor
-      setting is per machine. **Rewritten every save** because it is generated — but a
-      `$schema` aimed somewhere else is left alone and nothing is written. **It never fails a
-      save**: it costs autocomplete, not the configuration
-- [x] **A `.gitignore` inside `.plc-framework\`** (2026-09-11), written by the editor.
-      **Allow-list, not deny-list**: `*` then `!.gitignore`, `!config.json`,
-      `!config.schema.json`. A deny-list only knows the folders that exist today, so the next
-      generated thing the framework writes would be committed by default — backwards for a
-      folder whose purpose is generated output, and the stake is not tidiness: `exports\`
-      holds workbooks of values read out of a live CPU, one folder from `.version-control\`.
-      **`config.schema.json` is re-admitted and that is not optional** — `config.json` points
-      at it relatively, so a clone without it validates nothing and says nothing about why.
-      **Written only when absent**, unlike the schema: a team may add a line of their own, and
-      the schema is derived while this is a starting point. Verified against real `git`:
-      `git add .plc-framework` stages exactly those three, an invented future file included
-      in the ignored set, and a hand-added line survives a save while a hand-edited schema
-      does not.
-      **The four generated folders — `exports\`, `logs\`, `tmp\`, `reports\` — are named in
-      `ConfigPaths`**, with `FolderFor(projectDirectory, name)` to resolve one. Three have no
-      writer yet, which is exactly when two components drift apart on a string; `reports\`
-      proved the allow-list immediately, being named after the `.gitignore` was written and
-      needing no change to it. **Nothing creates them**: whoever writes the first file does,
-      so a project that never ran an action collects no empty folders — and git would not
-      record them anyway
-- [x] **`Assembly.GetExecutingAssembly().Location` answered by measurement** (2026-09-11),
-      which is why `InstallPaths` never derives a path from it. Both possible answers are
-      unusable, and neither announces itself:
-      **under partial trust, reading `Location` throws `SecurityException`** — it demands
-      `FileIOPermission`, measured in the restricted `AppDomain`. **Loaded from bytes, which
-      is how a host reads parts out of a package, `Location` is the empty string** — not
-      null, so a null check does not catch it. **`CodeBase` is worse than useless as a
-      fallback**: it throws under partial trust, and under full trust it answered
-      `System.dll` in the GAC — a plausible path to somewhere entirely unrelated.
-      And an empty `Location` fails *quietly* downstream: `Path.Combine("", "x")` returns a
-      relative `x`, which `Path.GetFullPath` then resolves against the current working
-      directory into a confident absolute path pointing wherever the host happened to
-      start. Only `Path.GetDirectoryName("")` throws. Confirming which of the two TIA gives
-      is now a curiosity, not a decision
-- [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into
-      `Core`, or leave it aside. Deferred on 2026-08-23. That repo is **not public and not
-      part of this solution** — it sits beside this one on the maintainer's machine — which
-      is why the detail lives here rather than in `docs/`. Its value is the **domain logic**
-      only; the csproj, the `Config.xml` and the Publisher cycle are solved better here:
-      `Util\` (`Logger`, `DotEnv`, `EnvVar`, `Report`, `ActionContext`, `Constants`),
-      `UserApp\` (`Project`, `Group`, `Hierarchy`, `Rule`, `Rules`, `CodingStyle`,
-      `Metadata`), `RemoteRepository\` (GitHub client and dependency graph), `Actions\`
-      (project hierarchy, coding style, version checks, GitHub connection).
-      **Do not treat its code or its README as verified truth**: its namespaces are
-      hyphenated (`PLC-Framework.TiaAddIn`), which is illegal in C# and does not compile;
-      its README claims both `Siemens.Engineering.dll` and `.AddIn.dll` are needed with
-      `extern alias`, which is false; and its `.csproj` mixes absolute and relative
-      `HintPath` values, one of them pointing nowhere
-- [x] **Deployment to the VM automated** (2026-09-09): `scripts\deploy\step1-stage-host.ps1` on the
-      development PC, `scripts\deploy\step2-deploy-vm.cmd` inside the VM — the names carry the order
-      and the machine, because running either on the wrong one is the easy mistake. It had
-      grown to five manual copies — two `.addin` and three satellites — and the cost was
-      never the time but the silent failure of testing a stale build, so step 2 prints the
-      **age** of everything it installs. This is also the item that makes a single-file
-      satellite unnecessary (decision 8).
-      **Step 2 is invoked through a `.cmd` wrapper** carrying
-      `-NoProfile -ExecutionPolicy Bypass -File`: the VM blocks the `.ps1` twice over — the
-      default policy is `Restricted`, and the repo arrives on a mapped drive, which Windows
-      treats as the Internet zone, so even `RemoteSigned` would still refuse it. A
-      per-invocation bypass needs no elevation and changes nothing on the machine;
-      `Set-ExecutionPolicy` would loosen a machine-wide setting for one script and would
-      have to be repeated on the next station.
-      **The Add-In folder is per TIA version, not per run** (2026-09-09). TIA reads a
-      per-user `UserAddIns` *and* a per-machine `AddIns` inside its own installation — the
-      same per-user / per-machine split as `%LOCALAPPDATA%` vs `Program Files`, only made by
-      Siemens — and **which one a version uses belongs to that installation, not to us**: on
-      the VM, V20 is `C:\Program Files\Siemens\Automation\Portal V20\AddIns` and V21 is
-      `%AppData%\...\Portal V21\UserAddIns`. So the scope sits in the `$targets` table beside
-      the package name; a single `-Scope` for the run could only ever be right about one of
-      the two, and it survives only as an override for a station set up differently.
-      Consequences worth keeping:
-      **the script asks whether it can *write*, not whether it is elevated** — elevation is
-      only a proxy, a TIA outside `Program Files` is writable without it, and the probe also
-      creates the folder, which was needed anyway. It asks once, up front, and only for
-      versions actually present, because sending someone to find an administrator for a TIA
-      the station does not have would be a lie; left to the copy it arrives as an
-      `Access denied`, indistinguishable from a package locked by a running TIA.
-      **The parent folder is Siemens', the leaf is ours** — a missing `Portal V2x` means
-      that version is not installed, a missing `AddIns`/`UserAddIns` is just one to create,
-      and the same rule serves both scopes.
-      **The package must be in one folder, not both** — TIA reads both and would load it
-      twice, leaving the copy under test undecided — so a leftover in the other folder is
-      reported with its full path rather than deleted.
-      **Every destination is printed before anything is attempted**, including for a package
-      that was not staged: it is the only thing that catches an elevated run whose
-      `%AppData%` is the administrator's rather than the engineer's, which would land the
-      package where TIA never looks.
-      **A mapped drive does not survive elevation; the UNC behind it does** (confirmed on
-      the VM, 2026-09-11). `Z:` belongs to the logon session that created it, so an elevated
-      session reports *"A drive with the name 'Z' does not exist"* — and the machine-wide
-      Add-In folder needs elevation, so the two requirements collide. **`\\vmware-host\Shared
-      Folders` is reachable from the elevated session**, being VMware Tools' HGFS network
-      provider rather than a mapping, so step 2 runs from there with no copy at all; that is
-      the route to use. `(Get-PSDrive Z).DisplayRoot`, from the *normal* session, prints the
-      UNC a mapping stands for. Note the first symptom misleads: typing the folder as a
-      command gives `CommandNotFoundException`, which reads the same whether the path is
-      missing or is a directory — `Test-Path Z:\` is the one that answers.
-      **`step1` no longer copies the installer into `.deploy\`** (2026-09-12). It did, as
-      the fallback for a station where neither route reaches an elevated session — but the
-      UNC does cross here, so that path never ran, and staging for the VM is a different job
-      from packaging a release. Where the fallback is ever needed, `.deploy\` and
-      `scripts\` are copied together and kept side by side: `step2` resolves the payload
-      relative to itself and a lone script stops with "Nothing staged". `StagingFolder`
-      decides which case it is **by looking for `bin\` and `addins\` beside itself**, not
-      by being told — and that second case is what the release package will use, with the
-      files named what a stranger expects
-- [x] **The release archive** (2026-09-12): `scripts\release\step3-package-release.ps1` turns what
-      step1 staged into `PLC-Framework-for-TIA-v<version>.zip`. **A ZIP with a script, not an MSI**,
-      and the audience decided it: an automation engineer rightly distrusts an unsigned MSI
-      from the internet and can read forty lines of PowerShell instead. An MSI would also
-      move the signing problem rather than solve it — SmartScreen would flag the installer
-      exactly as TIA flags the package — and it buys only *Add or remove programs*, which
-      nobody has asked for. Revisit if a tester does.
-      **The `v` and the host both live in the archive name and nowhere else**: NuGet
-      refuses to parse `v1.0.0` and the Publisher's schema allows digits and dots only,
-      both measured. And `PLC-Framework` is the product while TIA Portal is one host it
-      plugs into — a second host would still share `Core`, `UI.Shared` and the config
-      editor — so the brand stays put and `PLC-Framework-for-TIA-v1.0.0.zip` says what
-      the download is for. Naming the *product* after one host would be a rename later.
-      **Before a second host is real, `Core` has to be split**: its validators carry
-      TIA's closed sets (`OB`, `FC`, `FB`, `PlcTagTable`) and `S7PlcWebserverApi` is
-      Siemens-only, so `Core` is not vendor-neutral today whatever its name suggests.
-      **`install.ps1` is `step2-deploy-vm.ps1` copied, not rewritten** — a second
-      implementation of the install is the one nobody tests — and the script names itself in
-      its own messages so a hardcoded filename cannot be wrong under the other name.
-      **The PowerShell sits in `.installer/` and only the two `.cmd` launchers are visible**,
-      so what a stranger sees on unpacking is what they should double-click — which is why
-      `StagingFolder` checks two levels for `bin`/`addins` rather than one. A leading dot
-      hides nothing on Windows; it is a convention, not a mechanism.
-      **`paths.ps1` is shared between installer and uninstaller**, which is correctness and
-      not tidiness: an uninstaller must look exactly where the installer wrote, and two
-      copies of that arithmetic drift into "nothing found" on a machine that has it.
-      **The installer asks nothing; the uninstaller asks everything.** Installing is safe and
-      reversible; deleting is where somebody wants a say, above all over the per-user folder
-      holding credentials and a token that no reinstall brings back — so it is listed, marked
-      NOT RECOMMENDED, and what is left behind is said out loud rather than left to guess.
-      The uninstaller **looks in both Add-In folders per version**, since a package put in
-      the other one by hand would otherwise survive an uninstall that reported success.
-      **The archive was installed from, on two real machines** (2026-09-12): Windows 10
-      with only TIA V20, and Windows 11 with V20 and V21. That is what the simulated runs
-      could not reach — real `Program Files` permissions, real elevation, the real Add-In
-      folders, TIA loading a package that `install.cmd` put there, and enabling an
-      unsigned Add-In. The single-version machine also confirmed that a TIA that is not
-      installed is *reported and stepped over* rather than failing the run.
-      **The installer does not create the `.env`.** It runs elevated, so `%LOCALAPPDATA%`
-      could be the administrator's profile rather than the engineer's — the same trap as
-      `%AppData%` in step 2 — and the config editor already creates it in the right place on
-      first use
-- [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to
-      shorten the test cycle. **Planned for the next Add-In** rather than retrofitted onto
-      the existing ones: the point is a shorter loop while writing something, and the two
-      that exist are already validated on the VM
+- [x] **`config.schema.json`** (2026-09-11), embedded in `Satellite.ConfigEditor`, written beside `config.json` and referenced as `"$schema": "./config.schema.json"` — the first key in the file. **The config pipeline is complete.** It is the only validator that runs while the file is being typed, which is the hand-edit path's first safety net. Accepting a **third statement of one contract** was the deliberate cost; the test is what keeps the three from drifting. Worth carrying: **four rules are beyond JSON Schema** — `implements` naming an existing rule, `id` uniqueness, sibling `name` uniqueness, and a regex that compiles — so the schema never replaces `Core`'s validators, and the test asserts those four **pass** rather than trusting the prose. **`additionalProperties` stays open**, or it would flag exactly the unknown keys the editor exists to preserve. **Required strings use `"pattern": "\\S"`, not `minLength: 1`**, because `Issues.Required` counts whitespace as missing and `"   "` passing one validator while failing the other is the worst kind of disagreement. **Written into the project, not fetched**: a URL 404s on a private repo and stops validation silently, an absolute path gets committed and is wrong elsewhere, an editor setting is per machine. **Rewritten every save** because it is generated — but a `$schema` aimed somewhere else is left alone and nothing is written. **It never fails a save**: it costs autocomplete, not the configuration
+- [x] **A `.gitignore` inside `.plc-framework\`** (2026-09-11), written by the editor. **Allow-list, not deny-list**: `*` then `!.gitignore`, `!config.json`, `!config.schema.json`. A deny-list only knows the folders that exist today, so the next generated thing the framework writes would be committed by default — backwards for a folder whose purpose is generated output, and the stake is not tidiness: `exports\` holds workbooks of values read out of a live CPU, one folder from `.version-control\`. **`config.schema.json` is re-admitted and that is not optional** — `config.json` points at it relatively, so a clone without it validates nothing and says nothing about why. **Written only when absent**, unlike the schema: a team may add a line of their own, and the schema is derived while this is a starting point. Verified against real `git`: `git add .plc-framework` stages exactly those three, an invented future file included in the ignored set, and a hand-added line survives a save while a hand-edited schema does not. **The four generated folders — `exports\`, `logs\`, `tmp\`, `reports\` — are named in `ConfigPaths`**, with `FolderFor(projectDirectory, name)` to resolve one. Three have no writer yet, which is exactly when two components drift apart on a string; `reports\` proved the allow-list immediately, being named after the `.gitignore` was written and needing no change to it. **Nothing creates them**: whoever writes the first file does, so a project that never ran an action collects no empty folders — and git would not record them anyway
+- [x] **`Assembly.GetExecutingAssembly().Location` answered by measurement** (2026-09-11), which is why `InstallPaths` never derives a path from it. Both possible answers are unusable, and neither announces itself: **under partial trust, reading `Location` throws `SecurityException`** — it demands `FileIOPermission`, measured in the restricted `AppDomain`. **Loaded from bytes, which is how a host reads parts out of a package, `Location` is the empty string** — not null, so a null check does not catch it. **`CodeBase` is worse than useless as a fallback**: it throws under partial trust, and under full trust it answered `System.dll` in the GAC — a plausible path to somewhere entirely unrelated. And an empty `Location` fails *quietly* downstream: `Path.Combine("", "x")` returns a relative `x`, which `Path.GetFullPath` then resolves against the current working directory into a confident absolute path pointing wherever the host happened to start. Only `Path.GetDirectoryName("")` throws. Confirming which of the two TIA gives is now a curiosity, not a decision
+- [ ] **Decide**: migrate the rest of the domain logic from `add-in-for-tia-portal` into `Core`, or leave it aside. Deferred on 2026-08-23. That repo is **not public and not part of this solution** — it sits beside this one on the maintainer's machine — which is why the detail lives here rather than in `docs/`. Its value is the **domain logic** only; the csproj, the `Config.xml` and the Publisher cycle are solved better here: `Util\` (`Logger`, `DotEnv`, `EnvVar`, `Report`, `ActionContext`, `Constants`), `UserApp\` (`Project`, `Group`, `Hierarchy`, `Rule`, `Rules`, `CodingStyle`, `Metadata`), `RemoteRepository\` (GitHub client and dependency graph), `Actions\` (project hierarchy, coding style, version checks, GitHub connection). **Do not treat its code or its README as verified truth**: its namespaces are hyphenated (`PLC-Framework.TiaAddIn`), which is illegal in C# and does not compile; its README claims both `Siemens.Engineering.dll` and `.AddIn.dll` are needed with `extern alias`, which is false; and its `.csproj` mixes absolute and relative `HintPath` values, one of them pointing nowhere
+- [x] **Deployment to the VM automated** (2026-09-09): `scripts\deploy\step1-stage-host.ps1` on the development PC, `scripts\deploy\step2-deploy-vm.cmd` inside the VM — the names carry the order and the machine, because running either on the wrong one is the easy mistake. It had grown to five manual copies — two `.addin` and three satellites — and the cost was never the time but the silent failure of testing a stale build, so step 2 prints the **age** of everything it installs. This is also the item that makes a single-file satellite unnecessary (decision 8). **Step 2 is invoked through a `.cmd` wrapper** carrying `-NoProfile -ExecutionPolicy Bypass -File`: the VM blocks the `.ps1` twice over — the default policy is `Restricted`, and the repo arrives on a mapped drive, which Windows treats as the Internet zone, so even `RemoteSigned` would still refuse it. A per-invocation bypass needs no elevation and changes nothing on the machine; `Set-ExecutionPolicy` would loosen a machine-wide setting for one script and would have to be repeated on the next station. **The Add-In folder is per TIA version, not per run** (2026-09-09). TIA reads a per-user `UserAddIns` *and* a per-machine `AddIns` inside its own installation — the same per-user / per-machine split as `%LOCALAPPDATA%` vs `Program Files`, only made by Siemens — and **which one a version uses belongs to that installation, not to us**: on the VM, V20 is `C:\Program Files\Siemens\Automation\Portal V20\AddIns` and V21 is `%AppData%\...\Portal V21\UserAddIns`. So the scope sits in the `$targets` table beside the package name; a single `-Scope` for the run could only ever be right about one of the two, and it survives only as an override for a station set up differently. Consequences worth keeping: **the script asks whether it can *write*, not whether it is elevated** — elevation is only a proxy, a TIA outside `Program Files` is writable without it, and the probe also creates the folder, which was needed anyway. It asks once, up front, and only for versions actually present, because sending someone to find an administrator for a TIA the station does not have would be a lie; left to the copy it arrives as an `Access denied`, indistinguishable from a package locked by a running TIA. **The parent folder is Siemens', the leaf is ours** — a missing `Portal V2x` means that version is not installed, a missing `AddIns`/`UserAddIns` is just one to create, and the same rule serves both scopes. **The package must be in one folder, not both** — TIA reads both and would load it twice, leaving the copy under test undecided — so a leftover in the other folder is reported with its full path rather than deleted. **Every destination is printed before anything is attempted**, including for a package that was not staged: it is the only thing that catches an elevated run whose `%AppData%` is the administrator's rather than the engineer's, which would land the package where TIA never looks. **A mapped drive does not survive elevation; the UNC behind it does** (confirmed on the VM, 2026-09-11). `Z:` belongs to the logon session that created it, so an elevated session reports *"A drive with the name 'Z' does not exist"* — and the machine-wide Add-In folder needs elevation, so the two requirements collide. **`\\vmware-host\Shared Folders` is reachable from the elevated session**, being VMware Tools' HGFS network provider rather than a mapping, so step 2 runs from there with no copy at all; that is the route to use. `(Get-PSDrive Z).DisplayRoot`, from the *normal* session, prints the UNC a mapping stands for. Note the first symptom misleads: typing the folder as a command gives `CommandNotFoundException`, which reads the same whether the path is missing or is a directory — `Test-Path Z:\` is the one that answers. **`step1` no longer copies the installer into `.deploy\`** (2026-09-12). It did, as the fallback for a station where neither route reaches an elevated session — but the UNC does cross here, so that path never ran, and staging for the VM is a different job from packaging a release. Where the fallback is ever needed, `.deploy\` and `scripts\` are copied together and kept side by side: `step2` resolves the payload relative to itself and a lone script stops with "Nothing staged". `StagingFolder` decides which case it is **by looking for `bin\` and `addins\` beside itself**, not by being told — and that second case is what the release package will use, with the files named what a stranger expects
+- [x] **The release archive** (2026-09-12): `scripts\release\step3-package-release.ps1` turns what step1 staged into `PLC-Framework-for-TIA-v<version>.zip`. **A ZIP with a script, not an MSI**, and the audience decided it: an automation engineer rightly distrusts an unsigned MSI from the internet and can read forty lines of PowerShell instead. An MSI would also move the signing problem rather than solve it — SmartScreen would flag the installer exactly as TIA flags the package — and it buys only *Add or remove programs*, which nobody has asked for. Revisit if a tester does. **The `v` and the host both live in the archive name and nowhere else**: NuGet refuses to parse `v1.0.0` and the Publisher's schema allows digits and dots only, both measured. And `PLC-Framework` is the product while TIA Portal is one host it plugs into — a second host would still share `Core`, `UI.Shared` and the config editor — so the brand stays put and `PLC-Framework-for-TIA-v1.0.0.zip` says what the download is for. Naming the *product* after one host would be a rename later. **Before a second host is real, `Core` has to be split**: its validators carry TIA's closed sets (`OB`, `FC`, `FB`, `PlcTagTable`) and `S7PlcWebserverApi` is Siemens-only, so `Core` is not vendor-neutral today whatever its name suggests. **`install.ps1` is `step2-deploy-vm.ps1` copied, not rewritten** — a second implementation of the install is the one nobody tests — and the script names itself in its own messages so a hardcoded filename cannot be wrong under the other name. **The PowerShell sits in `.installer/` and only the two `.cmd` launchers are visible**, so what a stranger sees on unpacking is what they should double-click — which is why `StagingFolder` checks two levels for `bin`/`addins` rather than one. A leading dot hides nothing on Windows; it is a convention, not a mechanism. **`paths.ps1` is shared between installer and uninstaller**, which is correctness and not tidiness: an uninstaller must look exactly where the installer wrote, and two copies of that arithmetic drift into "nothing found" on a machine that has it. **The installer asks nothing; the uninstaller asks everything.** Installing is safe and reversible; deleting is where somebody wants a say, above all over the per-user folder holding credentials and a token that no reinstall brings back — so it is listed, marked NOT RECOMMENDED, and what is left behind is said out loud rather than left to guess. The uninstaller **looks in both Add-In folders per version**, since a package put in the other one by hand would otherwise survive an uninstall that reported success. **The archive was installed from, on two real machines** (2026-09-12): Windows 10 with only TIA V20, and Windows 11 with V20 and V21. That is what the simulated runs could not reach — real `Program Files` permissions, real elevation, the real Add-In folders, TIA loading a package that `install.cmd` put there, and enabling an unsigned Add-In. The single-version machine also confirmed that a TIA that is not installed is *reported and stepped over* rather than failing the run. **The installer does not create the `.env`.** It runs elevated, so `%LOCALAPPDATA%` could be the administrator's profile rather than the engineer's — the same trap as `%AppData%` in step 2 — and the config editor already creates it in the right place on first use
+- [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to shorten the test cycle. **Planned for the next Add-In** rather than retrofitted onto the existing ones: the point is a shorter loop while writing something, and the two that exist are already validated on the VM
 - [ ] Decide how many satellites there will be and whether they need live TIA data or just a snapshot
 
 ---

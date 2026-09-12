@@ -1,36 +1,32 @@
 # Openness notes
 
-What was learned about Siemens' Add-In API by reading the assemblies rather than the
-documentation — the reference model, the Publisher, what a `.addin` really is, and the
-partial-trust sandbox that decides what an Add-In may do.
+What was learned about Siemens' Add-In API by reading the assemblies rather than the documentation — the reference model, the Publisher, what a `.addin` really is, and the partial-trust sandbox that decides what an Add-In may do.
 
-Two generated pages accompany this one, built from the assemblies themselves with
-`GetExportedTypes()`:
+Two generated pages accompany this one, built from the assemblies themselves with `GetExportedTypes()`:
 
 - [`reference/TIA-Portal-V20-Openness-object-model.md`](reference/TIA-Portal-V20-Openness-object-model.md)
 - [`reference/TIA-Portal-V21-Openness-object-model.md`](reference/TIA-Portal-V21-Openness-object-model.md)
 
-Neither contains Siemens code — only type names, member names and counts, which is what
-lets them live here when the assemblies they describe may not.
+Neither contains Siemens code — only type names, member names and counts, which is what lets them live here when the assemblies they describe may not.
 
 ## Siemens dependencies
 
 The assemblies live **outside the repo**, in a folder of your choosing — `$(SiemensPublicApi)` in the `.csproj` points at it, with **one folder per version**:
 
-| Folder                                         | Contents                                                                                                                                          |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `V17\`, `V18\`, `V19\`, `V20\`         | `Siemens.Engineering.dll`, `Siemens.Engineering.Hmi.dll`                                                                                      |
-| `V17.AddIn\`, `V18.AddIn\`, `V19.AddIn\` | `Siemens.Engineering.AddIn.dll`, `.AddIn.Permissions.dll`, `.AddIn.Utilities.dll`, `Siemens.Engineering.Hmi.dll`                          |
-| `V20.addIn\`                                 | the above**plus `Siemens.Engineering.AddIn.Publisher.exe` and `.AddIn.DebugStarter.exe`** (note the lowercase `a` in the folder name) |
-| `V21\`                                       | `Siemens.Engineering.AddIn.Publisher.exe` and its `.xsd`                                                                                      |
-| `V21\net48\`                                 | the split V21 assemblies                                                                                                                          |
-| `.doc\TIA-Openness\TIA Add-in Tester\`       | TIA Add-in Tester v1.1.6557.1192 (entry 109783096) — tests the Add-In without opening TIA Portal                                                 |
+| Folder | Contents |
+| --- | --- |
+| `V17\`, `V18\`, `V19\`, `V20\` | `Siemens.Engineering.dll`, `Siemens.Engineering.Hmi.dll` |
+| `V17.AddIn\`, `V18.AddIn\`, `V19.AddIn\` | `Siemens.Engineering.AddIn.dll`, `.AddIn.Permissions.dll`, `.AddIn.Utilities.dll`, `Siemens.Engineering.Hmi.dll` |
+| `V20.addIn\` | the above**plus `Siemens.Engineering.AddIn.Publisher.exe` and `.AddIn.DebugStarter.exe`** (note the lowercase `a` in the folder name) |
+| `V21\` | `Siemens.Engineering.AddIn.Publisher.exe` and its `.xsd` |
+| `V21\net48\` | the split V21 assemblies |
+| `.doc\TIA-Openness\TIA Add-in Tester\` | TIA Add-in Tester v1.1.6557.1192 (entry 109783096) — tests the Add-In without opening TIA Portal |
 
 Other tools, shipped by Siemens under `Support\TIA_Portal_Add-In_Tools\`:
 
-| Folder                                  | Contents                                                                             |
-| --------------------------------------- | ------------------------------------------------------------------------------------ |
-| `Development\`                        | `.nupkg` + `.vsix` — the official VS template for Add-Ins (TIA V18+)            |
+| Folder | Contents |
+| --- | --- |
+| `Development\` | `.nupkg` + `.vsix` — the official VS template for Add-Ins (TIA V18+) |
 | `Trusted_Add-Ins_Certification_Tool\` | `Company_Trusted_Add-In_Certification_Tool.exe` — signs the `.addin` as trusted |
 
 The path is parameterized in the `.csproj` through `$(SiemensPublicApi)`, so it can be overridden without editing the file:
@@ -43,9 +39,9 @@ dotnet build src\AddIn.V20\AddIn.V20.csproj -p:SiemensPublicApi=D:\some\other\pa
 
 Two pages under `reference/`, generated from the assemblies themselves rather than from documentation, and kept in the repo precisely because the assemblies cannot be. **They share a section order**, so the same question is answered in the same place in both:
 
-| File                            | Covers                                                                                                                                                                                            |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TIA-Portal-V20-Openness-object-model.md` | the V20 object model as`Siemens.Engineering.AddIn.dll` declares it — the spine from `TiaPortal` down to a block group, the system/user group pattern, software units, and the Add-In surface |
+| File | Covers |
+| --- | --- |
+| `TIA-Portal-V20-Openness-object-model.md` | the V20 object model as `Siemens.Engineering.AddIn.dll` declares it — the spine from `TiaPortal` down to a block group, the system/user group pattern, software units, and the Add-In surface |
 | `TIA-Portal-V21-Openness-object-model.md` | the same model in V21, where it is **split across sixteen assemblies** — which one declares what, what an Add-In has to reference, and every shape difference found against V20. It does **not** restate the model: seven of the eight spine types are the same surface, which is the finding rather than an omission |
 
 **They were self-contained HTML until 2026-09-12, and Markdown is a correction rather than a preference**: GitHub serves an `.html` file in a repository as source, so once this repo went public both pages were a wall of CSS to anybody who followed a link. Markdown renders, and GitHub draws the mermaid class diagrams natively — the designed layout was costing exactly the readers it was meant to serve. It also leaves `reference/` in one format.
@@ -58,24 +54,24 @@ Both record where Siemens' own published object-model diagram is incomplete: it 
 
 V17 through V20 share the same Openness API and are binary compatible. **V21 introduces breaking changes**: up to V20 the API is monolithic, whereas V21 splits it into **sixteen assemblies**. Read from `V21\net48\` with `GetExportedTypes()`:
 
-| Assembly              | Types | Carries                                                                                                                                                        |
-| --------------------- | ----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Base`              | 1,382 | the whole object model:`TiaPortal`, `Project`, `Device`, `DeviceItem`, `Software`, `IEngineeringObject`, `NotificationIcon`, `ExclusiveAccess` |
-| `WinCCUnified`      |   536 | Unified HMI, including`HmiSoftware`                                                                                                                          |
-| `Step7`             |   228 | everything under`SW.*` — `PlcSoftware`, blocks, types, tags, software units                                                                               |
-| `AddIn.Base`        |    71 | Add-In infrastructure only: providers, menus,`MessageBoxProvider`                                                                                            |
-| `DCC`               |    66 | drive control charts                                                                                                                                           |
-| `WinCC`             |    65 | classic HMI, including`HmiTarget`                                                                                                                            |
-| `Startdrive`        |    64 | drive commissioning                                                                                                                                            |
-| `TeamcenterGateway` |    20 | PLM integration                                                                                                                                                |
-| `SafetyValidation`  |    19 | safety validation reports                                                                                                                                      |
-| `Safety`            |    18 | F-programs                                                                                                                                                     |
-| `AddIn.Step7`       |    10 | Add-In hooks specific to STEP 7                                                                                                                                |
-| `AddIn.Safety`      |     6 | Add-In hooks specific to safety                                                                                                                                |
-| `WinCC.Extension`   |     4 | HMI extension points                                                                                                                                           |
-| `AddIn.Utilities`   |     2 | `Process` and `ProcessStartInfo`                                                                                                                           |
-| `AddIn.Permissions` |     2 | the permission attributes                                                                                                                                      |
-| `CFC`               |     2 | continuous function charts                                                                                                                                     |
+| Assembly | Types | Carries |
+| --- | ---: | --- |
+| `Base` | 1,382 | the whole object model:`TiaPortal`, `Project`, `Device`, `DeviceItem`, `Software`, `IEngineeringObject`, `NotificationIcon`, `ExclusiveAccess` |
+| `WinCCUnified` | 536 | Unified HMI, including `HmiSoftware` |
+| `Step7` | 228 | everything under `SW.*` — `PlcSoftware`, blocks, types, tags, software units |
+| `AddIn.Base` | 71 | Add-In infrastructure only: providers, menus,`MessageBoxProvider` |
+| `DCC` | 66 | drive control charts |
+| `WinCC` | 65 | classic HMI, including `HmiTarget` |
+| `Startdrive` | 64 | drive commissioning |
+| `TeamcenterGateway` | 20 | PLM integration |
+| `SafetyValidation` | 19 | safety validation reports |
+| `Safety` | 18 | F-programs |
+| `AddIn.Step7` | 10 | Add-In hooks specific to STEP 7 |
+| `AddIn.Safety` | 6 | Add-In hooks specific to safety |
+| `WinCC.Extension` | 4 | HMI extension points |
+| `AddIn.Utilities` | 2 | `Process` and `ProcessStartInfo` |
+| `AddIn.Permissions` | 2 | the permission attributes |
+| `CFC` | 2 | continuous function charts |
 
 **2,495 public types and not one name collision** — every full type name appears in exactly one assembly, which is the structural reason V21 never needs an `extern alias`. All sixteen are version `21.0.0.0` with public key token `29bfe5fdf4ba5d3b`.
 
@@ -95,10 +91,10 @@ Flags: `--configuration/-f`, `--outfile/-o` (optional — defaults to an `.addin
 
 Each project uses the Publisher **for its own version**:
 
-| Project                  | Path                                                                                                                             |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `AddIn.V20` (V17–V20) | `.lib\Siemens\PublicAPI\V20.addIn\Siemens.Engineering.AddIn.Publisher.exe`                                                     |
-| `AddIn.V21`            | `.lib\Siemens\PublicAPI\V21\Siemens.Engineering.AddIn.Publisher.exe` — loose in `V21\`, **not** inside `V21\net48\` |
+| Project | Path |
+| --- | --- |
+| `AddIn.V20` (V17–V20) | `.lib\Siemens\PublicAPI\V20.addIn\Siemens.Engineering.AddIn.Publisher.exe` |
+| `AddIn.V21` | `.lib\Siemens\PublicAPI\V21\Siemens.Engineering.AddIn.Publisher.exe` — loose in `V21\`, **not** inside `V21\net48\` |
 
 **Gotcha**: the Publisher resolves the config's `<Assembly>` path **relative to the config file's own location**, not to the working directory. The approach taken here is to copy `Config.xml` next to the DLL before invoking it:
 
@@ -196,25 +192,18 @@ That redirection is worth remembering: it is a ready-made IPC channel between th
 
 ### Partial trust, and what it forbids
 
-**TIA runs an Add-In in a restricted sandbox.** That is not a footnote: it decides what the
-Add-In half of the framework may do, and it fails at run time with no hint at compile time.
+**TIA runs an Add-In in a restricted sandbox.** That is not a footnote: it decides what the Add-In half of the framework may do, and it fails at run time with no hint at compile time.
 
-It surfaced as a `System.Security.SecurityException` out of
-`DataContractJsonSerializer.WriteObject`:
+It surfaced as a `System.Security.SecurityException` out of `DataContractJsonSerializer.WriteObject`:
 
 ```
 The data contract type 'AddIn.Shared.Actions.DataBlockSnapshotAction+HandoffPayload'
 is not serializable in partial trust because it is not public.
 ```
 
-The types were `internal`, nested inside the action. Serialization in partial trust needs
-a **visible** type — public, and public all the way out of any nesting. Moving them to
-top-level public types in their own file fixed it.
+The types were `internal`, nested inside the action. Serialization in partial trust needs a **visible** type — public, and public all the way out of any nesting. Moving them to top-level public types in their own file fixed it.
 
-The lesson generalises past serialization: **anything reflective is likelier to be denied
-inside TIA than outside it**, and the failure arrives as a crash report from the field
-rather than a red squiggle. It can be reproduced here, though, which is much cheaper than a
-round trip to the VM:
+The lesson generalises past serialization: **anything reflective is likelier to be denied inside TIA than outside it**, and the failure arrives as a crash report from the field rather than a red squiggle. It can be reproduced here, though, which is much cheaper than a round trip to the VM:
 
 ```csharp
 PermissionSet permissions = new PermissionSet(PermissionState.None);
@@ -224,33 +213,22 @@ AppDomain sandbox = AppDomain.CreateDomain("partial-trust", null, setup, permiss
 
 That is the tightest partial trust there is, so code that survives it survives TIA.
 
-> **Building fails while TIA has the Add-In loaded.** If the VM reaches `bin\Debug\net48`
-> through a shared folder, the Publisher cannot overwrite the `.addin` and the build stops
-> with `MSB3073`. The Restart Manager names `vmware-vmx.exe` as the owner. Close TIA, or
-> copy the package somewhere else before loading it.
+> **Building fails while TIA has the Add-In loaded.** If the VM reaches `bin\Debug\net48` through a shared folder, the Publisher cannot overwrite the `.addin` and the build stops with `MSB3073`. The Restart Manager names `vmware-vmx.exe` as the owner. Close TIA, or copy the package somewhere else before loading it.
 
 ### Why the Add-In cannot find itself
 
-`InstallPaths` resolves a well-known folder rather than asking the running assembly where it
-is, and that is not caution — it is measured. **Both answers `Assembly.Location` can give
-inside TIA are unusable, and neither announces itself.**
+`InstallPaths` resolves a well-known folder rather than asking the running assembly where it is, and that is not caution — it is measured. **Both answers `Assembly.Location` can give inside TIA are unusable, and neither announces itself.**
 
-|                                | `Location`                           | `CodeBase`                           |
-| ------------------------------ | -------------------------------------- | -------------------------------------- |
-| Partial trust, any load        | **throws `SecurityException`** | **throws `SecurityException`** |
-| Full trust, loaded from bytes  | `""` — empty, **not null**    | `System.dll` in the GAC              |
-| Full trust, loaded from a file | the real path                          | the real path                          |
+|  | `Location` | `CodeBase` |
+| --- | --- | --- |
+| Partial trust, any load | **throws `SecurityException`** | **throws `SecurityException`** |
+| Full trust, loaded from bytes | `""` — empty, **not null** | `System.dll` in the GAC |
+| Full trust, loaded from a file | the real path | the real path |
 
-Read in the restricted `AppDomain` described above, `Location` demands `FileIOPermission` and
-is refused. That alone settles it: an Add-In runs in partial trust. But the second row is the
-one worth remembering, because a host that reads assemblies out of a package loads them from
-**bytes**, and a byte-loaded assembly has no file to point at:
+Read in the restricted `AppDomain` described above, `Location` demands `FileIOPermission` and is refused. That alone settles it: an Add-In runs in partial trust. But the second row is the one worth remembering, because a host that reads assemblies out of a package loads them from **bytes**, and a byte-loaded assembly has no file to point at:
 
-- `Location` is the **empty string, not null**, so the obvious `if (path == null)` guard does
-  not fire.
-- `CodeBase` is not a fallback. Under full trust it answered the *calling* assembly's
-  codebase — `System.dll` from the GAC — which is a perfectly well-formed path to something
-  entirely unrelated, and would be believed.
+- `Location` is the **empty string, not null**, so the obvious `if (path == null)` guard does not fire.
+- `CodeBase` is not a fallback. Under full trust it answered the *calling* assembly's codebase — `System.dll` from the GAC — which is a perfectly well-formed path to something entirely unrelated, and would be believed.
 
 And an empty `Location` then fails **quietly** rather than loudly:
 
@@ -260,26 +238,17 @@ Path.GetFullPath(Path.Combine("", "x"))   -> <current directory>\x  confident, a
 Path.GetDirectoryName("")                 -> throws ArgumentException
 ```
 
-Only the third throws. The other two produce a path that looks right, resolved against
-whatever directory the host process happens to be in — which for TIA Portal is nothing to do
-with where the Add-In lives. A "not installed" error would then name a folder nobody chose.
+Only the third throws. The other two produce a path that looks right, resolved against whatever directory the host process happens to be in — which for TIA Portal is nothing to do with where the Add-In lives. A "not installed" error would then name a folder nobody chose.
 
-`Environment.GetFolderPath` needs no permission of this kind and no discovery, which is why
-the framework agrees on a location instead of deriving one.
+`Environment.GetFolderPath` needs no permission of this kind and no discovery, which is why the framework agrees on a location instead of deriving one.
 
 ### Reading a CPU's addresses out of the project
 
-The satellite cannot ask TIA anything, so the Add-In gathers the addresses and hands them
-over. Two things about that walk are not obvious, and both are verified on the VM:
+The satellite cannot ask TIA anything, so the Add-In gathers the addresses and hands them over. Two things about that walk are not obvious, and both are verified on the VM:
 
-**The interface is not on the item that owns the software.** A CPU's network interface is a
-separate child device item — "PROFINET interface_1" and the like — so the whole device has
-to be walked. Asking `GetService<NetworkInterface>()` on the item that carries the
-`PlcSoftware` finds nothing.
+**The interface is not on the item that owns the software.** A CPU's network interface is a separate child device item — "PROFINET interface_1" and the like — so the whole device has to be walked. Asking `GetService<NetworkInterface>()` on the item that carries the `PlcSoftware` finds nothing.
 
-**The IP is an attribute of the node, not a typed property.** `HW.Address` is a different
-thing entirely — an I/O address, with a start and a length — and reaching for it here is
-the obvious wrong turn. The path is:
+**The IP is an attribute of the node, not a typed property.** `HW.Address` is a different thing entirely — an I/O address, with a start and a length — and reaching for it here is the obvious wrong turn. The path is:
 
 ```csharp
 DeviceItem.GetService<NetworkInterface>()   // per device item, walking the whole device
@@ -287,23 +256,22 @@ DeviceItem.GetService<NetworkInterface>()   // per device item, walking the whol
     .GetAttribute("Address")                 // confirmed: the attribute is called "Address"
 ```
 
-Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are filtered out
-by shape, so the drop-down only offers things worth pointing a browser at.
+Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are filtered out by shape, so the drop-down only offers things worth pointing a browser at.
 
 ## The Add-In API
 
 Verified by reflection over `V20.addIn\Siemens.Engineering.AddIn.dll` and `V21\net48\Siemens.Engineering.AddIn.Base.dll`. **These signatures are identical in both versions** — only the assembly they live in changes:
 
-| Member                           | Actual signature                                                                                                                                                                                                          |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ProjectTreeAddInProvider`     | `abstract`, **parameterless** constructor. TIA instantiates the derived class by looking for a constructor taking `TiaPortal` and injects it                                                                    |
-| `GetContextMenuAddIns()`       | **`protected virtual`** (not `abstract`), returns `IEnumerable<ContextMenuAddIn>`                                                                                                                             |
-| `ContextMenuAddIn`             | constructor`(string displayName)`; override `protected override void BuildContextMenuItems(ContextMenuAddInRoot)`                                                                                                     |
-| `ContextMenuAddInRoot.Items`   | a`ChildItemFactory`                                                                                                                                                                                                     |
-| `ChildItemFactory`             | `AddActionItem<T>(string, OnClickDelegate)` **`where T : IEngineeringObject`**, plus `WithIcon` / `WithCheckBox` / `WithRadioButton` variants, 2- and 3-generic-type versions, and `AddSubmenu(string)` |
-| `MenuSelectionProvider<T>`     | **declares no members of its own**; inherits from the non-generic base                                                                                                                                              |
-| `MenuSelectionProvider` (base) | `public IEnumerable<object> GetSelection()` · `public IEnumerable<TRequested> GetSelection<TRequested>()` · `internal int GetSelectedObjectCount`                                                                 |
-| `NotificationIcon`             | lives in**`Siemens.Engineering`**, NOT in `Siemens.Engineering.AddIn.Menu`                                                                                                                                      |
+| Member | Actual signature |
+| --- | --- |
+| `ProjectTreeAddInProvider` | `abstract`, **parameterless** constructor. TIA instantiates the derived class by looking for a constructor taking `TiaPortal` and injects it |
+| `GetContextMenuAddIns()` | **`protected virtual`** (not `abstract`), returns `IEnumerable<ContextMenuAddIn>` |
+| `ContextMenuAddIn` | constructor `(string displayName)`; override `protected override void BuildContextMenuItems(ContextMenuAddInRoot)` |
+| `ContextMenuAddInRoot.Items` | a `ChildItemFactory` |
+| `ChildItemFactory` | `AddActionItem<T>(string, OnClickDelegate)` **`where T : IEngineeringObject`**, plus `WithIcon` / `WithCheckBox` / `WithRadioButton` variants, 2- and 3-generic-type versions, and `AddSubmenu(string)` |
+| `MenuSelectionProvider<T>` | **declares no members of its own**; inherits from the non-generic base |
+| `MenuSelectionProvider` (base) | `public IEnumerable<object> GetSelection()` · `public IEnumerable<TRequested> GetSelection<TRequested>()` · `internal int GetSelectedObjectCount` |
+| `NotificationIcon` | lives in**`Siemens.Engineering`**, NOT in `Siemens.Engineering.AddIn.Menu` |
 
 ### Practical consequences
 
@@ -326,10 +294,10 @@ Despite the identical menu and provider surface, the two versions are not source
 
 **Message box.** V21 removed the `GetMessageBox()` extension on `TiaPortal` and renamed the type:
 
-|               | V20                                      | V21                                              |
-| ------------- | ---------------------------------------- | ------------------------------------------------ |
-| Type          | `Siemens.Engineering.AddIn.MessageBox` | `Siemens.Engineering.AddIn.MessageBoxProvider` |
-| How to obtain | `tiaPortal.GetMessageBox()`            | `tiaPortal.GetService<MessageBoxProvider>()`   |
+|  | V20 | V21 |
+| --- | --- | --- |
+| Type | `Siemens.Engineering.AddIn.MessageBox` | `Siemens.Engineering.AddIn.MessageBoxProvider` |
+| How to obtain | `tiaPortal.GetMessageBox()` | `tiaPortal.GetService<MessageBoxProvider>()` |
 
 ```csharp
 // V21
@@ -345,22 +313,22 @@ This is precisely the kind of difference that justifies a port in `AddIn.Shared`
 
 **`ProjectBase` lost four properties and gained one.** Compared declared property by declared property, seven of the eight spine types are identical across versions — `TiaPortal`, `HardwareObject`, `DeviceItem`, `SoftwareContainer`, `PlcSoftware`, `PlcBlockGroup` and `PlcUnitBase` all keep the same surface *and* the same base class. `ProjectBase` is the exception:
 
-| Property                                      | In V21                                                                                                   |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `Graphics`                                  | **removed** — `MultiLingualGraphic` and its composition exist nowhere in the sixteen assemblies |
-| `PlantViews`                                | **removed** — likewise, no `PlantView` and no `PlantViewComposition`                          |
-| `IsSimulationDuringBlockCompilationEnabled` | **removed**                                                                                        |
-| `IsVirtualPlcDuringBlockCompilationEnabled` | **removed**                                                                                        |
-| `TextCategories`                            | **added** — returns `TextCategoryComposition`, declared in `Base`                             |
+| Property | In V21 |
+| --- | --- |
+| `Graphics` | **removed** — `MultiLingualGraphic` and its composition exist nowhere in the sixteen assemblies |
+| `PlantViews` | **removed** — likewise, no `PlantView` and no `PlantViewComposition` |
+| `IsSimulationDuringBlockCompilationEnabled` | **removed** |
+| `IsVirtualPlcDuringBlockCompilationEnabled` | **removed** |
+| `TextCategories` | **added** — returns `TextCategoryComposition`, declared in `Base` |
 
 These are removals rather than relocations: the types themselves are gone. Code touching `project.Graphics` or `project.PlantViews` fails to compile against V21, which is the good outcome; the bad one is a V20 Add-In still shipping those calls and nobody noticing until someone opens V21.
 
 **Assembly identity, where the source is identical.** This one is easy to miss, because there is nothing to see in the code. `Siemens.Engineering.AddIn.Utilities` exposes the very same `Process` wrapper in both versions — same namespace, same type, same members, verified by reflection — but the assembly is signed with a **different public key token**:
 
-|                  | V20                                     | V21                                     |
-| ---------------- | --------------------------------------- | --------------------------------------- |
-| Assembly name    | `Siemens.Engineering.AddIn.Utilities` | `Siemens.Engineering.AddIn.Utilities` |
-| Public key token | `65b871d8372d6a8f`                    | `29bfe5fdf4ba5d3b`                    |
+|  | V20 | V21 |
+| --- | --- | --- |
+| Assembly name | `Siemens.Engineering.AddIn.Utilities` | `Siemens.Engineering.AddIn.Utilities` |
+| Public key token | `65b871d8372d6a8f` | `29bfe5fdf4ba5d3b` |
 
 So even source-identical code cannot be compiled once: a single binary would bind to one identity and fail to load in the other host. That is why `Adapters/ProcessLauncher.cs` exists twice, byte for byte, behind `IProcessLauncher`. Nothing in either file hints at the reason, which is why it is written down here.
 

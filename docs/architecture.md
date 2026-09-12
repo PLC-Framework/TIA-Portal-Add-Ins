@@ -1,7 +1,6 @@
 # Architecture
 
-How the solution is laid out and why each type lives where it does. The short version: a
-type's layer is decided by **what it depends on**, not by who calls it today.
+How the solution is laid out and why each type lives where it does. The short version: a type's layer is decided by **what it depends on**, not by who calls it today.
 
 ## Layout
 
@@ -91,9 +90,7 @@ src/UI.Shared/
     └── Controls.xaml         the dark-theme control styles; merges Theme.xaml itself
 ```
 
-> **Merging `Controls.xaml` is enough.** It pulls `Theme.xaml` in, so a consumer cannot get
-> the order wrong or take half of it. Listing both would just load the palette twice.
-> `Satellite.About` merges `Theme.xaml` alone, because it has no form.
+> **Merging `Controls.xaml` is enough.** It pulls `Theme.xaml` in, so a consumer cannot get the order wrong or take half of it. Listing both would just load the palette twice. `Satellite.About` merges `Theme.xaml` alone, because it has no form.
 
 ```
 src/Satellite.ConfigEditor/
@@ -137,11 +134,11 @@ src/AddIn.VXX/
 
 ### Naming convention
 
-| Item              | `Core`               | `AddIn.Shared`               | `AddIn.V20`         | `AddIn.V21`         |
-| ----------------- | ---------------------- | ------------------------------ | --------------------- | --------------------- |
-| Project / folder  | `Core`               | `AddIn.Shared`               | `AddIn.V20`         | `AddIn.V21`         |
-| `AssemblyName`  | `PLC-Framework.Core` | `PLC-Framework.AddIn.Shared` | `PLC-Framework.V20` | `PLC-Framework.V21` |
-| `RootNamespace` | `Core`               | `AddIn.Shared`               | `AddIn`             | `AddIn`             |
+| Item | `Core` | `AddIn.Shared` | `AddIn.V20` | `AddIn.V21` |
+| --- | --- | --- | --- | --- |
+| Project / folder | `Core` | `AddIn.Shared` | `AddIn.V20` | `AddIn.V21` |
+| `AssemblyName` | `PLC-Framework.Core` | `PLC-Framework.AddIn.Shared` | `PLC-Framework.V20` | `PLC-Framework.V21` |
+| `RootNamespace` | `Core` | `AddIn.Shared` | `AddIn` | `AddIn` |
 
 PascalCase throughout, TIA version suffixes included. Hyphens are legal in an `AssemblyName` and illegal in a C# namespace, which is why only the assembly carries the `PLC-Framework.` prefix.
 
@@ -161,25 +158,18 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
  └── model, config loader, install paths — what the satellites will also use
 ```
 
-| Layer                                  | May depend on                                        | Actual references                                                           |
-| -------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------- |
-| `Core`                               | only what**every** consumer needs              | `mscorlib`, `System`, `System.Core`, `System.Runtime.Serialization` |
-| `AddIn.Shared`                       | `Core` + host types that are **not** Siemens | `+ PLC-Framework.Core`, `System.Drawing`                                |
-| `UI.Shared`                          | `Core` + WPF                                       | `mscorlib`, `System` — see below                                       |
-| `S7PlcWebserverApi`                  | the network, and nothing of ours                     | `Newtonsoft.Json`, `System.Net.Http`                                    |
-| `AddIn.VXX`                          | anything, Siemens included                           | `+ Siemens.Engineering.AddIn`                                             |
-| `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window    |                                                                             |
+| Layer | May depend on | Actual references |
+| --- | --- | --- |
+| `Core` | only what**every** consumer needs | `mscorlib`, `System`, `System.Core`, `System.Runtime.Serialization` |
+| `AddIn.Shared` | `Core` + host types that are **not** Siemens | `+ PLC-Framework.Core`, `System.Drawing` |
+| `UI.Shared` | `Core` + WPF | `mscorlib`, `System` — see below |
+| `S7PlcWebserverApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |
+| `AddIn.VXX` | anything, Siemens included | `+ Siemens.Engineering.AddIn` |
+| `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window |  |
 
 That third column is read from the compiled assemblies, not from the `using` statements — it is the only check that cannot drift.
 
-**And it does surprise.** `UI.Shared` emits **no reference to `Core`** despite declaring one
-in its `.csproj`, and none to WPF either. The only thing it takes from `Core` is
-`Product.Title`, a `const string`, and a constant is **inlined at compile time** — the
-dependency vanishes from the metadata while the project reference stays necessary for the
-compiler and `Core.dll` stays necessary next to the executable. Its WPF content is XAML,
-compiled to BAML resources rather than to code, and `SingleInstance` is a `Mutex` plus two
-`DllImport`s. Neither is a defect to fix; both are the reason to read metadata instead of
-`using` lines.
+**And it does surprise.** `UI.Shared` emits **no reference to `Core`** despite declaring one in its `.csproj`, and none to WPF either. The only thing it takes from `Core` is `Product.Title`, a `const string`, and a constant is **inlined at compile time** — the dependency vanishes from the metadata while the project reference stays necessary for the compiler and `Core.dll` stays necessary next to the executable. Its WPF content is XAML, compiled to BAML resources rather than to code, and `SingleInstance` is a `Mutex` plus two `DllImport`s. Neither is a defect to fix; both are the reason to read metadata instead of `using` lines.
 
 **Shared projects are named after the concern, not the consumer.** `UI.Shared` holds what anything with a window needs — the logo, the palette — regardless of whether that thing is a satellite or a command-line tool that shows a dialog. Calling it `Satellite.Shared` would have broken the rule above in the name itself. `AddIn.Shared` keeps a consumer-shaped name because its contents genuinely are Add-In vocabulary: a TIA notification, a PLC group tree.
 
@@ -245,10 +235,10 @@ What must **not** be shared is the type:
 public static Stream Open(string path)     // AddIn.Shared.Assets
 ```
 
-| Host                          | Materialises it as                                                                                                             |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `AddIn.V20` / `AddIn.V21` | `new Icon(stream)` → `System.Drawing.Icon`, what the TIA menu API takes                                                   |
-| a WPF consumer                | `IconBitmapDecoder(stream, …).Frames[0]` → `ImageSource` — verified to work, but **nothing does this**: see above |
+| Host | Materialises it as |
+| --- | --- |
+| `AddIn.V20` / `AddIn.V21` | `new Icon(stream)` → `System.Drawing.Icon`, what the TIA menu API takes |
+| a WPF consumer | `IconBitmapDecoder(stream, …).Frames[0]` → `ImageSource` — verified to work, but **nothing does this**: see above |
 
 Both were verified against the same embedded `favicon.ico`, which is why the loader returns a `Stream` and not an `Icon` — that is what keeps `System.Drawing` out of it. The second row survives as evidence that the split is sound, not as a path in use; a windowed app reaches for `UI.Shared` instead.
 
@@ -284,107 +274,68 @@ Menu entries fall back to `AddActionItem` when `Icons.Get` returns `null`, so a 
 
 ### The five locations, at a glance
 
-Everything the framework writes or reads on a station lands in one of five places. The rule
-that decides which is short, and it is Windows' own: **`Program Files` is what the installer
-puts there; `%LOCALAPPDATA%` is what the applications write.** Getting that backwards is the
-failure that passes every test on a developer's machine — where you are an administrator —
-and fails at a customer's, where you are not.
+Everything the framework writes or reads on a station lands in one of five places. The rule that decides which is short, and it is Windows' own: **`Program Files` is what the installer puts there; `%LOCALAPPDATA%` is what the applications write.** Getting that backwards is the failure that passes every test on a developer's machine — where you are an administrator — and fails at a customer's, where you are not.
 
-| Location                                                   | Scope                                 | In code                        | Elevation        |
-| ---------------------------------------------------------- | ------------------------------------- | ------------------------------ | ---------------- |
-| `C:\Program Files\PLC-Framework\`                        | per**machine**                  | `Core.InstallPaths.Root`     | once, to install |
-| `%LOCALAPPDATA%\PLC-Framework\`                          | per**user**                     | `Core.InstallPaths.UserRoot` | none             |
-| `%AppData%\Siemens\Automation\Portal V2x\UserAddIns\`    | per user, per TIA version             | — Siemens' own                | none             |
-| `C:\Program Files\Siemens\Automation\Portal V2x\AddIns\` | per**machine**, per TIA version | — Siemens' own                | **yes**    |
-| `<TIA project>\.plc-framework\`                          | per**project**                  | `Core.Config.ConfigPaths`    | none             |
+| Location | Scope | In code | Elevation |
+| --- | --- | --- | --- |
+| `C:\Program Files\PLC-Framework\` | per**machine** | `Core.InstallPaths.Root` | once, to install |
+| `%LOCALAPPDATA%\PLC-Framework\` | per**user** | `Core.InstallPaths.UserRoot` | none |
+| `%AppData%\Siemens\Automation\Portal V2x\UserAddIns\` | per user, per TIA version | — Siemens' own | none |
+| `C:\Program Files\Siemens\Automation\Portal V2x\AddIns\` | per**machine**, per TIA version | — Siemens' own | **yes** |
+| `<TIA project>\.plc-framework\` | per**project** | `Core.Config.ConfigPaths` | none |
 
-That is five rows for more than five places, because the two Add-In rows are one row each
-for two TIA versions — V20 and V21 never share a folder.
+That is five rows for more than five places, because the two Add-In rows are one row each for two TIA versions — V20 and V21 never share a folder.
 
-> **`%ProgramData%` was the first answer, and it was wrong** (corrected 2026-09-11). The
-> reason on record — *"`%ProgramData%` grants ordinary users read and execute but not
-> write"* — is simply false: its `Users` ACE carries `Write` with `ContainerInherit`, so
-> every subfolder inherits it. Measured on a stock Windows 11: a standard user creates a
-> folder there, and a file inside it, with no elevation at all. **A directory anyone can
-> write to and everyone executes from is how a planted DLL gets loaded**, which is the
-> reason binaries live in `Program Files` — where `Users` really do get read and execute and
-> nothing more. Application whitelisting agrees: default AppLocker rules permit execution
-> from `Program Files` and `Windows` and deny it elsewhere for standard users, so satellites
-> under `%ProgramData%` would refuse to start on a locked-down station. The move cost
-> nothing, because step 2 already had to run elevated for V20's Add-In folder.
+> **`%ProgramData%` was the first answer, and it was wrong** (corrected 2026-09-11). The reason on record — *"`%ProgramData%` grants ordinary users read and execute but not write"* — is simply false: its `Users` ACE carries `Write` with `ContainerInherit`, so every subfolder inherits it. Measured on a stock Windows 11: a standard user creates a folder there, and a file inside it, with no elevation at all. **A directory anyone can write to and everyone executes from is how a planted DLL gets loaded**, which is the reason binaries live in `Program Files` — where `Users` really do get read and execute and nothing more. Application whitelisting agrees: default AppLocker rules permit execution from `Program Files` and `Windows` and deny it elsewhere for standard users, so satellites under `%ProgramData%` would refuse to start on a locked-down station. The move cost nothing, because step 2 already had to run elevated for V20's Add-In folder.
 >
-> The decisions that had been built on the false premise — the `.env` and
-> `config.template.json` moving to `%LOCALAPPDATA%` — still stand, on the corrected reason:
-> a user may *create* a file under `%ProgramData%` but not modify one written by the
-> installer or by another engineer, the folder is shared so two engineers overwrite each
-> other, and the token is personal.
+> The decisions that had been built on the false premise — the `.env` and `config.template.json` moving to `%LOCALAPPDATA%` — still stand, on the corrected reason: a user may *create* a file under `%ProgramData%` but not modify one written by the installer or by another engineer, the folder is shared so two engineers overwrite each other, and the token is personal.
 
-**The last two are the same choice as the first two, made by Siemens instead of by us**:
-one folder per user that anybody can write, one per machine that only an administrator can.
-**Which one a version uses is a property of that TIA installation, not of the project** — on
-the VM, V20 is machine-wide and V21 per-user — so `step2-deploy-vm.ps1` records the scope
-per version rather than per run. The package goes in exactly one of the two, and the script
-reports finding it in the other, because **TIA reads both and would load it twice**.
+**The last two are the same choice as the first two, made by Siemens instead of by us**: one folder per user that anybody can write, one per machine that only an administrator can. **Which one a version uses is a property of that TIA installation, not of the project** — on the VM, V20 is machine-wide and V21 per-user — so `step2-deploy-vm.ps1` records the scope per version rather than per run. The package goes in exactly one of the two, and the script reports finding it in the other, because **TIA reads both and would load it twice**.
 
-`PLC_FRAMEWORK_HOME` replaces the first row entirely, which is how a test run or the VM
-points at a staging folder without installing anything.
+`PLC_FRAMEWORK_HOME` replaces the first row entirely, which is how a test run or the VM points at a staging folder without installing anything.
 
 **`C:\Program Files\PLC-Framework\`** — what was installed
 
-|                      |                                                                                                                                                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|  |  |
+| --- | --- |
 | `*.exe`, `*.dll` | `InstallPaths.Root`, flat. **Every** executable shipped — satellites and command-line helpers alike — each with its DLLs and `.exe.config`. Copied in as a whole build output, not as a lone `.exe` |
 
-**No `tools\` subfolder.** It existed while the root was `%ProgramData%\PLC-Framework\` and
-might have shared space with data; under `Program Files` the folder holds nothing but
-binaries, so a level named after them said nothing the folder did not already say.
-`C:\Program Files\<Product>\app.exe` is the ordinary shape of an installed application.
+**No `tools\` subfolder.** It existed while the root was `%ProgramData%\PLC-Framework\` and might have shared space with data; under `Program Files` the folder holds nothing but binaries, so a level named after them said nothing the folder did not already say. `C:\Program Files\<Product>\app.exe` is the ordinary shape of an installed application.
 
 **`%LOCALAPPDATA%\PLC-Framework\`** — what the applications write
 
-|                          | Written by                                                           |                                                                                                                                           |
-| ------------------------ | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `credentials.json`     | `Satellite.DataBlockSnapshot`, only after a login the CPU accepted | web server user and password per project + PLC; the password under DPAPI`CurrentUser`                                                   |
-| `.env`                 | `Satellite.ConfigEditor`                                           | `GITHUB_TOKEN`. Here because the token is personal **and** because the install folder is not writable by the engineer who owns it |
-| `config.template.json` | `Satellite.ConfigEditor`, when it is missing or does not parse     | the template for a new`config.json`, written out from the embedded copy so it can be customised                                         |
+|  | Written by |  |
+| --- | --- | --- |
+| `credentials.json` | `Satellite.DataBlockSnapshot`, only after a login the CPU accepted | web server user and password per project + PLC; the password under DPAPI `CurrentUser` |
+| `.env` | `Satellite.ConfigEditor` | `GITHUB_TOKEN`. Here because the token is personal **and** because the install folder is not writable by the engineer who owns it |
+| `config.template.json` | `Satellite.ConfigEditor`, when it is missing or does not parse | the template for a new `config.json`, written out from the embedded copy so it can be customised |
 
 **`...\Portal V2x\UserAddIns\`** or **`...\Portal V2x\AddIns\`** — one or the other, never both
 
-|                             |                                                                             |
-| --------------------------- | --------------------------------------------------------------------------- |
-| `PLC-Framework.V20.addin` | carries`PLC-Framework.V20.dll` plus `Core.dll` and `AddIn.Shared.dll` |
-| `PLC-Framework.V21.addin` | the same, with`PLC-Framework.V21.dll`                                     |
+|  |  |
+| --- | --- |
+| `PLC-Framework.V20.addin` | carries `PLC-Framework.V20.dll` plus `Core.dll` and `AddIn.Shared.dll` |
+| `PLC-Framework.V21.addin` | the same, with `PLC-Framework.V21.dll` |
 
 **`<TIA project>\.plc-framework\`** — what belongs to the project
 
-|                        | Written by                                                                 | Versioned                                                |
-| ---------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `config.json`        | the user by hand, and`Satellite.ConfigEditor`                            | **yes**                                            |
-| `config.schema.json` | `Satellite.ConfigEditor`                                                 | **yes** — `config.json` points at it relatively |
-| `.gitignore`         | `Satellite.ConfigEditor`, only when absent                               | **yes**                                            |
-| `exports\`           | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx` | no                                                       |
-| `logs\`              | what a run recorded about itself                                           | no                                                       |
-| `tmp\`               | scratch space for one action                                               | no                                                       |
-| `reports\`           | generated reports, the coding-style check first                            | no                                                       |
+|  | Written by | Versioned |
+| --- | --- | --- |
+| `config.json` | the user by hand, and `Satellite.ConfigEditor` | **yes** |
+| `config.schema.json` | `Satellite.ConfigEditor` | **yes** — `config.json` points at it relatively |
+| `.gitignore` | `Satellite.ConfigEditor`, only when absent | **yes** |
+| `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx` | no |
+| `logs\` | what a run recorded about itself | no |
+| `tmp\` | scratch space for one action | no |
+| `reports\` | generated reports, the coding-style check first | no |
 
-The four folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and
-`ConfigPaths.FolderFor(projectDirectory, name)` resolves one. **Three of them have no writer
-yet, which is exactly when two components drift apart on a string** — the same reason the
-other literals are there. Nothing creates them: whoever writes the first file creates it
-then, so a project that never ran an action does not collect four empty folders, and git
-would not record them anyway.
+The four folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and `ConfigPaths.FolderFor(projectDirectory, name)` resolves one. **Three of them have no writer yet, which is exactly when two components drift apart on a string** — the same reason the other literals are there. Nothing creates them: whoever writes the first file creates it then, so a project that never ran an action does not collect four empty folders, and git would not record them anyway.
 
-**Not one secret lives here, and that is deliberate**: this folder is under version control,
-with `.version-control\` sitting right beside it. It is why the PLC credentials live under
-`%LOCALAPPDATA%` and why `config.json` carries the literal `${GITHUB_TOKEN}` rather than the
-token.
+**Not one secret lives here, and that is deliberate**: this folder is under version control, with `.version-control\` sitting right beside it. It is why the PLC credentials live under `%LOCALAPPDATA%` and why `config.json` carries the literal `${GITHUB_TOKEN}` rather than the token.
 
 #### The `.gitignore` the editor leaves behind
 
-Being under version control cuts both ways: no secrets may live here, and most of what the
-framework *writes* here must not be committed either. `Satellite.ConfigEditor` therefore
-drops a `.gitignore` in the folder, and it **ignores everything and re-admits what must be
-versioned** rather than listing what to skip:
+Being under version control cuts both ways: no secrets may live here, and most of what the framework *writes* here must not be committed either. `Satellite.ConfigEditor` therefore drops a `.gitignore` in the folder, and it **ignores everything and re-admits what must be versioned** rather than listing what to skip:
 
 ```gitignore
 *
@@ -394,26 +345,12 @@ versioned** rather than listing what to skip:
 !config.schema.json
 ```
 
-- **A deny-list only knows today's folders.** `exports\`, `logs\`, `tmp\`, `reports\` — the
-  next generated thing the framework writes would be committed by default, and nobody would
-  notice until it was already in the history. For a folder whose purpose is generated
-  output, that default is backwards. `reports\` proved the point before the ink was dry: it
-  was named after this file was written, and needed no change to it.
-- **The stake is higher than tidiness.** `exports\` holds workbooks of values read out of a
-  live CPU: plant configuration, sitting one folder away from `.version-control\`. Two lines
-  of allow-list are a cheap way never to have that conversation.
-- **`config.schema.json` is re-admitted deliberately, and it is not optional.** `config.json`
-  points at it by relative path, so a clone without it validates nothing and says nothing
-  about why — the exact failure that ruled out referencing the schema by URL.
-- **Written only when absent**, unlike the schema beside it. A team may add a line for their
-  own tooling, and rewriting it every save would be the editor overruling them. The schema is
-  derived and therefore ours to replace; this is a starting point and therefore theirs.
+- **A deny-list only knows today's folders.** `exports\`, `logs\`, `tmp\`, `reports\` — the next generated thing the framework writes would be committed by default, and nobody would notice until it was already in the history. For a folder whose purpose is generated output, that default is backwards. `reports\` proved the point before the ink was dry: it was named after this file was written, and needed no change to it.
+- **The stake is higher than tidiness.** `exports\` holds workbooks of values read out of a live CPU: plant configuration, sitting one folder away from `.version-control\`. Two lines of allow-list are a cheap way never to have that conversation.
+- **`config.schema.json` is re-admitted deliberately, and it is not optional.** `config.json` points at it by relative path, so a clone without it validates nothing and says nothing about why — the exact failure that ruled out referencing the schema by URL.
+- **Written only when absent**, unlike the schema beside it. A team may add a line for their own tooling, and rewriting it every save would be the editor overruling them. The schema is derived and therefore ours to replace; this is a starting point and therefore theirs.
 
-Checked against real `git` in a real repository: `git add .plc-framework` stages exactly
-those three files, while a snapshot workbook, a log, a `tmp\` file, the coding-style report
-and an invented file that does not exist yet are all ignored — that last one being the point
-of the allow-list. And across a second save, a hand-added line survives while a hand-edited
-`config.schema.json` is restored.
+Checked against real `git` in a real repository: `git add .plc-framework` stages exactly those three files, while a snapshot workbook, a log, a `tmp\` file, the coding-style report and an invented file that does not exist yet are all ignored — that last one being the point of the allow-list. And across a second save, a hand-added line survives while a hand-edited `config.schema.json` is restored.
 
 ### Where the satellites live
 
@@ -430,12 +367,7 @@ C:\Program Files\PLC-Framework\      ← Core.InstallPaths.Root
 
 > **"Satellite" is a role, not a location.** It names a WPF app the Add-In launches from the menu — as opposed to a command-line helper. Both live in the same folder. The word stays in project names (`Satellite.About`) and in the architecture decisions, because it describes what a thing *is*; the folder only says where it sits.
 
-> **The `.env` moved out of here** on 2026-09-09, to `%LOCALAPPDATA%\PLC-Framework\.env`.
-> This section used to say a station-wide `.env` was right for a shared team credential,
-> "and a personal token would belong somewhere per-user instead". The only thing in it
-> turned out to be `GITHUB_TOKEN`, which is exactly that personal token, and the install
-> folder is not writable by the engineer who owns it. `InstallPaths.EnvFile` now hangs off
-> `UserRoot`. The executables stay: an installed binary genuinely is per machine.
+> **The `.env` moved out of here** on 2026-09-09, to `%LOCALAPPDATA%\PLC-Framework\.env`. This section used to say a station-wide `.env` was right for a shared team credential, "and a personal token would belong somewhere per-user instead". The only thing in it turned out to be `GITHUB_TOKEN`, which is exactly that personal token, and the install folder is not writable by the engineer who owns it. `InstallPaths.EnvFile` now hangs off `UserRoot`. The executables stay: an installed binary genuinely is per machine.
 
 `PLC_FRAMEWORK_HOME` overrides the root, which is how you point a test run — or the VM — at a staging folder without installing or needing elevation. **`step2-deploy-vm.ps1` honours it too**, by the same two rules `InstallPaths.Root` uses; an installer and an Add-In that disagreed about where the framework lives would produce a "not installed" error on an install that looks perfectly fine.
 
@@ -447,54 +379,20 @@ No Siemens API offers an alternative: neither `TiaPortal` nor the `Siemens.Engin
 
 ### Theming a WPF field: Setters cannot reach hover and focus
 
-**These styles live in `UI.Shared/Resources/Controls.xaml`.** They were written inside
-`Satellite.DataBlockSnapshot`'s own window and moved out on 2026-09-09, when
-`Satellite.ConfigEditor` turned out to need the same ~290 lines — which would have been the
-third copy of the palette and the second of the templates. Almost everything in there is an
-**implicit** style, so a plain `<TextBox/>` is already themed; only the choices a window has
-to make are keyed (`Quiet` / `Primary` for a button, `FieldLabel`, `Reveal`).
+**These styles live in `UI.Shared/Resources/Controls.xaml`.** They were written inside `Satellite.DataBlockSnapshot`'s own window and moved out on 2026-09-09, when `Satellite.ConfigEditor` turned out to need the same ~290 lines — which would have been the third copy of the palette and the second of the templates. Almost everything in there is an **implicit** style, so a plain `<TextBox/>` is already themed; only the choices a window has to make are keyed (`Quiet` / `Primary` for a button, `FieldLabel`, `Reveal`).
 
 Two things changed in the move, both deliberate:
 
-- **Every colour got a name.** `#454E5B`, `#6C7686`, `#39424F` and three more were literals
-  inside triggers. That is exactly how a "disabled grey" becomes three slightly different
-  greys, so they are now `FieldEdgeDisabled`, `InkDisabled`, `RowHover` and so on in
-  `Theme.xaml`.
-- **A button that removes something uses `Destructive`**, which is `Quiet` at rest and red
-  under the pointer — so the click announces itself before it happens, and does so the same
-  way wherever a remove button appears. It could not be derived from `Quiet` with `BasedOn`:
-  the state that differs is a trigger *inside* the template, and `BasedOn` replaces the
-  whole template or nothing.
-- **Selectable rows are templated too, and for a reason that is easy to miss.**
-  `ListBoxItem` and `TreeViewItem` paint their selected background from the **system**
-  brushes: blue while focused, and a **pale box when not**, which on a dark form looks like
-  a rendering fault rather than a selection — a first row that appears highlighted before
-  anything has been clicked. Both now use the brand colour in either state, through a
-  `MultiTrigger` on `IsSelectionActive`. Note `ListViewItem` derives from `ListBoxItem` but
-  does **not** inherit its implicit style, because an implicit style matches the exact type.
-- **The eye lost its tooltip.** It used to flip between "Show the password" and "Hide the
-  password", which cannot survive a style that also serves a GitHub token — and the
-  alternative, a wording vague enough for both, tells nobody anything. The window names its
-  own field, and the struck-through eye already shows the state.
+- **Every colour got a name.** `#454E5B`, `#6C7686`, `#39424F` and three more were literals inside triggers. That is exactly how a "disabled grey" becomes three slightly different greys, so they are now `FieldEdgeDisabled`, `InkDisabled`, `RowHover` and so on in `Theme.xaml`.
+- **A button that removes something uses `Destructive`**, which is `Quiet` at rest and red under the pointer — so the click announces itself before it happens, and does so the same way wherever a remove button appears. It could not be derived from `Quiet` with `BasedOn`: the state that differs is a trigger *inside* the template, and `BasedOn` replaces the whole template or nothing.
+- **Selectable rows are templated too, and for a reason that is easy to miss.** `ListBoxItem` and `TreeViewItem` paint their selected background from the **system** brushes: blue while focused, and a **pale box when not**, which on a dark form looks like a rendering fault rather than a selection — a first row that appears highlighted before anything has been clicked. Both now use the brand colour in either state, through a `MultiTrigger` on `IsSelectionActive`. Note `ListViewItem` derives from `ListBoxItem` but does **not** inherit its implicit style, because an implicit style matches the exact type.
+- **The eye lost its tooltip.** It used to flip between "Show the password" and "Hide the password", which cannot survive a style that also serves a GitHub token — and the alternative, a wording vague enough for both, tells nobody anything. The window names its own field, and the struck-through eye already shows the state.
 
-**The move was verified by pixel comparison, not by eye**, and the method is worth
-repeating because the naive version lies. Capturing with `CopyFromScreen` photographs
-whatever is on top at those coordinates — `SetForegroundWindow` is blocked when the caller
-does not already have focus — so it can silently capture another application. `PrintWindow`
-with `PW_RENDERFULLCONTENT` asks the window to draw itself, covered or not.
+**The move was verified by pixel comparison, not by eye**, and the method is worth repeating because the naive version lies. Capturing with `CopyFromScreen` photographs whatever is on top at those coordinates — `SetForegroundWindow` is blocked when the caller does not already have focus — so it can silently capture another application. `PrintWindow` with `PW_RENDERFULLCONTENT` asks the window to draw itself, covered or not.
 
-Even then the first comparison read 12 % of pixels different. The difference map showed
-every fill identical and only glyph and border **outlines** changed: a sub-pixel shift,
-because ClearType renders against the absolute screen position and the window had not
-centred on exactly the same coordinate. The control that settled it was capturing the *same
-build twice* — 12 % again — and then comparing the pre-refactor capture against that
-control run: **0.096 % of pixels, maximum delta 4.** Identical.
+Even then the first comparison read 12 % of pixels different. The difference map showed every fill identical and only glyph and border **outlines** changed: a sub-pixel shift, because ClearType renders against the absolute screen position and the window had not centred on exactly the same coordinate. The control that settled it was capturing the *same build twice* — 12 % again — and then comparing the pre-refactor capture against that control run: **0.096 % of pixels, maximum delta 4.** Identical.
 
-Worth knowing before the next satellite repeats it. A `Style` full of `Setter`s gets a
-`TextBox` most of the way onto a dark palette — background, foreground, caret, selection —
-and then the control **repaints its own border Windows-blue on hover and on focus**, from
-brushes hardcoded inside the stock template. No `Setter` reaches those two states, because
-they are template triggers rather than properties.
+Worth knowing before the next satellite repeats it. A `Style` full of `Setter`s gets a `TextBox` most of the way onto a dark palette — background, foreground, caret, selection — and then the control **repaints its own border Windows-blue on hover and on focus**, from brushes hardcoded inside the stock template. No `Setter` reaches those two states, because they are template triggers rather than properties.
 
 Replacing the `ControlTemplate` is the only fix, and one template serves every field:
 
@@ -502,22 +400,11 @@ Replacing the `ControlTemplate` is the only fix, and one template serves every f
 <ControlTemplate x:Key="FieldChrome" TargetType="Control">
 ```
 
-`TargetType="Control"` rather than `TextBox` is what lets the `PasswordBox` share it: both
-derive from `TextBoxBase`, which finds its editing surface by the name `PART_ContentHost`,
-and every `TemplateBinding` needed is to a property `Control` already declares. The focused
-field is then marked in the brand colour — the same brush the text selection already uses.
+`TargetType="Control"` rather than `TextBox` is what lets the `PasswordBox` share it: both derive from `TextBoxBase`, which finds its editing surface by the name `PART_ContentHost`, and every `TemplateBinding` needed is to a property `Control` already declares. The focused field is then marked in the brand colour — the same brush the text selection already uses.
 
 Two traps came out of doing it:
 
-- **An implicit `TextBox` style reaches inside other templates.** An editable `ComboBox`
-  builds its edit area from a real `TextBox` named `PART_EditableTextBox`, so it inherits
-  the implicit style — padding included. Against the combo's fixed height that padding
-  clipped the text. `Padding="0"` on that part fixes it.
-- **For the same reason, the disabled trigger must not repaint the background.** That part
-  is transparent by design, and a solid colour there puts a patch inside the drop-down
-  whenever the form is busy. Dimming the border and the text says "disabled" perfectly
-  well.
+- **An implicit `TextBox` style reaches inside other templates.** An editable `ComboBox` builds its edit area from a real `TextBox` named `PART_EditableTextBox`, so it inherits the implicit style — padding included. Against the combo's fixed height that padding clipped the text. `Padding="0"` on that part fixes it.
+- **For the same reason, the disabled trigger must not repaint the background.** That part is transparent by design, and a solid colour there puts a patch inside the drop-down whenever the form is busy. Dimming the border and the text says "disabled" perfectly well.
 
-Verified by driving the real window through UI Automation — focus set per control, the
-pointer parked off-window so hover could not be confused with focus, and a capture started
-so the whole form could be seen disabled.
+Verified by driving the real window through UI Automation — focus set per control, the pointer parked off-window so hover could not be confused with focus, and a capture started so the whole form could be seen disabled.
