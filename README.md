@@ -63,7 +63,16 @@ Everything else — the configuration model and its validators, the web server c
 | [The CPU web server API](docs/webserver-api.md) | JSON-RPC findings measured against two real CPUs — useful on its own                          |
 | [Development](docs/development.md)              | building, testing, and how releases are cut                                                    |
 
-`CLAUDE.md` holds the working rules and the decision record: what was chosen, what was rejected, and why. Read it before proposing a change that looks obvious.
+## How this was built
+
+Written with the help of **[Claude Code](https://claude.com/claude-code)**. Every design
+decision, and every claim of "verified" in these pages, is the maintainer's: the Openness
+findings were read out of the assemblies, the web server measurements taken against two
+real CPUs, and the release installed on two real machines.
+
+A side effect worth knowing about: [CLAUDE.md](CLAUDE.md) is a far more complete decision
+record than a project this size would normally carry — what was chosen, what was rejected,
+and why. Read it before proposing a change that looks obvious.
 
 ## Licence
 
