@@ -80,24 +80,22 @@ foreach ($v in $versions) {
     Write-Host ("   {0,-46} {1}" -f $v.Package, (Get-Item $package).LastWriteTime.ToString("HH:mm:ss"))
 }
 
-# The installer travels WITH what it installs, so .deploy\ is one self-contained thing the
-# VM can copy to a local disk - which is the only way in when the share is a mapped drive,
-# because a mapped drive belongs to the logon session that made it and is simply not there
-# in an elevated one. Refreshed on every run, since .deploy\ is cleared above: that is what
-# stops the copy on the VM from quietly becoming last week's deployer.
-Write-Host "`ninstaller -> .deploy\" -ForegroundColor Cyan
-foreach ($name in @("step2-deploy-vm.cmd", "step2-deploy-vm.ps1")) {
-    Copy-Item (Join-Path $PSScriptRoot $name) $deploy -Force
-    Write-Host ("   {0,-46} {1}" -f $name, (Get-Item (Join-Path $deploy $name)).LastWriteTime.ToString("HH:mm:ss"))
-}
-
+# The installer is NOT copied in here. It was, as a fallback for a station where neither the
+# mapped drive nor the UNC behind it reaches an elevated session - .deploy\ was then one
+# self-contained folder to copy to a local disk. The UNC does cross on the VM this is built
+# against, so that fallback never runs, and staging for the VM is a different job from
+# packaging a release. The release script is what pairs an installer with this payload, and
+# it names the files what a stranger expects to see.
+#
+# If a station ever does need the local-copy route, copy scripts\ across as well: step2
+# resolves the payload relative to itself and stops with "Nothing staged" without it.
 Write-Host "`nstaged in $deploy" -ForegroundColor Green
 Write-Host "on the VM, in an ELEVATED PowerShell - V20 installs under Program Files:" -ForegroundColor Cyan
 Write-Host '   & "\\vmware-host\Shared Folders\E\PlcFramework\tia-portal-addins\scripts\step2-deploy-vm.cmd"'
 Write-Host ""
 Write-Host "   By UNC, not by the Z: mapping: a mapped drive belongs to the logon session" -ForegroundColor DarkGray
 Write-Host "   that created it, so an elevated one does not have it. Where a station's UNC" -ForegroundColor DarkGray
-Write-Host "   does not cross either, copy .deploy\ to a local disk - it carries its own" -ForegroundColor DarkGray
-Write-Host "   installer - and run the step2-deploy-vm.cmd inside it." -ForegroundColor DarkGray
+Write-Host "   does not cross either, copy BOTH .deploy\ and scripts\ to a local disk," -ForegroundColor DarkGray
+Write-Host "   keeping them side by side, and run step2 from the copy." -ForegroundColor DarkGray
 
 exit 0

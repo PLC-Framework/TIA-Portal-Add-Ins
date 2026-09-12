@@ -667,15 +667,15 @@ and **one consumer** (the Add-In). Decisions taken:
       UNC a mapping stands for. Note the first symptom misleads: typing the folder as a
       command gives `CommandNotFoundException`, which reads the same whether the path is
       missing or is a directory — `Test-Path Z:\` is the one that answers.
-      **`.deploy\` carries its own installer** as the fallback: `step1` copies
-      `step2-deploy-vm.cmd|ps1` into it every run, so it is one self-contained folder to copy
-      to a local disk where a station's UNC does not cross either.
-      **Copying the script alone does not work**:
-      it resolves the payload relative to itself and stops with "Nothing staged". And a
-      deployer copied by hand goes stale silently, which is the same disease as testing a
-      stale build with nothing printing the installer's age — so the installer is paired
-      with the payload and rewritten every run instead. `StagingFolder` decides which case
-      it is **by looking for `bin\` and `addins\` beside itself**, not by being told
+      **`step1` no longer copies the installer into `.deploy\`** (2026-09-12). It did, as
+      the fallback for a station where neither route reaches an elevated session — but the
+      UNC does cross here, so that path never ran, and staging for the VM is a different job
+      from packaging a release. Where the fallback is ever needed, `.deploy\` and
+      `scripts\` are copied together and kept side by side: `step2` resolves the payload
+      relative to itself and a lone script stops with "Nothing staged". `StagingFolder`
+      decides which case it is **by looking for `bin\` and `addins\` beside itself**, not
+      by being told — and that second case is what the release package will use, with the
+      files named what a stranger expects
 - [ ] Try the TIA Add-in Tester and/or `Siemens.Engineering.AddIn.DebugStarter.exe` to
       shorten the test cycle. **Planned for the next Add-In** rather than retrofitted onto
       the existing ones: the point is a shorter loop while writing something, and the two

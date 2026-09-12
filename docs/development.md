@@ -115,10 +115,14 @@ of the artefact, and the build only ever touches one of them.
 ```
 .deploy\
 ├── bin\                     the three satellites, merged flat as InstallPaths.Root expects
-├── addins\                  PLC-Framework.V20.addin, PLC-Framework.V21.addin
-├── step2-deploy-vm.cmd      a copy of the installer, refreshed every run
-└── step2-deploy-vm.ps1
+└── addins\                  PLC-Framework.V20.addin, PLC-Framework.V21.addin
 ```
+
+**The installer is not copied in here.** It was, briefly, so that `.deploy\` was one
+self-contained folder to carry to a local disk — but the UNC below does cross, so that
+fallback never ran, and staging for the VM is a different job from packaging a release.
+Pairing an installer with this payload is the release script's work, and it names the files
+what a stranger expects rather than what the maintainer's two steps are called.
 
 The three satellites share `Core.dll` and `UI.Shared.dll`, and the copies are identical
 because they were built together — which is what lets one folder serve all of them. `.pdb`
@@ -151,26 +155,24 @@ is reachable from the elevated session. Confirmed on this VM, which exposes `C`,
 No copy, nothing to keep in step. `(Get-PSDrive Z).DisplayRoot` in the **normal** session
 prints the UNC a mapping stands for, which is how to find it on another machine.
 
-**The fallback, if a station's UNC does not cross either**: `.deploy\` carries its own
-installer, so it is one self-contained folder to copy to a local disk — from the normal
-session, which is the one that can see `Z:` — and run from there elevated.
+**The fallback, if a station's UNC does not cross either**: copy to a local disk from the
+normal session — the one that can see `Z:` — and run from there elevated. **Copy both
+folders, keeping them beside each other**, because `step2` resolves the payload relative to
+itself and a lone script stops with *"Nothing staged"*.
 
 ```powershell
-robocopy Z:\...\tia-portal-addins\.deploy C:\PLC-Framework-deploy /E /PURGE   # normal session
-C:\PLC-Framework-deploy\step2-deploy-vm.cmd                                   # elevated
+robocopy Z:\...\tia-portal-addins C:\PLC-Framework-deploy /E /PURGE .deploy scripts
+C:\PLC-Framework-deploy\scripts\step2-deploy-vm.cmd                          # elevated
 ```
 
-**Copying the script alone does not work, and copying it once is worse than not copying
-it.** It resolves the payload relative to itself, so a lone copy looks for `.deploy\` beside
-itself and stops with *"Nothing staged"*. And a deployer copied by hand goes stale silently
-— the same disease as testing a stale build, one level up, except nothing prints the
-installer's age. Pairing it with the payload fixes both: `step1` clears `.deploy\` and
-rewrites the script into it on every run, so the thing you copy is always current and there
-is only ever one thing to copy.
+**A deployer copied by hand goes stale silently** — the same disease as testing a stale
+build, one level up, except nothing prints the installer's age. Copy both folders again
+after every build rather than leaving last week's script behind.
 
 `StagingFolder` works out which case it is by **looking for the payload rather than being
-told**: `bin\` and `addins\` beside the script means this is the staged copy, otherwise
-the staging folder is `.deploy\` one level up from `scripts\`.
+told**: `bin\` and `addins\` beside the script means this is a staged copy that carries its
+own installer, otherwise the staging folder is `.deploy\` one level up from `scripts\`.
+Only the second case happens today, and the first is what the release package will use.
 
 `step2-deploy-vm.ps1` copies `tools\` with `/PURGE`, so a renamed executable does not linger,
 and puts each package in its TIA version's Add-In folder. Two switches for the common cases:
