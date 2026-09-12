@@ -296,7 +296,7 @@ A different kind of divergence, and easier to miss because the source is identic
 
 ### `config.json` pipeline — contract settled 2026-09-08, validators built 2026-09-09
 
-**The field-by-field contract lives in the README, under *The `config.json` contract*** — required, type and meaning for every key, plus the closed sets, the internal references and the uniqueness rules. It is the authority; do not restate it here and do not infer requiredness from the model, which is permissive on purpose.
+**The field-by-field contract lives in `docs/configuration.md`, under *The `config.json` contract*** — required, type and meaning for every key, plus the closed sets, the internal references and the uniqueness rules. It is the authority; do not restate it here and do not infer requiredness from the model, which is permissive on purpose. (It was in the README until the documentation was split; this line said so for longer than it was true.)
 
 The shape of it, worth carrying in your head:
 

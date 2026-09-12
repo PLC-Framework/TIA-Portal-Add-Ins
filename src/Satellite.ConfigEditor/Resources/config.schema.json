@@ -373,6 +373,39 @@
       }
     },
 
+    "interfaceSection": {
+      "type": "object",
+      "description": "One section of this type's interface, and the rules its members answer to.",
+      "required": [
+        "type",
+        "implements"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "Input",
+            "Output",
+            "InOut",
+            "Static",
+            "Temp",
+            "Constant"
+          ],
+          "description": "Closed set, spelled as TIA spells it. Listing the same section twice is what Core's validator catches, since JSON Schema's uniqueItems compares whole objects rather than one field."
+        },
+        "implements": {
+          "$ref": "#/definitions/implements"
+        }
+      }
+    },
+
+    "interface": {
+      "type": "array",
+      "description": "Optional. Naming rules for what lives inside this object, per interface section. Absent means the interface is not checked - which is the state of every configuration written before this existed. It is nested inside the type rather than declared as a flat variables list because the binding carries the meaning: a static of an FB and a temp of an FC are both variables and may answer to different rules.",
+      "items": {
+        "$ref": "#/definitions/interfaceSection"
+      }
+    },
+
     "blockObject": {
       "type": "object",
       "required": [
@@ -393,6 +426,9 @@
         },
         "implements": {
           "$ref": "#/definitions/implements"
+        },
+        "interface": {
+          "$ref": "#/definitions/interface"
         }
       }
     },
@@ -412,6 +448,9 @@
         },
         "implements": {
           "$ref": "#/definitions/implements"
+        },
+        "interface": {
+          "$ref": "#/definitions/interface"
         }
       }
     },
@@ -431,6 +470,9 @@
         },
         "implements": {
           "$ref": "#/definitions/implements"
+        },
+        "interface": {
+          "$ref": "#/definitions/interface"
         }
       }
     },
@@ -450,6 +492,9 @@
         },
         "implements": {
           "$ref": "#/definitions/implements"
+        },
+        "interface": {
+          "$ref": "#/definitions/interface"
         }
       }
     },
@@ -469,6 +514,9 @@
         },
         "implements": {
           "$ref": "#/definitions/implements"
+        },
+        "interface": {
+          "$ref": "#/definitions/interface"
         }
       }
     }

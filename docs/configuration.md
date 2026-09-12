@@ -104,6 +104,18 @@ Same rule as the hierarchy: required, possibly empty.
 | --- | --- | --- | --- |
 | `type` | **Yes** | string | TIA object type. Closed set, listed per section above |
 | `implements` | **Yes** | array of string | Rules this type accepts. Not empty, and**every id must exist in `rules`** — an internal reference, so a typo is caught rather than silently ignored |
+| `interface` | No | array of `InterfaceSection` | Rules for what lives *inside* this object. Absent means the interface is not checked |
+
+**A name passes if it matches *any* rule in `implements`, not all of them.** An `FC` that implements `function`, `safety_function`, `subroutine` and `safety_subroutine` is offering four spellings and accepting whichever one was used — a name could not satisfy two of them at once. What the report shows is which rules a name matched, and the ones it did not are shown as suggestions, because they are what it was probably aiming at.
+
+### `InterfaceSection`
+
+| Field | Required | Type | Description |
+| --- | --- | --- | --- |
+| `type` | **Yes** | string | Closed set: `Input`, `Output`, `InOut`, `Static`, `Temp`, `Constant`. Spelled as TIA spells it, like every other closed set here. **Unique within one `interface`** — the same section twice says nothing the first entry does not |
+| `implements` | **Yes** | array of string | Same rules as above: not empty, every id must exist in `rules` |
+
+**It is nested inside the type rather than declared as a flat `variables` list, and that is the whole point.** A static of an FB and a temp of an FC are both variables, and they may well answer to different rules; a flat list could only ever say "every variable everywhere". Nesting is what lets the configuration state *which interface must satisfy which rule*.
 
 ### The token never lands in `config.json`
 

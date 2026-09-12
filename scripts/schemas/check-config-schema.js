@@ -122,8 +122,23 @@ const mustFail = {
     "implements empty":                 (d) => set(d, "projectConfig.codingStyle.blocks.0.implements", []),
     "implements missing":               (d) => drop(d, "projectConfig.codingStyle.blocks.0.implements"),
     "implements a string, not a list":  (d) => set(d, "projectConfig.codingStyle.blocks.0.implements", "naming"),
-    "implements entry blank":           (d) => set(d, "projectConfig.codingStyle.blocks.0.implements", ["  "])
+    "implements entry blank":           (d) => set(d, "projectConfig.codingStyle.blocks.0.implements", ["  "]),
+
+    // The optional interface nested in a type. Its section names are spelled as TIA spells
+    // them, like the five closed sets above, so "static" is as wrong as "OB" would be.
+    "interface not an array":           (d) => iface(d, { type: "Static", implements: ["variable"] }),
+    "interface section without a type": (d) => iface(d, [{ implements: ["variable"] }]),
+    "interface type outside the set":   (d) => iface(d, [{ type: "Retain", implements: ["variable"] }]),
+    "interface type wrong case":        (d) => iface(d, [{ type: "static", implements: ["variable"] }]),
+    "interface implements missing":     (d) => iface(d, [{ type: "Static" }]),
+    "interface implements empty":       (d) => iface(d, [{ type: "Static", implements: [] }]),
+    "interface implements blank entry": (d) => iface(d, [{ type: "Static", implements: ["  "] }])
 };
+
+/** Puts an interface on the first block type, which is where every case above needs one. */
+function iface(doc, value) {
+    return set(doc, "projectConfig.codingStyle.blocks.0.interface", value);
+}
 
 // --- variants it cannot express, and Core's validators own --------------------------------
 const mustPass = {
@@ -134,7 +149,21 @@ const mustPass = {
     "two sibling folders share a name":
         (d) => set(d, "projectConfig.hierarchy.blocks.1.name", d.projectConfig.hierarchy.blocks[0].name),
     "a regex that does not compile":
-        (d) => set(d, "projectConfig.codingStyle.rules.0.regex", "[")
+        (d) => set(d, "projectConfig.codingStyle.rules.0.regex", "["),
+
+    // Same two limits as above, one level down: no cross-references, and uniqueItems
+    // compares whole objects rather than the one field that has to be unique.
+    "an interface implements a rule that does not exist":
+        (d) => iface(d, [{ type: "Static", implements: ["no_such_rule"] }]),
+    "the same interface section listed twice":
+        (d) => iface(d, [{ type: "Static", implements: ["variable"] },
+                         { type: "Static", implements: ["constant"] }]),
+
+    // And the shape itself has to be accepted, or every case above would "pass" for the
+    // wrong reason.
+    "a well-formed interface":
+        (d) => iface(d, [{ type: "Input", implements: ["variable"] },
+                         { type: "Constant", implements: ["constant"] }])
 };
 
 console.log("\n--- must be rejected ---");

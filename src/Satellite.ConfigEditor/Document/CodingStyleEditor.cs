@@ -84,11 +84,8 @@ namespace Satellite.ConfigEditor.Document
 
             rule.Remove();
 
-            foreach (JObject entry in AllObjects())
+            foreach (JArray implements in AllImplements())
             {
-                JArray implements = entry["implements"] as JArray;
-                if (implements == null) continue;
-
                 foreach (JToken reference in implements
                              .Where(token => string.Equals(token.Value<string>(), id, StringComparison.Ordinal))
                              .ToList())
@@ -118,11 +115,8 @@ namespace Satellite.ConfigEditor.Document
 
             rule["id"] = newId;
 
-            foreach (JObject entry in AllObjects())
+            foreach (JArray implements in AllImplements())
             {
-                JArray implements = entry["implements"] as JArray;
-                if (implements == null) continue;
-
                 for (int i = 0; i < implements.Count; i++)
                 {
                     if (string.Equals(implements[i].Value<string>(), oldId, StringComparison.Ordinal))
@@ -229,6 +223,38 @@ namespace Satellite.ConfigEditor.Document
 
         private IEnumerable<JObject> AllObjects() =>
             Sections.SelectMany(section => Objects(section.Key).OfType<JObject>());
+
+        /// <summary>
+        /// Every array in the document that holds rule ids: the one on each type, and the
+        /// one on each of that type's interface sections.
+        ///
+        /// <c>RemoveRule</c> and <c>RenameRule</c> both walk this rather than reaching for
+        /// <c>entry["implements"]</c> themselves, and that is the point of it existing. A
+        /// reference the walk does not reach is a dangling id that survives the edit and
+        /// only surfaces later, in the validator - which is exactly what those two methods
+        /// exist to prevent. When rule ids appear in a third place, this is the one method
+        /// that has to learn about it.
+        ///
+        /// The editor cannot yet *show* an interface, but it must not damage one somebody
+        /// wrote by hand.
+        /// </summary>
+        private IEnumerable<JArray> AllImplements()
+        {
+            foreach (JObject entry in AllObjects())
+            {
+                JArray implements = entry["implements"] as JArray;
+                if (implements != null) yield return implements;
+
+                JArray sections = entry["interface"] as JArray;
+                if (sections == null) continue;
+
+                foreach (JObject section in sections.OfType<JObject>())
+                {
+                    JArray nested = section["implements"] as JArray;
+                    if (nested != null) yield return nested;
+                }
+            }
+        }
 
         /// <summary>A name like the one asked for, that no rule is using.</summary>
         private string Unused(string wanted)
