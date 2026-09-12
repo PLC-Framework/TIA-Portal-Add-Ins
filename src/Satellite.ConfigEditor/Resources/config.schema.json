@@ -285,21 +285,46 @@
 
     "codingStyle": {
       "type": "object",
-      "description": "Naming rules, and which TIA object types are held to them. Same rule as the hierarchy: every list is required and may be empty.",
+      "description": "Naming rules, and which TIA object types are held to them. Same rule as the hierarchy: every list of type objects is required and may be empty. The rule catalogue is split in two because the two kinds are referenced from different places and never stand in for one another - but their ids are unique across both, so an id in a report names exactly one rule.",
       "required": [
-        "rules",
         "blocks",
         "technologyObjects",
         "tagTables",
         "types",
         "alarmTextLists"
       ],
+      "anyOf": [
+        {
+          "required": [
+            "objectRules"
+          ]
+        },
+        {
+          "required": [
+            "rules"
+          ]
+        }
+      ],
       "properties": {
+        "objectRules": {
+          "type": "array",
+          "description": "Rules for the names of TIA objects. This is what every implements entry points at, and each may carry an interface saying what belongs inside the object it names.",
+          "items": {
+            "$ref": "#/definitions/objectRule"
+          }
+        },
+        "interfaceRules": {
+          "type": "array",
+          "description": "Rules for the names of what lives inside an object: interface members, tags, constants. Optional, so a configuration written before the catalogue was split stays valid. Referenced only from an object rule's interface.",
+          "items": {
+            "$ref": "#/definitions/interfaceRule"
+          }
+        },
         "rules": {
           "type": "array",
-          "description": "The catalogue of naming rules. This is what every implements entry points at.",
+          "description": "The former name of objectRules, still read so that a configuration already living in a TIA project keeps working. The editor writes the current name, so a document migrates the first time somebody saves it. Carrying both keys is what Core's validator reports.",
           "items": {
-            "$ref": "#/definitions/rule"
+            "$ref": "#/definitions/objectRule"
           }
         },
         "blocks": {
@@ -335,37 +360,73 @@
       }
     },
 
-    "rule": {
+    "ruleId": {
+      "type": "string",
+      "pattern": "\\S",
+      "description": "Unique across BOTH catalogues - which JSON Schema cannot check, so Core's validator does."
+    },
+
+    "ruleRegex": {
+      "type": "string",
+      "pattern": "\\S",
+      "description": "Naming pattern. That it compiles is checked by Core's validator: a pattern that cannot compile is a broken file, not a broken machine. Note an empty pattern would match every name ever written."
+    },
+
+    "ruleDescriptions": {
+      "type": "array",
+      "description": "Human-readable explanation of the rule, one line each.",
+      "items": {
+        "type": "string"
+      }
+    },
+
+    "objectRule": {
       "type": "object",
-      "description": "One naming rule.",
+      "description": "One rule for the name of a TIA object.",
       "required": [
         "id",
         "regex"
       ],
       "properties": {
         "id": {
-          "type": "string",
-          "pattern": "\\S",
-          "description": "Unique across the whole file - which JSON Schema cannot check, so Core's validator does. This is what implements points at."
+          "$ref": "#/definitions/ruleId"
         },
         "regex": {
-          "type": "string",
-          "pattern": "\\S",
-          "description": "Naming pattern. That it compiles is checked by Core's validator: a pattern that cannot compile is a broken file, not a broken machine. Note an empty pattern would match every name ever written."
+          "$ref": "#/definitions/ruleRegex"
         },
         "descriptions": {
-          "type": "array",
-          "description": "Human-readable explanation of the rule, one line each.",
-          "items": {
-            "type": "string"
-          }
+          "$ref": "#/definitions/ruleDescriptions"
+        },
+        "interface": {
+          "$ref": "#/definitions/interface"
         }
+      }
+    },
+
+    "interfaceRule": {
+      "type": "object",
+      "description": "One rule for the name of something that lives inside an object.",
+      "required": [
+        "id",
+        "regex"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/ruleId"
+        },
+        "regex": {
+          "$ref": "#/definitions/ruleRegex"
+        },
+        "descriptions": {
+          "$ref": "#/definitions/ruleDescriptions"
+        },
+        "interface": false
       }
     },
 
     "implements": {
       "type": "array",
-      "description": "The rules this object type is held to. Not empty, and every entry must name an existing rules[].id - the reference itself is what Core's validator checks, since JSON Schema cannot look across the document.",
+      "description": "The rules held against a name, as ALTERNATIVES: it passes if it matches any one of them. Not empty, and every entry must name an existing rule in the catalogue this list is allowed to reach - object rules from a type, interface rules from an interface. The reference itself is what Core's validator checks, since JSON Schema cannot look across the document.",
       "minItems": 1,
       "items": {
         "type": "string",
@@ -388,9 +449,11 @@
             "InOut",
             "Static",
             "Temp",
-            "Constant"
+            "Constant",
+            "Tag",
+            "UserConstant"
           ],
-          "description": "Closed set, spelled as TIA spells it. Listing the same section twice is what Core's validator catches, since JSON Schema's uniqueItems compares whole objects rather than one field."
+          "description": "Closed set, spelled as TIA spells it. The first six are the sections of a block interface; the last two are a tag table's, named apart because a tag and a user constant answer to different rules. Listing the same section twice is what Core's validator catches, since JSON Schema's uniqueItems compares whole objects rather than one field."
         },
         "implements": {
           "$ref": "#/definitions/implements"
@@ -426,9 +489,6 @@
         },
         "implements": {
           "$ref": "#/definitions/implements"
-        },
-        "interface": {
-          "$ref": "#/definitions/interface"
         }
       }
     },
@@ -448,9 +508,6 @@
         },
         "implements": {
           "$ref": "#/definitions/implements"
-        },
-        "interface": {
-          "$ref": "#/definitions/interface"
         }
       }
     },
@@ -470,9 +527,6 @@
         },
         "implements": {
           "$ref": "#/definitions/implements"
-        },
-        "interface": {
-          "$ref": "#/definitions/interface"
         }
       }
     },
@@ -492,9 +546,6 @@
         },
         "implements": {
           "$ref": "#/definitions/implements"
-        },
-        "interface": {
-          "$ref": "#/definitions/interface"
         }
       }
     },
@@ -514,9 +565,6 @@
         },
         "implements": {
           "$ref": "#/definitions/implements"
-        },
-        "interface": {
-          "$ref": "#/definitions/interface"
         }
       }
     }

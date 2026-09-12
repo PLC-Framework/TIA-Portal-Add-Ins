@@ -83,28 +83,40 @@ Same rule as the hierarchy: required, possibly empty.
 
 | Field | Required | Type | Description |
 | --- | --- | --- | --- |
-| `rules` | **Yes** | array of `Rule` | The catalogue of naming rules. May be `[]` |
+| `objectRules` | **Yes** | array of `Rule` | Rules for the names of TIA objects. This is what every `implements` points at. May be `[]` |
+| `interfaceRules` | No | array of `Rule` | Rules for the names of what lives inside an object: interface members, tags, constants. Referenced only from an object rule's `interface` |
+| `rules` | — | array of `Rule` | **The former name of `objectRules`**, still read. See below |
 | `blocks` | **Yes** | array of `PlcTypeObject` | Closed set of `type`: `OB`, `ArrayDB`, `GlobalDB`, `InstanceDB`, `FC`, `FB` |
 | `technologyObjects` | **Yes** | array of `PlcTypeObject` | Closed set of `type`: `TechnologicalInstanceDB` |
 | `tagTables` | **Yes** | array of `PlcTypeObject` | Closed set of `type`: `PlcTagTable` |
 | `types` | **Yes** | array of `PlcTypeObject` | Closed set of `type`: `PlcStruct` |
 | `alarmTextLists` | **Yes** | array of `PlcTypeObject` | Closed set of `type`: `AlarmTexts` |
 
+**The catalogue is split in two because the two kinds of rule are referenced from different places and can never stand in for one another.** An object rule names a TIA object and is reached from a type's `implements`; an interface rule names what lives inside one and is reached only from an object rule's `interface`. Ids are unique across both anyway, so that an id in a report identifies exactly one rule.
+
+**`rules` is the name `objectRules` used to have, and reading it is not politeness — it is the first migration this format has needed.** A `config.json` already sitting in a TIA project carries the old key, and a released Add-In has to keep working with it: a document with `rules` alone is valid, and `Satellite.ConfigEditor` renames the key in place the first time it opens the file, so it migrates on the next save without the user learning that anything was renamed. A document carrying **both** keys is an error rather than a guess — which of the two the author meant is not something to decide silently.
+
+`interfaceRules` is optional for the same reason: a configuration written before the split has none, and reporting it as broken on a machine that merely opened it would be wrong.
+
 ### `Rule`
 
 | Field | Required | Type | Description |
 | --- | --- | --- | --- |
-| `id` | **Yes** | string | **Unique across the whole file**. This is what `implements` points at |
+| `id` | **Yes** | string | **Unique across both catalogues**, so an id in a report or an error message names exactly one rule |
 | `regex` | **Yes** | string | Naming pattern.**Must compile** — checked structurally, since a pattern that cannot compile is a broken file, not a broken environment |
 | `descriptions` | No | array of string | Human-readable explanation of the rule |
+| `interface` | No | array of `InterfaceSection` | **Object rules only.** What this rule expects to find inside the object it names. Absent means the interface is not checked; on an interface rule it is an error |
+
+**The `interface` hangs off the rule, not off the type, and that is the whole design.** An FB whose name matches `object_container_for_sequences` must hold sequence variables in its `Static`; an FB whose name matches `function` must not. Both are FBs, so a list hanging off the type could never tell them apart — it is *the rule that matched* which says what belongs inside.
+
+That only works while a name matches one rule. Where two could match, the checker takes the union of their interfaces, but the better fix is a pattern that excludes the other: `generic_object_container` carries `(?!seq[0-9])` and `function` carries `(?!_oc_)` for exactly that reason.
 
 ### `PlcTypeObject`
 
 | Field | Required | Type | Description |
 | --- | --- | --- | --- |
 | `type` | **Yes** | string | TIA object type. Closed set, listed per section above |
-| `implements` | **Yes** | array of string | Rules this type accepts. Not empty, and**every id must exist in `rules`** — an internal reference, so a typo is caught rather than silently ignored |
-| `interface` | No | array of `InterfaceSection` | Rules for what lives *inside* this object. Absent means the interface is not checked |
+| `implements` | **Yes** | array of string | Object rules this type accepts. Not empty, and**every id must exist in `objectRules`** — an internal reference, so a typo is caught rather than silently ignored |
 
 **A name passes if it matches *any* rule in `implements`, not all of them.** An `FC` that implements `function`, `safety_function`, `subroutine` and `safety_subroutine` is offering four spellings and accepting whichever one was used — a name could not satisfy two of them at once. What the report shows is which rules a name matched, and the ones it did not are shown as suggestions, because they are what it was probably aiming at.
 
@@ -112,10 +124,10 @@ Same rule as the hierarchy: required, possibly empty.
 
 | Field | Required | Type | Description |
 | --- | --- | --- | --- |
-| `type` | **Yes** | string | Closed set: `Input`, `Output`, `InOut`, `Static`, `Temp`, `Constant`. Spelled as TIA spells it, like every other closed set here. **Unique within one `interface`** — the same section twice says nothing the first entry does not |
-| `implements` | **Yes** | array of string | Same rules as above: not empty, every id must exist in `rules` |
+| `type` | **Yes** | string | Closed set: `Input`, `Output`, `InOut`, `Static`, `Temp`, `Constant` for a block interface, and `Tag`, `UserConstant` for a tag table's two. Spelled as TIA spells it, like every other closed set here. **Unique within one `interface`** — the same section twice says nothing the first entry does not |
+| `implements` | **Yes** | array of string | Not empty, and every id must exist in **`interfaceRules`**. The two catalogues never stand in for one another, so naming an object rule here reads as "no such rule", which from here it is |
 
-**It is nested inside the type rather than declared as a flat `variables` list, and that is the whole point.** A static of an FB and a temp of an FC are both variables, and they may well answer to different rules; a flat list could only ever say "every variable everywhere". Nesting is what lets the configuration state *which interface must satisfy which rule*.
+**A tag table's tags and its user constants are named apart on purpose.** They are two different things that answer to different rules — an enumeration's constants are shouted in upper case while its tags are not — and one section covering both could not say so.
 
 ### The token never lands in `config.json`
 
@@ -163,13 +175,15 @@ Three decisions worth keeping:
 
 **It expresses the mechanical half.** Required fields, types, the five closed `type` sets, `coreSource` deciding which repository section is required (`if`/`then`), the recursive `Group` through a `$ref` to itself, the `version` pattern, an `apiUrl` that is absolute and `http`/`https`, and lists that may be empty but must exist.
 
-**Four rules are beyond it, and they are the ones a typo breaks silently:**
+**Six rules are beyond it, and they are the ones a typo breaks silently:**
 
 | Not expressible | Why |
 | --- | --- |
-| `implements` naming an existing `rules[].id` | JSON Schema has no cross-references |
-| `rules[].id` unique file-wide | `uniqueItems` compares whole objects, not one field |
+| `implements` naming an existing rule, in the catalogue it is allowed to reach | JSON Schema has no cross-references |
+| a rule id unique across **both** catalogues | `uniqueItems` compares whole objects, not one field, and cannot look at two arrays at once |
 | `Group.name` unique among siblings | same |
+| an interface section listed twice for one rule | same |
+| carrying both `objectRules` and `rules` | the schema has to accept either, so it cannot object to both |
 | a `regex` that compiles | `format: "regex"` is annotation-only in most validators |
 
 So **the schema does not replace `Core`'s validators; it takes the boring half earlier.** Anyone who mistakes it for the authority will ship a file the Add-In then refuses.
@@ -205,7 +219,7 @@ node scripts\schemas\check-config-schema.js
 
 **`ajv` is resolved from outside the repo deliberately** — this is a .NET solution, and a `node_modules\` inside it would be the only one, kept alive by a single test. `Newtonsoft.Json.Schema` would have been the in-house choice, since `Newtonsoft.Json` is already here, and it is commercially licensed beyond 1000 validations an hour: a poor thing to bury in a test.
 
-It checks both real configurations, thirty-three broken variants — every one rejected, at the right path — and the four rules above, **which must pass**: the test asserts the limits rather than trusting this prose. The wiring was then exercised end to end through the real `ConfigDocument`: the schema lands beside the file, `$schema` is first, `Core` still loads and validates a document carrying a key its model does not know, a second save neither duplicates nor moves it, a `$schema` aimed elsewhere survives untouched with no file written, and the file the editor wrote validates against the copy it wrote next to it.
+It checks both real configurations, forty-two broken variants — every one rejected, at the right path — and eleven documents the schema must accept, **which must pass**: the test asserts the limits rather than trusting this prose. The wiring was then exercised end to end through the real `ConfigDocument`: the schema lands beside the file, `$schema` is first, `Core` still loads and validates a document carrying a key its model does not know, a second save neither duplicates nor moves it, a `$schema` aimed elsewhere survives untouched with no file written, and the file the editor wrote validates against the copy it wrote next to it.
 
 ### The environmental pass is separate, and that is the point
 

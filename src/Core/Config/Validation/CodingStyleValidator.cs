@@ -5,13 +5,20 @@ using System.Text.RegularExpressions;
 namespace Core.Config.Validation
 {
     /// <summary>
-    /// The <c>codingStyle</c> section: a catalogue of naming rules, and which TIA object
+    /// The <c>codingStyle</c> section: two catalogues of naming rules, and which TIA object
     /// types accept each of them.
     ///
     /// This is the section where a typo is invisible without a validator. An
     /// <c>implements</c> entry that names a rule which does not exist compiles, loads and
     /// runs - it simply never matches anything, and a naming check that silently passes
     /// everything is worse than no naming check.
+    ///
+    /// The catalogue is split in two because the two kinds of rule are referenced from
+    /// different places and can never stand in for one another: <c>objectRules</c> name TIA
+    /// objects and are referenced by a type's <c>implements</c>; <c>interfaceRules</c> name
+    /// what lives inside one and are referenced only from an object rule's
+    /// <c>interface</c>. Ids stay unique across both anyway, so that an id in a report or
+    /// an error message identifies exactly one rule.
     /// </summary>
     public static class CodingStyleValidator
     {
@@ -25,12 +32,13 @@ namespace Core.Config.Validation
         private static readonly string[] TypeTypes = { "PlcStruct" };
         private static readonly string[] AlarmTextListTypes = { "AlarmTexts" };
 
-        // The sections of a block interface, spelled as TIA spells them - the same rule the
-        // five sets above follow, and the one that lets a check compare without folding
-        // case. One set serves every family for now; if a UDT or a tag table turns out to
-        // need a different vocabulary, that is a finding for when the checker meets one.
+        // Where members live, spelled as TIA spells it - the same rule the five sets above
+        // follow, and the one that lets a check compare without folding case. The first six
+        // are the sections of a block interface; the last two are a tag table's, which are
+        // two different things and are named apart on purpose: a tag and a user constant
+        // answer to different rules.
         private static readonly string[] InterfaceSectionTypes =
-            { "Input", "Output", "InOut", "Static", "Temp", "Constant" };
+            { "Input", "Output", "InOut", "Static", "Temp", "Constant", "Tag", "UserConstant" };
 
         public static ValidationResult Validate(CodingStyle style, string path = "codingStyle")
         {
@@ -43,23 +51,62 @@ namespace Core.Config.Validation
         {
             if (!issues.RequiredObject(path, style)) return;
 
-            HashSet<string> ruleIds = Rules(style.Rules, Issues.Field(path, "rules"), issues);
+            if (style.ObjectRules != null && style.LegacyRules != null)
+            {
+                issues.Add(Issues.Field(path, "rules"),
+                    "Both 'objectRules' and 'rules' are present. 'rules' is the former name " +
+                    "of the same list and is ignored; remove it.");
+            }
 
-            Objects(style.Blocks, Issues.Field(path, "blocks"), BlockTypes, ruleIds, issues);
-            Objects(style.TechnologyObjects, Issues.Field(path, "technologyObjects"), TechnologyObjectTypes, ruleIds, issues);
-            Objects(style.TagTables, Issues.Field(path, "tagTables"), TagTableTypes, ruleIds, issues);
-            Objects(style.Types, Issues.Field(path, "types"), TypeTypes, ruleIds, issues);
-            Objects(style.AlarmTextLists, Issues.Field(path, "alarmTextLists"), AlarmTextListTypes, ruleIds, issues);
+            // One set across both catalogues. Ids are keys, and a key that identifies two
+            // different rules is the kind of thing a report cannot explain to its reader.
+            HashSet<string> taken = new HashSet<string>(StringComparer.Ordinal);
+
+            // Interface rules first: an object rule's interface references them, so they
+            // have to be known before the references are checked.
+            HashSet<string> interfaceIds = Catalogue(
+                style.InterfaceRules, Issues.Field(path, "interfaceRules"),
+                false, false, taken, null, issues);
+
+            HashSet<string> objectIds = Catalogue(
+                style.Catalogue, Issues.Field(path, style.CatalogueKey),
+                true, true, taken, interfaceIds, issues);
+
+            Objects(style.Blocks, Issues.Field(path, "blocks"), BlockTypes, objectIds, issues);
+            Objects(style.TechnologyObjects, Issues.Field(path, "technologyObjects"), TechnologyObjectTypes, objectIds, issues);
+            Objects(style.TagTables, Issues.Field(path, "tagTables"), TagTableTypes, objectIds, issues);
+            Objects(style.Types, Issues.Field(path, "types"), TypeTypes, objectIds, issues);
+            Objects(style.AlarmTextLists, Issues.Field(path, "alarmTextLists"), AlarmTextListTypes, objectIds, issues);
         }
 
-        /// <summary>Validates the catalogue and returns the ids that can be referenced.</summary>
-        private static HashSet<string> Rules(IReadOnlyList<Rule> rules, string path, Issues issues)
+        /// <summary>
+        /// Validates one catalogue and returns the ids it contributes.
+        /// </summary>
+        /// <param name="required">
+        /// Object rules are required; interface rules are not, so that a configuration
+        /// written before the catalogue was split stays valid rather than being reported as
+        /// broken on a machine that only opened it.
+        /// </param>
+        /// <param name="interfacesAllowed">
+        /// Only an object rule may declare an interface. A rule that names a variable has
+        /// nothing inside it, and silently ignoring the key would hide a misplaced rule.
+        /// </param>
+        private static HashSet<string> Catalogue(
+            IReadOnlyList<Rule> rules,
+            string path,
+            bool required,
+            bool interfacesAllowed,
+            HashSet<string> taken,
+            HashSet<string> interfaceIds,
+            Issues issues)
         {
-            // Ordinal: a rule id is a key, not prose. "type" and "Type" are two ids, and
-            // an implements entry has to spell one of them exactly.
             HashSet<string> ids = new HashSet<string>(StringComparer.Ordinal);
 
-            if (!issues.RequiredList(path, rules)) return ids;
+            if (rules == null)
+            {
+                if (required) issues.RequiredList(path, rules);
+                return ids;
+            }
 
             for (int i = 0; i < rules.Count; i++)
             {
@@ -69,13 +116,30 @@ namespace Core.Config.Validation
                 if (!issues.RequiredObject(here, rule)) continue;
 
                 string id = Issues.Field(here, "id");
-                if (issues.Required(id, rule.Id) && !ids.Add(rule.Id))
-                    issues.Add(id, "'" + rule.Id + "' is already used by another rule. Ids must be unique.");
+                if (issues.Required(id, rule.Id))
+                {
+                    if (taken.Add(rule.Id)) ids.Add(rule.Id);
+                    else issues.Add(id, "'" + rule.Id + "' is already used by another rule. Ids must be unique.");
+                }
 
                 string regex = Issues.Field(here, "regex");
                 if (issues.Required(regex, rule.Regex)) Compiles(rule.Regex, regex, issues);
 
                 // descriptions is optional: a rule with no prose still works.
+
+                string iface = Issues.Field(here, "interface");
+
+                if (rule.Interface == null) continue;
+
+                if (!interfacesAllowed)
+                {
+                    issues.Add(iface,
+                        "Only an object rule carries an interface. This rule names what " +
+                        "lives inside an object, which has no interface of its own.");
+                    continue;
+                }
+
+                Sections(rule.Interface, iface, interfaceIds, issues);
             }
 
             return ids;
@@ -99,11 +163,59 @@ namespace Core.Config.Validation
             }
         }
 
+        /// <summary>
+        /// The optional <c>interface</c> of one object rule: which rules the members of each
+        /// section answer to.
+        /// </summary>
+        private static void Sections(
+            IReadOnlyList<InterfaceSection> sections,
+            string path,
+            HashSet<string> interfaceIds,
+            Issues issues)
+        {
+            // Ordinal, like a rule id: these are keys matched against TIA's own spelling,
+            // not prose.
+            HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
+
+            for (int i = 0; i < sections.Count; i++)
+            {
+                InterfaceSection section = sections[i];
+                string here = Issues.At(path, i);
+
+                if (!issues.RequiredObject(here, section)) continue;
+
+                string type = Issues.Field(here, "type");
+                if (issues.Required(type, section.Type))
+                {
+                    issues.OneOf(type, section.Type, InterfaceSectionTypes);
+
+                    // A second entry for the same section says nothing the first does not,
+                    // and leaves the reader asking which of the two applies.
+                    if (!seen.Add(section.Type))
+                        issues.Add(type, "'" + section.Type + "' is already listed for this rule.");
+                }
+
+                string implements = Issues.Field(here, "implements");
+
+                if (!issues.RequiredObject(implements, section.Implements)) continue;
+
+                if (section.Implements.Count == 0)
+                {
+                    issues.Add(implements,
+                        "Empty. A section that implements no rule is never checked, which " +
+                        "is the same as leaving it out.");
+                    continue;
+                }
+
+                References(section.Implements, implements, interfaceIds, "interface rule", issues);
+            }
+        }
+
         private static void Objects(
             IReadOnlyList<PlcTypeObject> objects,
             string path,
             string[] allowedTypes,
-            HashSet<string> ruleIds,
+            HashSet<string> objectIds,
             Issues issues)
         {
             if (!issues.RequiredList(path, objects)) return;
@@ -135,69 +247,20 @@ namespace Core.Config.Validation
                     continue;
                 }
 
-                References(entry.Implements, implements, ruleIds, issues);
-
-                Sections(entry.Interface, Issues.Field(here, "interface"), ruleIds, issues);
+                References(entry.Implements, implements, objectIds, "object rule", issues);
             }
         }
 
         /// <summary>
-        /// The optional <c>interface</c> of one type: which rules the members of each
-        /// section answer to. Absent is normal - every configuration written before this
-        /// existed has no interface at all, and a missing section simply is not checked.
+        /// Every id must name a rule in the catalogue it is allowed to reach. The two
+        /// catalogues never stand in for one another, so naming an object rule where an
+        /// interface rule belongs reads as "no such rule" - which it is, from here.
         /// </summary>
-        private static void Sections(
-            IReadOnlyList<InterfaceSection> sections,
-            string path,
-            HashSet<string> ruleIds,
-            Issues issues)
-        {
-            if (sections == null) return;
-
-            // Ordinal, like a rule id: these are keys matched against TIA's own spelling,
-            // not prose.
-            HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
-
-            for (int i = 0; i < sections.Count; i++)
-            {
-                InterfaceSection section = sections[i];
-                string here = Issues.At(path, i);
-
-                if (!issues.RequiredObject(here, section)) continue;
-
-                string type = Issues.Field(here, "type");
-                if (issues.Required(type, section.Type))
-                {
-                    issues.OneOf(type, section.Type, InterfaceSectionTypes);
-
-                    // A second entry for the same section says nothing the first does not,
-                    // and leaves the reader asking which of the two applies. The same rule
-                    // the editor already enforces on a type within its section.
-                    if (!seen.Add(section.Type))
-                        issues.Add(type, "'" + section.Type + "' is already listed for this type.");
-                }
-
-                string implements = Issues.Field(here, "implements");
-
-                if (!issues.RequiredObject(implements, section.Implements)) continue;
-
-                if (section.Implements.Count == 0)
-                {
-                    issues.Add(implements,
-                        "Empty. A section that implements no rule is never checked, which " +
-                        "is the same as leaving it out.");
-                    continue;
-                }
-
-                References(section.Implements, implements, ruleIds, issues);
-            }
-        }
-
-        /// <summary>Every id must name a rule in the catalogue. Shared by both levels.</summary>
         private static void References(
             IReadOnlyList<string> ids,
             string path,
-            HashSet<string> ruleIds,
+            HashSet<string> known,
+            string kind,
             Issues issues)
         {
             for (int r = 0; r < ids.Count; r++)
@@ -209,8 +272,8 @@ namespace Core.Config.Validation
 
                 // Only worth reporting when the catalogue itself was readable; otherwise
                 // every reference would be flagged for a problem already reported once.
-                if (ruleIds.Count > 0 && !ruleIds.Contains(ruleId))
-                    issues.Add(reference, "No rule with id '" + ruleId + "'.");
+                if (known.Count > 0 && !known.Contains(ruleId))
+                    issues.Add(reference, "No " + kind + " with id '" + ruleId + "'.");
             }
         }
     }

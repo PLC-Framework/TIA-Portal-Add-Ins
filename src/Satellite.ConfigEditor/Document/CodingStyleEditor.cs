@@ -38,11 +38,48 @@ namespace Satellite.ConfigEditor.Document
         public CodingStyleEditor(ConfigDocument document)
         {
             _document = document;
+            MigrateLegacyCatalogue();
+        }
+
+        /// <summary>
+        /// Moves the object-rule catalogue off its former key, once, when the document is
+        /// opened.
+        ///
+        /// The rename happens on the JSON tree, so it reaches the file the first time
+        /// somebody saves - which is the whole migration story, and it asks the user to know
+        /// nothing about a key that used to be called something else.
+        ///
+        /// **The property is replaced rather than removed and re-added**, so the catalogue
+        /// keeps its position in the section. Adding a new one would drop it at the end for
+        /// no reason a reader could see, and this file is meant to be read by hand.
+        ///
+        /// A document carrying both keys is left exactly as it is: Core reports that, and
+        /// guessing which of the two the author meant is not a decision to make silently.
+        /// </summary>
+        private void MigrateLegacyCatalogue()
+        {
+            JObject style = _document.ObjectAt(Path);
+            if (style == null) return;
+
+            JProperty legacy = style.Property(LegacyRulesKey);
+            if (legacy == null || style[ObjectRulesKey] != null) return;
+
+            legacy.Replace(new JProperty(ObjectRulesKey, legacy.Value.DeepClone()));
         }
 
         // ------------------------------------------------------------------- rules
 
-        public JArray Rules => _document.ArrayAt(Path + ".rules", true);
+        public const string ObjectRulesKey = "objectRules";
+        public const string LegacyRulesKey = "rules";
+
+        /// <summary>The object-rule catalogue, already migrated by the constructor.</summary>
+        public JArray Rules => _document.ArrayAt(Path + "." + ObjectRulesKey, true);
+
+        /// <summary>
+        /// The interface-rule catalogue: the names of what lives inside an object. Read
+        /// only to resolve references for now - the editor has no UI for it yet.
+        /// </summary>
+        public JArray InterfaceRules => _document.ArrayAt(Path + ".interfaceRules", true);
 
         public IReadOnlyList<string> RuleIds() =>
             Rules.OfType<JObject>()
@@ -84,7 +121,7 @@ namespace Satellite.ConfigEditor.Document
 
             rule.Remove();
 
-            foreach (JArray implements in AllImplements())
+            foreach (JArray implements in ObjectRuleReferences())
             {
                 foreach (JToken reference in implements
                              .Where(token => string.Equals(token.Value<string>(), id, StringComparison.Ordinal))
@@ -115,7 +152,7 @@ namespace Satellite.ConfigEditor.Document
 
             rule["id"] = newId;
 
-            foreach (JArray implements in AllImplements())
+            foreach (JArray implements in ObjectRuleReferences())
             {
                 for (int i = 0; i < implements.Count; i++)
                 {
@@ -225,33 +262,48 @@ namespace Satellite.ConfigEditor.Document
             Sections.SelectMany(section => Objects(section.Key).OfType<JObject>());
 
         /// <summary>
-        /// Every array in the document that holds rule ids: the one on each type, and the
-        /// one on each of that type's interface sections.
+        /// Every array that references an **object** rule: the <c>implements</c> of each
+        /// type object, and nothing else.
         ///
-        /// <c>RemoveRule</c> and <c>RenameRule</c> both walk this rather than reaching for
+        /// <c>RemoveRule</c> and <c>RenameRule</c> walk this rather than reaching for
         /// <c>entry["implements"]</c> themselves, and that is the point of it existing. A
         /// reference the walk does not reach is a dangling id that survives the edit and
-        /// only surfaces later, in the validator - which is exactly what those two methods
-        /// exist to prevent. When rule ids appear in a third place, this is the one method
-        /// that has to learn about it.
+        /// surfaces later in the validator - which is exactly what those two methods exist
+        /// to prevent.
         ///
-        /// The editor cannot yet *show* an interface, but it must not damage one somebody
-        /// wrote by hand.
+        /// An object rule's <c>interface</c> is deliberately **not** here: those sections
+        /// reference interface rules, a different catalogue, so an object rule's id can
+        /// never appear in one. See <see cref="InterfaceRuleReferences"/>.
         /// </summary>
-        private IEnumerable<JArray> AllImplements()
+        private IEnumerable<JArray> ObjectRuleReferences()
         {
             foreach (JObject entry in AllObjects())
             {
                 JArray implements = entry["implements"] as JArray;
                 if (implements != null) yield return implements;
+            }
+        }
 
-                JArray sections = entry["interface"] as JArray;
+        /// <summary>
+        /// Every array that references an **interface** rule: the <c>implements</c> of each
+        /// section of each object rule.
+        ///
+        /// Nothing calls this yet, and it exists anyway. The editor has no UI for interface
+        /// rules, so it cannot rename or remove one - but the day it can, the reference walk
+        /// has to be here rather than remembered, because forgetting it is silent and the
+        /// two methods above only look correct.
+        /// </summary>
+        private IEnumerable<JArray> InterfaceRuleReferences()
+        {
+            foreach (JObject rule in Rules.OfType<JObject>())
+            {
+                JArray sections = rule["interface"] as JArray;
                 if (sections == null) continue;
 
                 foreach (JObject section in sections.OfType<JObject>())
                 {
-                    JArray nested = section["implements"] as JArray;
-                    if (nested != null) yield return nested;
+                    JArray implements = section["implements"] as JArray;
+                    if (implements != null) yield return implements;
                 }
             }
         }

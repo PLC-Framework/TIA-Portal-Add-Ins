@@ -113,6 +113,7 @@ const mustFail = {
     "group without a name":             (d) => drop(d, "projectConfig.hierarchy.blocks.0.name"),
     "group name empty":                 (d) => set(d, "projectConfig.hierarchy.blocks.0.name", ""),
     "softwareUnits missing a list":     (d) => set(d, "projectConfig.hierarchy.softwareUnits", { blocks: [], tagTables: [] }),
+    "no catalogue at all":              (d) => drop(modern(d), "projectConfig.codingStyle.objectRules"),
     "codingStyle.rules missing":        (d) => drop(d, "projectConfig.codingStyle.rules"),
     "rule without an id":               (d) => drop(d, "projectConfig.codingStyle.rules.0.id"),
     "rule without a regex":             (d) => drop(d, "projectConfig.codingStyle.rules.0.regex"),
@@ -132,12 +133,44 @@ const mustFail = {
     "interface type wrong case":        (d) => iface(d, [{ type: "static", implements: ["variable"] }]),
     "interface implements missing":     (d) => iface(d, [{ type: "Static" }]),
     "interface implements empty":       (d) => iface(d, [{ type: "Static", implements: [] }]),
-    "interface implements blank entry": (d) => iface(d, [{ type: "Static", implements: ["  "] }])
+    "interface implements blank entry": (d) => iface(d, [{ type: "Static", implements: ["  "] }]),
+
+    // An interface rule names something that lives inside an object, so it has nothing
+    // inside it of its own. Expressible here, unlike most of what this pair of catalogues
+    // makes possible, because it is a property that must simply not be there.
+    "an interface rule declares an interface": (d) => {
+        const m = modern(d);
+        m.projectConfig.codingStyle.interfaceRules[0].interface =
+            [{ type: "Static", implements: ["a_variable"] }];
+        return m;
+    }
 };
 
-/** Puts an interface on the first block type, which is where every case above needs one. */
+/**
+ * The real configurations still carry the catalogue under its former name, `rules`, which
+ * the schema deliberately still accepts - that is the whole point of the legacy key. This
+ * is the same document in the current shape, so the cases below exercise what a file
+ * written today looks like rather than what one written last month does.
+ */
+function modern(doc) {
+    const style = doc.projectConfig.codingStyle;
+
+    style.objectRules = style.rules;
+    delete style.rules;
+
+    style.interfaceRules = [
+        { id: "a_variable", regex: "^[a-z]+$" },
+        { id: "a_constant", regex: "^[A-Z]+$" }
+    ];
+
+    return doc;
+}
+
+/** Puts an interface on the first object rule, which is where an interface now lives. */
 function iface(doc, value) {
-    return set(doc, "projectConfig.codingStyle.blocks.0.interface", value);
+    const d = modern(doc);
+    d.projectConfig.codingStyle.objectRules[0].interface = value;
+    return d;
 }
 
 // --- variants it cannot express, and Core's validators own --------------------------------
@@ -162,8 +195,25 @@ const mustPass = {
     // And the shape itself has to be accepted, or every case above would "pass" for the
     // wrong reason.
     "a well-formed interface":
-        (d) => iface(d, [{ type: "Input", implements: ["variable"] },
-                         { type: "Constant", implements: ["constant"] }])
+        (d) => iface(d, [{ type: "Input", implements: ["a_variable"] },
+                         { type: "Constant", implements: ["a_constant"] }]),
+
+    "a tag table's two sections, which are different things":
+        (d) => iface(d, [{ type: "Tag", implements: ["a_variable"] },
+                         { type: "UserConstant", implements: ["a_constant"] }]),
+
+    // The legacy key, and the pair of keys. Core reports the second; the schema must accept
+    // both, or the editor would underline a file that Core is perfectly happy to load.
+    "the catalogue under its former name alone":
+        (d) => d,
+    "both objectRules and rules present":
+        (d) => { const m = modern(d); m.projectConfig.codingStyle.rules = []; return m; },
+
+    "an id used in both catalogues":
+        (d) => { const m = modern(d);
+                 m.projectConfig.codingStyle.interfaceRules[0].id =
+                     m.projectConfig.codingStyle.objectRules[0].id;
+                 return m; }
 };
 
 console.log("\n--- must be rejected ---");
