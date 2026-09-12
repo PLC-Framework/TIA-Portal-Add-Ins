@@ -137,7 +137,7 @@ route is the mapped drive `Z:`. **That route dies the moment you need elevation*
 machine-wide Add-In folder needs it:
 
 ```
-PS C:\WINDOWS\system32> cd Z:\...\tia-portal-addins\scripts
+PS C:\WINDOWS\system32> cd Z:\...\TIA-Portal-Add-Ins\scripts
 cd : Cannot find drive. A drive with the name 'Z' does not exist.
 ```
 
@@ -151,7 +151,7 @@ directory, so it is no evidence either way. `Test-Path Z:\` is what settles it.
 is reachable from the elevated session. Confirmed on this VM, which exposes `C`, `D` and `E`:
 
 ```powershell
-& "\\vmware-host\Shared Folders\<share>\tia-portal-addins\scripts\deploy\step2-deploy-vm.cmd"
+& "\\vmware-host\Shared Folders\<share>\TIA-Portal-Add-Ins\scripts\deploy\step2-deploy-vm.cmd"
 ```
 
 No copy, nothing to keep in step. `(Get-PSDrive Z).DisplayRoot` in the **normal** session
@@ -163,7 +163,7 @@ folders, keeping them beside each other**, because `step2` resolves the payload 
 itself and a lone script stops with *"Nothing staged"*.
 
 ```powershell
-robocopy Z:\...\tia-portal-addins C:\PLC-Framework-deploy /E /PURGE .deploy scripts
+robocopy Z:\...\TIA-Portal-Add-Ins C:\PLC-Framework-deploy /E /PURGE .deploy scripts
 C:\PLC-Framework-deploy\scripts\deploy\step2-deploy-vm.cmd                          # elevated
 ```
 

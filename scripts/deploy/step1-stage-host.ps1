@@ -43,7 +43,7 @@ $versions   = @(@{ Project = "AddIn.V20"; Package = "PLC-Framework.V20.addin" },
 
 if (-not $SkipBuild) {
     Write-Host "building..." -ForegroundColor Cyan
-    & dotnet build (Join-Path $repo "tia-portal-addins.slnx") -v quiet --nologo
+    & dotnet build (Join-Path $repo "TIA-Portal-Add-Ins.slnx") -v quiet --nologo
     if ($LASTEXITCODE -ne 0) { throw "The build failed; nothing was staged." }
 }
 
@@ -93,7 +93,7 @@ foreach ($v in $versions) {
 # resolves the payload relative to itself and stops with "Nothing staged" without it.
 Write-Host "`nstaged in $deploy" -ForegroundColor Green
 Write-Host "on the VM, in an ELEVATED PowerShell - V20 installs under Program Files:" -ForegroundColor Cyan
-Write-Host '   & "\\vmware-host\Shared Folders\E\PlcFramework\tia-portal-addins\scripts\deploy\step2-deploy-vm.cmd"'
+Write-Host '   & "\\vmware-host\Shared Folders\E\PlcFramework\TIA-Portal-Add-Ins\scripts\deploy\step2-deploy-vm.cmd"'
 Write-Host ""
 Write-Host "   By UNC, not by the Z: mapping: a mapped drive belongs to the logon session" -ForegroundColor DarkGray
 Write-Host "   that created it, so an elevated one does not have it. Where a station's UNC" -ForegroundColor DarkGray

@@ -15,7 +15,7 @@
 //
 //     npm install --prefix %TEMP%\plcfw-tools ajv@8
 //     set NODE_PATH=%TEMP%\plcfw-tools\node_modules
-//     node scripts\check-config-schema.js
+//     node scripts\schemas\check-config-schema.js
 //
 // Newtonsoft.Json.Schema would have been the in-house choice - the repo already carries
 // Newtonsoft.Json - and it is commercially licensed beyond 1000 validations an hour, which
@@ -31,10 +31,10 @@ function repoRoot(from) {
     let dir = from;
 
     for (;;) {
-        if (fs.existsSync(path.join(dir, "tia-portal-addins.slnx"))) return dir;
+        if (fs.existsSync(path.join(dir, "TIA-Portal-Add-Ins.slnx"))) return dir;
 
         const parent = path.dirname(dir);
-        if (parent === dir) throw new Error("tia-portal-addins.slnx not found above " + from);
+        if (parent === dir) throw new Error("TIA-Portal-Add-Ins.slnx not found above " + from);
 
         dir = parent;
     }

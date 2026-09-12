@@ -109,8 +109,8 @@ function FindUp($from, $names)
 # The repository root, found by the solution file rather than by counting folders.
 function RepoRoot($from)
 {
-    $solution = FindUp $from @("tia-portal-addins.slnx")
-    if (-not $solution) { throw "Could not find tia-portal-addins.slnx above $from." }
+    $solution = FindUp $from @("TIA-Portal-Add-Ins.slnx")
+    if (-not $solution) { throw "Could not find TIA-Portal-Add-Ins.slnx above $from." }
 
     return Split-Path $solution -Parent
 }

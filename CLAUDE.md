@@ -1,4 +1,4 @@
-# CLAUDE.md — tia-portal-addins
+# CLAUDE.md — TIA-Portal-Add-Ins
 
 Working instructions and the decision record: what was chosen, what was rejected, and why.
 The technical documentation — Siemens DLL paths, Publisher mechanics, API surface, gotchas —
@@ -61,10 +61,17 @@ The namespace says which layer a type is in: `AddIn.Shared.*` is version-agnosti
 
 `AddIn` is spelled with a capital `I` everywhere — project, folder, namespace and class names — matching Siemens' own `Siemens.Engineering.AddIn`.
 
-Two things stay lowercase, and both are deliberate:
+**One thing stays lowercase**, and it is not a style choice at all: the **`.addin` package
+extension**, which is what the Publisher requires.
 
-- the repo and solution file name, `tia-portal-addins`;
-- the **`.addin` package extension**, which is what the Publisher requires.
+**The repository, the folder and the solution file are `TIA-Portal-Add-Ins`** (2026-09-12).
+They were `tia-portal-addins` on a lowercase-kebab convention, and that convention lost its
+subject the day the public repository was created as `TIA-Portal-Add-Ins`: `git clone`
+writes *that* folder on every contributor's machine, so a lowercase solution inside it would
+be a mismatch nobody could fix locally. The rename went the way it did rather than the other
+because the repository name is the one that is published, linked to and typed by strangers —
+the cheap half to keep is the local one. Note the two differ by more than case (`addins` vs
+`Add-Ins`), so a clone is a genuinely different path and not a Windows case-folding curiosity.
 
 > This replaces an earlier all-lowercase convention. Anything still written as `core`, `addin` or `.v20` is a leftover, not a deliberate choice.
 

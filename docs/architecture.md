@@ -6,7 +6,7 @@ type's layer is decided by **what it depends on**, not by who calls it today.
 ## Layout
 
 ```
-tia-portal-addins.slnx
+TIA-Portal-Add-Ins.slnx
 ├── assets/                   shared binary assets, grouped by feature (see below)
 ├── docs/reference/           the Openness API reflected out of the assemblies
 └── src/
