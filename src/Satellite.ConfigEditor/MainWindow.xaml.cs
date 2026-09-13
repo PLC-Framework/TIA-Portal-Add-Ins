@@ -137,9 +137,18 @@ namespace Satellite.ConfigEditor
 
             MissingText.Text = message;
             MissingPath.Text = path ?? string.Empty;
-            CreateButton.Visibility = string.IsNullOrWhiteSpace(_configPath)
+            CreateButtons.Visibility = string.IsNullOrWhiteSpace(_configPath)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
+
+            // Asked every time the panel is shown, not once: creating from the system
+            // template can leave the user file behind, and a window reopened on another
+            // project should offer it.
+            bool userTemplate = ConfigTemplate.UserTemplateExists;
+            CreateUserButton.IsEnabled = userTemplate;
+            CreateUserButton.ToolTip = userTemplate
+                ? "Your own template, at " + ConfigTemplate.Path
+                : "No user template at " + ConfigTemplate.Path + ". Creating from the system template leaves one there to customise.";
 
             NavPanel.Visibility = Visibility.Collapsed;
             OnlyVisible(MissingPanel);
@@ -155,7 +164,7 @@ namespace Satellite.ConfigEditor
             MissingPath.Text = path + Environment.NewLine + Environment.NewLine + error;
 
             // Deliberately no "create from template" here - see Open().
-            CreateButton.Visibility = Visibility.Collapsed;
+            CreateButtons.Visibility = Visibility.Collapsed;
 
             NavPanel.Visibility = Visibility.Collapsed;
             OnlyVisible(MissingPanel);
@@ -163,25 +172,39 @@ namespace Satellite.ConfigEditor
             StatusLine.Text = "Fix the file by hand, then reopen this window.";
         }
 
-        private void OnCreateFromTemplate(object sender, RoutedEventArgs e)
-        {
-            _document = ConfigDocument.FromTemplate(_configPath, out string note);
+        /// <summary>The template this unsaved document started from, so Revert goes back to the same one.</summary>
+        private TemplateSource _startedFrom = TemplateSource.System;
 
-            if (_document == null)
+        private void OnCreateFromSystemTemplate(object sender, RoutedEventArgs e) => CreateFrom(TemplateSource.System);
+
+        private void OnCreateFromUserTemplate(object sender, RoutedEventArgs e) => CreateFrom(TemplateSource.User);
+
+        /// <returns>False when that template could not be used; the status line then says why.</returns>
+        private bool CreateFrom(TemplateSource source)
+        {
+            ConfigDocument created = ConfigDocument.FromTemplate(_configPath, source, out string note);
+
+            if (created == null)
             {
+                // The panel stays as it was, so the other template is still one click away.
                 StatusLine.Text = note ?? "The template could not be loaded.";
-                return;
+                return false;
             }
+
+            _document = created;
+            _startedFrom = source;
 
             NavPanel.Visibility = Visibility.Visible;
             Fill();
             Show(_sections[0]);
 
-            // Nothing is on disk yet: this is a document in memory until Save, so backing
-            // out of a mistake costs nothing.
-            StatusLine.Text = note == null
-                ? "Started from the template. Nothing is written until you save."
-                : note;
+            // After Fill, whose Revalidate rewrites the status line. Nothing is on disk yet:
+            // this is a document in memory until Save, so backing out costs nothing.
+            string started = "Started from the " + (source == TemplateSource.User ? "user" : "system") +
+                             " template. Nothing is written until you save.";
+
+            StatusLine.Text = note == null ? started : started + " " + note;
+            return true;
         }
 
         private void OnChooseProject(object sender, RoutedEventArgs e)
@@ -1181,9 +1204,10 @@ namespace Satellite.ConfigEditor
                 return;
             }
 
-            // Never saved: reverting means going back to the template it started from.
-            OnCreateFromTemplate(sender, e);
-            StatusLine.Text = "Reverted to the template.";
+            // Never saved: reverting means going back to the template it started from - the
+            // same one, not whichever the editor would have picked.
+            if (CreateFrom(_startedFrom))
+                StatusLine.Text = "Reverted to the " + (_startedFrom == TemplateSource.User ? "user" : "system") + " template.";
         }
 
         private void OnClosing(object sender, CancelEventArgs e)

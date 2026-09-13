@@ -79,12 +79,12 @@ namespace Satellite.ConfigEditor.Document
         }
 
         /// <summary>
-        /// A brand new configuration, from the template. Nothing is written until the
-        /// operator saves - so backing out of a mistake costs nothing.
+        /// A brand new configuration, from the template the operator chose. Nothing is
+        /// written until the operator saves - so backing out of a mistake costs nothing.
         /// </summary>
-        public static ConfigDocument FromTemplate(string path, out string note)
+        public static ConfigDocument FromTemplate(string path, TemplateSource source, out string note)
         {
-            JObject template = ConfigTemplate.Load(out note);
+            JObject template = ConfigTemplate.Load(source, out note);
             return template == null ? null : new ConfigDocument(template, path);
         }
 

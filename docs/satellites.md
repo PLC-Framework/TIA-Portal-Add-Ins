@@ -114,8 +114,24 @@ The adapter wraps Siemens' `Process` — what `ProcessStartPermission` authorise
 Three rules the window follows, and each exists because the opposite was worse:
 
 - **Structural problems block `Save`; environmental ones never do.** A configuration prepared here for another station is not wrong because a drive is not mapped on this one.
-- **A file that exists but does not parse is never offered the template button.** That button would overwrite it, and a file somebody broke by hand is still a file somebody wants back. It shows the parser's line and column instead.
-- **Creating from the template writes nothing until `Save`**, so backing out costs nothing.
+- **A file that exists but does not parse is never offered the template buttons.** Either would overwrite it, and a file somebody broke by hand is still a file somebody wants back. It shows the parser's line and column instead.
+- **Creating from a template writes nothing until `Save`**, so backing out costs nothing.
+
+### Which template a new configuration starts from
+
+A project with no `config.json` offers two starting points, and **the operator chooses**:
+
+|  |  |
+| --- | --- |
+| **Create from system template** | the template built into the editor — always the contract this version of the framework expects |
+| **Create from user template** | `%LOCALAPPDATA%\PLC-Framework\config.template.json`, shaped to a plant. Always shown; disabled, with the path in its tooltip, when there is no such file |
+
+**This replaced a rule that chose silently, and the silence was the defect.** The per-user file used to win whenever it existed and parsed — but the editor writes that file itself, so a station that never customised anything kept the template of whichever version first opened the editor, and every framework upgrade after that was ignored without a word. On the VM it produced a brand-new configuration with the old rule catalogue, no interface rules and no interfaces.
+
+- **No fallback.** If the chosen template cannot be used, the status line says why and the panel stays, so the other one is a click away.
+- **A user template that does not parse is reported, never replaced.** It is still one somebody shaped.
+- **Creating from the system template leaves a copy where the user template lives, only when there is none**, and says so — that is how there comes to be something to customise. It is only ever used when chosen, so it can age harmlessly.
+- **Revert, before the first save, returns to the template the document started from.**
 
 ### The rules, and what a type implements
 
