@@ -119,7 +119,12 @@ Three rules the window follows, and each exists because the opposite was worse:
 
 ### The rules, and what a type implements
 
-The `Coding style` section is where the editor stops being a form and starts preventing mistakes.
+The `Coding style` section is where the editor stops being a form and starts preventing mistakes. It has three tabs — **Object rules**, **Interface rules** and **Applies to** — and the two catalogues share one area, since a rule looks the same in either; the tab decides which list is shown, each tab keeps its own selection, and a hint beside the tabs says what the visible one is for.
+
+- **Ids are unique across both catalogues.** Renaming a rule onto an id the other catalogue uses is adjusted rather than allowed, and says so in the status line.
+- **Removing an interface rule takes its references out of every object rule's interface**, and removes a section it leaves with nothing to implement — such a section would be invalid, and it checks nothing anyway. A type left with nothing to implement stays, because its row is on screen to be fixed.
+- **An object rule's interface is edited in its own detail.** One row per section: the section chosen from the eight TIA spells (`Input` … `Constant`, `Tag`, `UserConstant`), never typed, and never one another row already has; the interface rules it answers to as tags, a dangling one in red; a `+` that offers only interface rules. It is the same row as *Applies to*, fed a different closed set and catalogue, so both lists behave alike. "Add section" stays disabled while no interface rule exists, and removing the last section removes the `interface` key.
+- **At the window's minimum size the rule detail scrolls rather than squeezing**, and a row's tags wrap below its drop-down rather than being cut — both found by capturing the window at that size, not by reading the XAML.
 
 - **`implements` is chosen, never typed.** Each type shows only the rules it implements, as tags with a cross, and a `+` offers the ones it does not have yet. Building the choice from the catalogue makes a dangling reference **impossible** rather than merely detectable — half of what the validator exists to catch, removed at the source. The `type` comes from a drop-down of its section's closed set, which removes the other half.
 - **A reference to a rule that does not exist is shown in red, not hidden**, so the editor can repair a hand-edited file rather than only complain about it. Tick boxes could not: with no box to clear, there was nothing to click.

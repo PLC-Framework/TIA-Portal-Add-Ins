@@ -78,6 +78,10 @@ namespace Satellite.ConfigEditor
             CoreSourceBox.Items.Add(MetadataValidator.Remote);
             CoreSourceBox.Items.Add(NoCoreSource);
 
+            // The tab's Checked fired before the areas it switches existed, so the hint beside
+            // the tabs is set once more now that they do.
+            OnCodingTab(this, null);
+
             ProjectLine.Text = Describe(request);
 
             Open(Resolve(request.ProjectDirectory));
@@ -395,6 +399,15 @@ namespace Satellite.ConfigEditor
 
         private JObject _rule;
 
+        /// <summary>Which catalogue the rule list and the detail beside it are showing.</summary>
+        private RuleCatalogue _catalogue = RuleCatalogue.Object;
+
+        /// <summary>
+        /// The rule last selected in each catalogue, so switching tabs and back returns to
+        /// it rather than to the top of the list.
+        /// </summary>
+        private readonly Dictionary<RuleCatalogue, string> _selectedIn = new Dictionary<RuleCatalogue, string>();
+
         private void FillCodingStyle()
         {
             _style = new CodingStyleEditor(_document);
@@ -402,16 +415,7 @@ namespace Satellite.ConfigEditor
             _loading = true;
             try
             {
-                string chosen = RuleList.SelectedItem as string;
-
-                RuleList.ItemsSource = null;
-                RuleList.ItemsSource = _style.RuleIds();
-
-                // Keep the operator where they were: rebuilding the list after an edit
-                // would otherwise throw them back to the top every keystroke.
-                if (chosen != null && _style.RuleIds().Contains(chosen)) RuleList.SelectedItem = chosen;
-                else if (RuleList.Items.Count > 0) RuleList.SelectedIndex = 0;
-
+                FillRuleList(RuleList.SelectedItem as string);
                 FillApplies();
             }
             finally
@@ -422,9 +426,22 @@ namespace Satellite.ConfigEditor
             ShowRule(RuleList.SelectedItem as string);
         }
 
+        private void FillRuleList(string chosen)
+        {
+            IReadOnlyList<string> ids = _style.RuleIds(_catalogue);
+
+            RuleList.ItemsSource = null;
+            RuleList.ItemsSource = ids;
+
+            // Keep the operator where they were: rebuilding the list after an edit would
+            // otherwise throw them back to the top every keystroke.
+            if (chosen != null && ids.Contains(chosen)) RuleList.SelectedItem = chosen;
+            else if (RuleList.Items.Count > 0) RuleList.SelectedIndex = 0;
+        }
+
         private void FillApplies()
         {
-            IReadOnlyList<string> catalogue = _style.RuleIds();
+            IReadOnlyList<string> catalogue = _style.RuleIds(RuleCatalogue.Object);
 
             _applies.Clear();
 
@@ -454,7 +471,7 @@ namespace Satellite.ConfigEditor
 
         private void ShowRule(string id)
         {
-            _rule = id == null ? null : _style.Rule(id);
+            _rule = id == null ? null : _style.Rule(_catalogue, id);
 
             bool any = _rule != null;
             RuleDetail.IsEnabled = any;
@@ -473,6 +490,141 @@ namespace Satellite.ConfigEditor
             }
 
             ShowRegexState();
+            ShowInterface();
+        }
+
+        /// <summary>The selected object rule's interface sections, ready to bind. Null otherwise.</summary>
+        private AppliesSection _interface;
+
+        /// <summary>
+        /// Builds the interface rows for the rule on screen, or hides the block when the rule
+        /// is an interface rule - which names something with nothing inside it, so has no
+        /// interface to show.
+        /// </summary>
+        private void ShowInterface()
+        {
+            bool objectRule = _catalogue == RuleCatalogue.Object;
+
+            InterfaceHeader.Visibility = objectRule ? Visibility.Visible : Visibility.Collapsed;
+            InterfaceArea.Visibility = objectRule ? Visibility.Visible : Visibility.Collapsed;
+
+            // A star row keeps its share of the height with nothing in it, so hiding the
+            // content is not enough: the row itself goes to nothing.
+            InterfaceRow.Height = objectRule ? new GridLength(3, GridUnitType.Star) : new GridLength(0);
+            InterfaceRow.MinHeight = objectRule ? 70 : 0;
+
+            // The floor below which the detail scrolls instead of squeezing: the fields, the
+            // two headings and the two boxes at their minimum - less the interface block when
+            // there is none.
+            RuleDetail.MinHeight = objectRule ? 400 : 280;
+
+            _interface = null;
+            InterfaceList.ItemsSource = null;
+
+            if (objectRule && _rule != null)
+            {
+                _interface = new AppliesSection(CodingStyleEditor.InterfaceSections);
+                IReadOnlyList<string> catalogue = _style.RuleIds(RuleCatalogue.Interface);
+
+                foreach (JObject section in CodingStyleEditor.InterfaceOf(_rule))
+                    _interface.Add(section, catalogue, OnInterfaceEdited);
+
+                _interface.Refresh();
+                InterfaceList.ItemsSource = _interface.Rows;
+            }
+
+            ShowInterfaceState();
+        }
+
+        private void ShowInterfaceState()
+        {
+            bool shown = _interface != null;
+            bool rulesToOffer = _style != null && _style.RuleIds(RuleCatalogue.Interface).Count > 0;
+
+            InterfaceEmpty.Visibility = shown && _interface.Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            // Disabled rather than offering a section nothing could fill: it would be invalid,
+            // and its + would have nothing to add.
+            AddSectionButton.IsEnabled = shown && rulesToOffer && _interface.CanAdd;
+            AddSectionButton.ToolTip = !rulesToOffer
+                ? "Add an interface rule first: a section needs a rule to answer to."
+                : shown && !_interface.CanAdd
+                    ? "Every section already has a row."
+                    : "Add a section, then choose the interface rules its names answer to";
+        }
+
+        private void OnInterfaceEdited()
+        {
+            if (_loading) return;
+
+            ShowInterfaceState();
+            Revalidate();
+        }
+
+        private void OnAddSection(object sender, RoutedEventArgs e)
+        {
+            if (_interface == null || _rule == null || !_interface.CanAdd) return;
+
+            Offer(sender as Button, _interface.FreeTypes.ToList(), type =>
+            {
+                JObject section = CodingStyleEditor.AddSection(_rule, type);
+
+                _interface.Add(section, _style.RuleIds(RuleCatalogue.Interface), OnInterfaceEdited);
+                ShowInterfaceState();
+                Revalidate();
+            });
+        }
+
+        private void OnRemoveSection(object sender, RoutedEventArgs e)
+        {
+            TypeRow row = (sender as FrameworkElement)?.Tag as TypeRow;
+            if (row == null || _interface == null || _rule == null) return;
+
+            _interface.Remove(row);
+
+            // The last section takes the key with it: an empty interface says what an absent
+            // one already does.
+            CodingStyleEditor.DropEmptyInterface(_rule);
+
+            ShowInterfaceState();
+            Revalidate();
+        }
+
+        /// <summary>
+        /// Offers a short list under a button and acts on the choice - or acts at once when
+        /// there is only one thing to choose. Shared by every "add" here, so they all behave
+        /// alike and are learnt once.
+        /// </summary>
+        private static void Offer(Button button, IReadOnlyList<string> choices, Action<string> choose)
+        {
+            if (button == null || choices.Count == 0) return;
+
+            // Nothing to choose between, so do not make them choose.
+            if (choices.Count == 1)
+            {
+                choose(choices[0]);
+                return;
+            }
+
+            ContextMenu menu = new ContextMenu
+            {
+                PlacementTarget = button,
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom
+            };
+
+            foreach (string choice in choices)
+            {
+                string chosen = choice;
+
+                // TextBlock rather than a string header: WPF would read an underscore as a
+                // keyboard accelerator, and data_container would lose it.
+                MenuItem item = new MenuItem { Header = new TextBlock { Text = choice } };
+                item.Click += (s, args) => choose(chosen);
+
+                menu.Items.Add(item);
+            }
+
+            menu.IsOpen = true;
         }
 
         private void OnRuleSelected(object sender, SelectionChangedEventArgs e)
@@ -486,7 +638,7 @@ namespace Satellite.ConfigEditor
         {
             if (_style == null) return;
 
-            JObject added = _style.AddRule();
+            JObject added = _style.AddRule(_catalogue);
             string id = added["id"].Value<string>();
 
             FillCodingStyle();
@@ -506,7 +658,7 @@ namespace Satellite.ConfigEditor
 
             // The references go with it. A rule removed but still implemented somewhere is
             // exactly the dangling reference this section exists to prevent.
-            _style.RemoveRule(id);
+            _style.RemoveRule(_catalogue, id);
 
             FillCodingStyle();
             Revalidate();
@@ -532,17 +684,18 @@ namespace Satellite.ConfigEditor
                 return;
             }
 
-            string used = _style.RenameRule(oldId, wanted);
+            string used = _style.RenameRule(_catalogue, oldId, wanted);
 
             FillCodingStyle();
             RuleList.SelectedItem = used;
             ShowRule(used);
 
-            StatusLine.Text = string.Equals(used, wanted, StringComparison.Ordinal)
-                ? StatusLine.Text
-                : "'" + wanted + "' was already taken, so the rule is called '" + used + "'.";
-
             Revalidate();
+
+            // After Revalidate, which rewrites the status line: the other way round, the
+            // one sentence explaining why the name is not what was typed never showed.
+            if (!string.Equals(used, wanted, StringComparison.Ordinal))
+                StatusLine.Text = "'" + wanted + "' was already taken, so the rule is called '" + used + "'.";
         }
 
         private void OnRuleIdKey(object sender, System.Windows.Input.KeyEventArgs e)
@@ -607,12 +760,38 @@ namespace Satellite.ConfigEditor
 
         private void OnCodingTab(object sender, RoutedEventArgs e)
         {
-            if (RulesArea == null || AppliesArea == null) return;
+            // Checked fires while InitializeComponent is still building the tabs.
+            if (RulesArea == null || AppliesArea == null || CatalogueHint == null) return;
 
-            bool rules = RulesTab.IsChecked == true;
+            bool applies = AppliesTab.IsChecked == true;
 
-            RulesArea.Visibility = rules ? Visibility.Visible : Visibility.Collapsed;
-            AppliesArea.Visibility = rules ? Visibility.Collapsed : Visibility.Visible;
+            RulesArea.Visibility = applies ? Visibility.Collapsed : Visibility.Visible;
+            AppliesArea.Visibility = applies ? Visibility.Visible : Visibility.Collapsed;
+
+            RuleCatalogue wanted = InterfaceRulesTab.IsChecked == true ? RuleCatalogue.Interface : RuleCatalogue.Object;
+
+            CatalogueHint.Text = applies
+                ? "Which object rules each TIA type accepts. A name passes if it matches any of them."
+                : wanted == RuleCatalogue.Interface
+                    ? "Names of what lives inside an object: interface members, tags, constants. An object rule's interface says where each applies."
+                    : "Names of TIA objects: blocks, tag tables, data types, text lists. Applies to says which types accept each.";
+
+            if (applies || wanted == _catalogue) return;
+
+            // A rename still being typed has already been committed by the time this runs:
+            // clicking the tab took the focus from the id box first.
+            _selectedIn[_catalogue] = RuleList.SelectedItem as string;
+            _catalogue = wanted;
+
+            if (_style == null) return;
+
+            _selectedIn.TryGetValue(wanted, out string remembered);
+
+            _loading = true;
+            try { FillRuleList(remembered); }
+            finally { _loading = false; }
+
+            ShowRule(RuleList.SelectedItem as string);
         }
 
         /// <summary>
@@ -627,39 +806,14 @@ namespace Satellite.ConfigEditor
 
             if (section == null || _style == null || !section.CanAdd) return;
 
-            // Nothing to choose between, so do not make them choose.
-            if (section.FreeTypes.Count == 1)
-            {
-                AddType(section, section.FreeTypes[0]);
-                return;
-            }
-
-            ContextMenu menu = new ContextMenu
-            {
-                PlacementTarget = button,
-                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom
-            };
-
-            foreach (string type in section.FreeTypes)
-            {
-                string chosen = type;
-
-                // TextBlock rather than a string header, for the same reason the tick boxes
-                // use one: WPF would read an underscore as a keyboard accelerator.
-                MenuItem item = new MenuItem { Header = new TextBlock { Text = type } };
-                item.Click += (s, args) => AddType(section, chosen);
-
-                menu.Items.Add(item);
-            }
-
-            menu.IsOpen = true;
+            Offer(button, section.FreeTypes.ToList(), type => AddType(section, type));
         }
 
         private void AddType(AppliesSection section, string type)
         {
             JObject entry = _style.AddObject(section.Definition.Key, type);
 
-            section.Add(entry, _style.RuleIds(), OnStyleEdited);
+            section.Add(entry, _style.RuleIds(RuleCatalogue.Object), OnStyleEdited);
             Revalidate();
         }
 
@@ -675,42 +829,21 @@ namespace Satellite.ConfigEditor
 
             if (row == null || !row.CanAddRule) return;
 
-            if (row.AvailableRules.Count == 1)
-            {
-                row.AddRule(row.AvailableRules[0]);
-                Revalidate();
-                return;
-            }
-
-            ContextMenu menu = new ContextMenu
-            {
-                PlacementTarget = button,
-                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom
-            };
-
-            foreach (string id in row.AvailableRules)
-            {
-                string chosen = id;
-
-                // TextBlock rather than a string header: a rule id like data_container
-                // would otherwise lose its underscores to accelerator parsing.
-                MenuItem item = new MenuItem { Header = new TextBlock { Text = id } };
-                item.Click += (s, args) => { row.AddRule(chosen); Revalidate(); };
-
-                menu.Items.Add(item);
-            }
-
-            menu.IsOpen = true;
+            // A copy: adding changes what the row has left to offer.
+            Offer(button, row.AvailableRules.ToList(), id => { row.AddRule(id); Revalidate(); });
         }
 
+        /// <summary>The cross on a tag - in Applies to, or in an object rule's interface.</summary>
         private void OnRemoveRuleFromType(object sender, RoutedEventArgs e)
         {
             RuleTag tag = (sender as FrameworkElement)?.Tag as RuleTag;
             if (tag == null) return;
 
+            IEnumerable<TypeRow> rows = _applies.SelectMany(section => section.Rows);
+            if (_interface != null) rows = rows.Concat(_interface.Rows);
+
             // The row it belongs to is whichever holds this exact tag.
-            TypeRow row = _applies.SelectMany(section => section.Rows)
-                                  .FirstOrDefault(candidate => candidate.Implemented.Contains(tag));
+            TypeRow row = rows.FirstOrDefault(candidate => candidate.Implemented.Contains(tag));
 
             row?.RemoveRule(tag);
             Revalidate();

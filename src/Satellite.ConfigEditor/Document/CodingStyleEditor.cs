@@ -33,6 +33,18 @@ namespace Satellite.ConfigEditor.Document
             new Applies("alarmTextLists", "Alarm text lists", "AlarmTexts")
         };
 
+        /// <summary>
+        /// The sections an object rule's interface may list, spelled as TIA spells them: the
+        /// six of a block interface and the two of a tag table. Taken from Core, the same
+        /// constants the validator holds the file to.
+        /// </summary>
+        public static readonly Applies InterfaceSections = new Applies(
+            "interface", "Interface",
+            Core.Config.CodingStyleNames.Input, Core.Config.CodingStyleNames.Output,
+            Core.Config.CodingStyleNames.InOut, Core.Config.CodingStyleNames.Static,
+            Core.Config.CodingStyleNames.Temp, Core.Config.CodingStyleNames.Constant,
+            Core.Config.CodingStyleNames.Tag, Core.Config.CodingStyleNames.UserConstant);
+
         private readonly ConfigDocument _document;
 
         public CodingStyleEditor(ConfigDocument document)
@@ -70,35 +82,43 @@ namespace Satellite.ConfigEditor.Document
         // ------------------------------------------------------------------- rules
 
         public const string ObjectRulesKey = "objectRules";
+        public const string InterfaceRulesKey = "interfaceRules";
         public const string LegacyRulesKey = "rules";
 
-        /// <summary>The object-rule catalogue, already migrated by the constructor.</summary>
-        public JArray Rules => _document.ArrayAt(Path + "." + ObjectRulesKey, true);
+        /// <summary>
+        /// One of the two catalogues.
+        ///
+        /// The object catalogue is required, so it is created on first touch. The interface
+        /// catalogue is optional and is **only created by adding to it**: reading it to fill
+        /// a list must not plant an empty <c>interfaceRules</c> in a file that never had one,
+        /// or merely opening the section would change what the next save writes.
+        /// </summary>
+        private JArray Catalogue(RuleCatalogue catalogue, bool create = false) =>
+            catalogue == RuleCatalogue.Interface
+                ? _document.ArrayAt(Path + "." + InterfaceRulesKey, create)
+                : _document.ArrayAt(Path + "." + ObjectRulesKey, true);
+
+        private IEnumerable<JObject> RulesOf(RuleCatalogue catalogue) =>
+            Catalogue(catalogue)?.OfType<JObject>() ?? Enumerable.Empty<JObject>();
+
+        public IReadOnlyList<string> RuleIds(RuleCatalogue catalogue) =>
+            RulesOf(catalogue)
+                .Select(rule => rule["id"]?.Value<string>())
+                .Where(id => !string.IsNullOrEmpty(id))
+                .ToList();
+
+        public JObject Rule(RuleCatalogue catalogue, string id) =>
+            RulesOf(catalogue)
+                .FirstOrDefault(rule => string.Equals(rule["id"]?.Value<string>(), id, StringComparison.Ordinal));
 
         /// <summary>
-        /// The interface-rule catalogue: the names of what lives inside an object. Read
-        /// only to resolve references for now - the editor has no UI for it yet.
+        /// Adds a rule with a name nothing else uses, in either catalogue. Appended rather
+        /// than inserted: order carries no meaning here, and a new entry at the end is where
+        /// the eye looks.
         /// </summary>
-        public JArray InterfaceRules => _document.ArrayAt(Path + ".interfaceRules", true);
-
-        public IReadOnlyList<string> RuleIds() =>
-            Rules.OfType<JObject>()
-                 .Select(rule => rule["id"]?.Value<string>())
-                 .Where(id => !string.IsNullOrEmpty(id))
-                 .ToList();
-
-        public JObject Rule(string id) =>
-            Rules.OfType<JObject>()
-                 .FirstOrDefault(rule => string.Equals(rule["id"]?.Value<string>(), id,
-                                                       StringComparison.Ordinal));
-
-        /// <summary>
-        /// Adds a rule with a name nothing else uses. Appended rather than inserted: order
-        /// carries no meaning here, and a new entry at the end is where the eye looks.
-        /// </summary>
-        public JObject AddRule()
+        public JObject AddRule(RuleCatalogue catalogue)
         {
-            string id = Unused("new_rule");
+            string id = Unused(catalogue == RuleCatalogue.Interface ? "new_interface_rule" : "new_rule");
 
             JObject rule = new JObject
             {
@@ -109,17 +129,29 @@ namespace Satellite.ConfigEditor.Document
                 ["descriptions"] = new JArray()
             };
 
-            Rules.Add(rule);
+            Catalogue(catalogue, create: true).Add(rule);
             return rule;
         }
 
         /// <summary>Removes a rule and every reference to it, which would otherwise dangle.</summary>
-        public void RemoveRule(string id)
+        public void RemoveRule(RuleCatalogue catalogue, string id)
         {
-            JObject rule = Rule(id);
+            JObject rule = Rule(catalogue, id);
             if (rule == null) return;
 
             rule.Remove();
+
+            if (catalogue == RuleCatalogue.Interface)
+            {
+                RemoveInterfaceReferences(id);
+
+                // Optional, and nothing is left to say: an empty list is noise a hand-edited
+                // file does not need, the same call the hierarchy makes for an empty groups.
+                JArray remaining = Catalogue(RuleCatalogue.Interface);
+                if (remaining != null && remaining.Count == 0) remaining.Parent?.Remove();
+
+                return;
+            }
 
             foreach (JArray implements in ObjectRuleReferences())
             {
@@ -133,26 +165,67 @@ namespace Satellite.ConfigEditor.Document
         }
 
         /// <summary>
+        /// Takes an interface rule out of every section that named it.
+        ///
+        /// **A section left with no rules goes too, and so does an interface left with no
+        /// sections.** That is not tidiness. A section that implements nothing is invalid,
+        /// so leaving it would block Save over something the operator just did on purpose;
+        /// and it would mean nothing anyway - a section no rule covers is a section that is
+        /// not checked, which is exactly what removing it says. A type left with nothing to
+        /// implement is kept instead, because its row is on screen to be fixed; an interface
+        /// section's is not, and removing the last rule was the only thing anyone asked for.
+        /// </summary>
+        private void RemoveInterfaceReferences(string id)
+        {
+            foreach (JObject rule in RulesOf(RuleCatalogue.Object).ToList())
+            {
+                JArray sections = rule["interface"] as JArray;
+                if (sections == null) continue;
+
+                foreach (JObject section in sections.OfType<JObject>().ToList())
+                {
+                    JArray implements = section["implements"] as JArray;
+                    if (implements == null) continue;
+
+                    List<JToken> references = implements
+                        .Where(token => string.Equals(token.Value<string>(), id, StringComparison.Ordinal))
+                        .ToList();
+
+                    if (references.Count == 0) continue;
+
+                    foreach (JToken reference in references) reference.Remove();
+                    if (implements.Count == 0) section.Remove();
+                }
+
+                DropEmptyInterface(rule);
+            }
+        }
+
+        /// <summary>
         /// Renames a rule **and carries its references with it**. Without that, renaming
-        /// breaks every type that implements it, silently and at a distance.
+        /// breaks every place that uses it, silently and at a distance.
         /// </summary>
         /// <returns>The name actually used, which may be adjusted to keep ids unique.</returns>
-        public string RenameRule(string oldId, string newId)
+        public string RenameRule(RuleCatalogue catalogue, string oldId, string newId)
         {
-            JObject rule = Rule(oldId);
+            JObject rule = Rule(catalogue, oldId);
             if (rule == null) return oldId;
 
             newId = (newId ?? string.Empty).Trim();
             if (newId.Length == 0 || string.Equals(newId, oldId, StringComparison.Ordinal)) return oldId;
 
-            // Uniqueness is a rule of the file, so it is kept here rather than left for the
-            // validator to complain about after the fact.
-            if (RuleIds().Any(id => string.Equals(id, newId, StringComparison.Ordinal)))
-                newId = Unused(newId);
+            // Uniqueness is a rule of the file, and it spans both catalogues so that an id in
+            // a report names exactly one rule. Kept here rather than left for the validator
+            // to complain about after the fact.
+            if (AllRuleIds().Contains(newId)) newId = Unused(newId);
 
             rule["id"] = newId;
 
-            foreach (JArray implements in ObjectRuleReferences())
+            IEnumerable<JArray> references = catalogue == RuleCatalogue.Interface
+                ? InterfaceRuleReferences()
+                : ObjectRuleReferences();
+
+            foreach (JArray implements in references)
             {
                 for (int i = 0; i < implements.Count; i++)
                 {
@@ -162,6 +235,51 @@ namespace Satellite.ConfigEditor.Document
             }
 
             return newId;
+        }
+
+        private HashSet<string> AllRuleIds() =>
+            new HashSet<string>(RuleIds(RuleCatalogue.Object).Concat(RuleIds(RuleCatalogue.Interface)),
+                                StringComparer.Ordinal);
+
+        // ------------------------------------------------------------------- an object rule's interface
+
+        /// <summary>The sections of an object rule's interface, in file order. Empty when it has none.</summary>
+        public static IReadOnlyList<JObject> InterfaceOf(JObject rule) =>
+            (rule?["interface"] as JArray)?.OfType<JObject>().ToList() ?? new List<JObject>();
+
+        /// <summary>
+        /// Adds a section with nothing to implement yet - the same starting point a new type
+        /// gets, and invalid in the same visible way until a rule is chosen. The interface is
+        /// created on the way when the rule had none.
+        /// </summary>
+        public static JObject AddSection(JObject rule, string type)
+        {
+            JArray sections = rule["interface"] as JArray;
+
+            if (sections == null)
+            {
+                sections = new JArray();
+                rule["interface"] = sections;
+            }
+
+            JObject section = new JObject
+            {
+                ["type"] = type,
+                ["implements"] = new JArray()
+            };
+
+            sections.Add(section);
+            return section;
+        }
+
+        /// <summary>
+        /// Drops an interface left with no sections. <c>interface</c> is optional and absent
+        /// already means "not checked", so an empty list would only be a second way of
+        /// saying the same thing.
+        /// </summary>
+        public static void DropEmptyInterface(JObject rule)
+        {
+            if (rule?["interface"] is JArray sections && sections.Count == 0) rule.Remove("interface");
         }
 
         /// <summary>The descriptions as text, one per line - which is how they are edited.</summary>
@@ -286,16 +404,12 @@ namespace Satellite.ConfigEditor.Document
 
         /// <summary>
         /// Every array that references an **interface** rule: the <c>implements</c> of each
-        /// section of each object rule.
-        ///
-        /// Nothing calls this yet, and it exists anyway. The editor has no UI for interface
-        /// rules, so it cannot rename or remove one - but the day it can, the reference walk
-        /// has to be here rather than remembered, because forgetting it is silent and the
-        /// two methods above only look correct.
+        /// section of each object rule. The counterpart of <see cref="ObjectRuleReferences"/>,
+        /// and the only place a rename of an interface rule looks.
         /// </summary>
         private IEnumerable<JArray> InterfaceRuleReferences()
         {
-            foreach (JObject rule in Rules.OfType<JObject>())
+            foreach (JObject rule in RulesOf(RuleCatalogue.Object))
             {
                 JArray sections = rule["interface"] as JArray;
                 if (sections == null) continue;
@@ -308,10 +422,10 @@ namespace Satellite.ConfigEditor.Document
             }
         }
 
-        /// <summary>A name like the one asked for, that no rule is using.</summary>
+        /// <summary>A name like the one asked for, that no rule in either catalogue is using.</summary>
         private string Unused(string wanted)
         {
-            List<string> taken = RuleIds().ToList();
+            HashSet<string> taken = AllRuleIds();
             if (!taken.Contains(wanted)) return wanted;
 
             for (int n = 2; ; n++)
@@ -320,6 +434,17 @@ namespace Satellite.ConfigEditor.Document
                 if (!taken.Contains(candidate)) return candidate;
             }
         }
+    }
+
+    /// <summary>
+    /// Which of the two rule catalogues an operation is about. They never stand in for one
+    /// another: an object rule is reached from a type's implements, an interface rule only
+    /// from an object rule's interface.
+    /// </summary>
+    public enum RuleCatalogue
+    {
+        Object,
+        Interface
     }
 
     /// <summary>One of the five lists, and the type names it accepts.</summary>

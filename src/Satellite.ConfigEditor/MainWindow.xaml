@@ -122,6 +122,41 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- One rule a type or an interface section implements, as a tag with a cross. Shared
+             by both lists, so a dangling reference looks and is removed the same way in each. -->
+        <DataTemplate x:Key="RuleChip">
+            <Border x:Name="Chip" Margin="0,0,6,5"
+                    Padding="7,2,3,2" CornerRadius="3"
+                    Background="{StaticResource Surface}"
+                    BorderBrush="{StaticResource FieldEdge}"
+                    BorderThickness="1">
+                <StackPanel Orientation="Horizontal">
+                    <!-- TextBlock, not Content: WPF reads _ as an accelerator and hides it,
+                         and an id is an exact key. -->
+                    <TextBlock x:Name="Label" Text="{Binding Id}"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource Ink}" />
+                    <Button Content="✕" Width="18" Padding="0"
+                            Margin="5,0,0,0"
+                            Style="{StaticResource ChipClose}"
+                            ToolTip="Stop implementing this rule"
+                            Tag="{Binding}" Click="OnRemoveRuleFromType" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <!-- No rule of that name exists: a reference left dangling by a hand-edited
+                     file. Shown so it can be removed, not hidden. -->
+                <DataTrigger Binding="{Binding IsKnown}" Value="False">
+                    <Setter TargetName="Chip" Property="BorderBrush"
+                            Value="{StaticResource BrandBrushTop}" />
+                    <Setter TargetName="Label" Property="Foreground"
+                            Value="{StaticResource BrandBrushTop}" />
+                    <Setter TargetName="Chip" Property="ToolTip"
+                            Value="No rule with this id. Remove it, or add a rule that name." />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
     </Window.Resources>
 
     <Grid>
@@ -312,12 +347,32 @@
 
                             <TextBlock Grid.Row="0" Text="Coding style" Style="{StaticResource SectionTitle}" />
 
-                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,16">
-                                <RadioButton x:Name="RulesTab" Content="Rules" IsChecked="True"
-                                             Style="{StaticResource Tab}" Checked="OnCodingTab" />
-                                <RadioButton x:Name="AppliesTab" Content="Applies to"
-                                             Style="{StaticResource Tab}" Checked="OnCodingTab" />
-                            </StackPanel>
+                            <!-- Two catalogues, one area: the tab decides which the list shows,
+                                 because a rule's id, pattern and description are the same whichever
+                                 catalogue it lives in. -->
+                            <Grid Grid.Row="1" Margin="0,6,0,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton x:Name="ObjectRulesTab" Content="Object rules" IsChecked="True"
+                                                 Style="{StaticResource Tab}" Checked="OnCodingTab" />
+                                    <RadioButton x:Name="InterfaceRulesTab" Content="Interface rules"
+                                                 Style="{StaticResource Tab}" Checked="OnCodingTab" />
+                                    <RadioButton x:Name="AppliesTab" Content="Applies to"
+                                                 Style="{StaticResource Tab}" Checked="OnCodingTab" />
+                                </StackPanel>
+
+                                <!-- One line, trimmed, the whole sentence in the tooltip: wrapped,
+                                     it ran to four lines at the window's minimum width and took
+                                     the height the rule detail needs. -->
+                                <TextBlock Grid.Column="1" x:Name="CatalogueHint" Margin="16,0,0,0"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                           Foreground="{StaticResource InkMuted}" />
+                            </Grid>
 
                             <!-- Rules: the catalogue on the left, one rule on the right -->
                             <Grid Grid.Row="2" x:Name="RulesArea">
@@ -352,12 +407,30 @@
                                             Click="OnRemoveRule" />
                                 </StackPanel>
 
-                                <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
-                                      x:Name="RuleDetail" Margin="16,0,0,0">
+                                <!-- The interface and the description share what height is left,
+                                     each scrolling inside itself. Both star rows rather than one
+                                     sized to its content: the interface of a function runs to six
+                                     sections, and an Auto row would push the description out of
+                                     the window. An interface rule has no interface, so its row is
+                                     set to nothing in code.
+
+                                     At the window's minimum size the detail does not fit at all,
+                                     so it scrolls - but the grid takes the viewport's height, with
+                                     a floor, rather than the infinite height a ScrollViewer hands
+                                     its content. That is what keeps the star rows sharing space
+                                     at any size; a plain ScrollViewer would turn them into Auto,
+                                     the trap the section's own note records. -->
+                                <ScrollViewer Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" x:Name="RuleDetailScroll"
+                                              Margin="16,0,0,0" Focusable="False"
+                                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <Grid x:Name="RuleDetail" MinHeight="400"
+                                      Height="{Binding ViewportHeight, ElementName=RuleDetailScroll}">
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="*" />
+                                        <RowDefinition x:Name="InterfaceRow" Height="3*" MinHeight="70" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="2*" MinHeight="60" />
                                     </Grid.RowDefinitions>
 
                                     <Grid Grid.Row="0">
@@ -395,11 +468,104 @@
                                                    TextWrapping="Wrap" />
                                     </Grid>
 
+                                    <!-- Interface: object rules only. Which interface rules the
+                                         names inside an object this rule names answer to, per
+                                         section. The rows are the same shape as Applies to - a
+                                         type from a closed set, and the rules it implements. -->
+                                    <Grid Grid.Row="1" x:Name="InterfaceHeader">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="Interface" Style="{StaticResource GroupTitle}" />
+
+                                        <!-- Columns, not overlapping layers: at the minimum width
+                                             the note ran into the title. It gives way instead. -->
+                                        <TextBlock Grid.Column="1" Margin="12,0,10,8" VerticalAlignment="Bottom"
+                                                   HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{StaticResource InkMuted}"
+                                                   Text="a section not listed is not checked"
+                                                   ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+
+                                        <Button Grid.Column="2" x:Name="AddSectionButton" Content="Add section" Width="100"
+                                                Padding="0,3" Margin="0,0,0,6" VerticalAlignment="Bottom"
+                                                Style="{StaticResource Quiet}"
+                                                ToolTipService.ShowOnDisabled="True"
+                                                Click="OnAddSection" />
+                                    </Grid>
+
+                                    <Border Grid.Row="2" x:Name="InterfaceArea"
+                                            Background="{StaticResource Field}"
+                                            BorderBrush="{StaticResource FieldEdge}" BorderThickness="1">
+                                        <Grid>
+                                            <TextBlock x:Name="InterfaceEmpty" Margin="10,8" TextWrapping="Wrap"
+                                                       Foreground="{StaticResource InkMuted}"
+                                                       Text="No sections, so nothing inside the objects this rule names is checked." />
+
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                          HorizontalScrollBarVisibility="Disabled">
+                                                <ItemsControl x:Name="InterfaceList" Margin="6,6,6,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,0,0,6">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <!-- The drop-down and the tags share one
+                                                                     wrap panel: side by side when they fit,
+                                                                     the tags on the next line when they do
+                                                                     not. In columns of their own, the tags
+                                                                     were cut to "varia" at the window's
+                                                                     minimum width. -->
+                                                                <WrapPanel Grid.Column="0">
+                                                                    <!-- The eight sections, spelled as TIA
+                                                                         spells them; the free ones plus this
+                                                                         row's own, so no two rows match. -->
+                                                                    <ComboBox Width="120" VerticalAlignment="Top"
+                                                                              ItemsSource="{Binding AvailableTypes}"
+                                                                              SelectedItem="{Binding Type, Mode=TwoWay}" />
+
+                                                                    <ItemsControl Margin="10,3,0,0"
+                                                                                  ItemsSource="{Binding Implemented}"
+                                                                                  ItemTemplate="{StaticResource RuleChip}">
+                                                                        <ItemsControl.ItemsPanel>
+                                                                            <ItemsPanelTemplate>
+                                                                                <WrapPanel />
+                                                                            </ItemsPanelTemplate>
+                                                                        </ItemsControl.ItemsPanel>
+                                                                    </ItemsControl>
+                                                                </WrapPanel>
+
+                                                                <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                                                            Margin="8,0,0,0" VerticalAlignment="Top">
+                                                                    <Button Content="+" Width="26" Padding="0,2"
+                                                                            Style="{StaticResource Quiet}"
+                                                                            IsEnabled="{Binding CanAddRule}"
+                                                                            ToolTip="Answer to another interface rule"
+                                                                            Tag="{Binding}" Click="OnAddRuleToType" />
+                                                                    <Button Content="✕" Width="26" Padding="0,2"
+                                                                            Margin="6,0,0,0"
+                                                                            Style="{StaticResource Destructive}"
+                                                                            ToolTip="Remove this section: its names stop being checked"
+                                                                            Tag="{Binding}" Click="OnRemoveSection" />
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Grid>
+                                    </Border>
+
                                     <!-- The hint sits beside the heading rather than under
                                          the box. Below it, it competed with the box for the
                                          last of the height and won, leaving a two-line
                                          field with the note overlapping it. -->
-                                    <Grid Grid.Row="1">
+                                    <Grid Grid.Row="3">
                                         <TextBlock Text="Description" Style="{StaticResource GroupTitle}" />
                                         <TextBlock HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                                    Margin="0,0,0,8" Foreground="#7E8899"
@@ -410,12 +576,13 @@
                                          it: some of these rules run to nine lines, and
                                          letting the box grow would push everything else
                                          out of the window. -->
-                                    <TextBox Grid.Row="2" x:Name="RuleDescriptionBox" MinHeight="60"
+                                    <TextBox Grid.Row="4" x:Name="RuleDescriptionBox" MinHeight="60"
                                              AcceptsReturn="True" TextWrapping="Wrap"
                                              VerticalContentAlignment="Top"
                                              VerticalScrollBarVisibility="Auto"
                                              TextChanged="OnRuleDescriptionChanged" />
                                 </Grid>
+                                </ScrollViewer>
                             </Grid>
 
                             <!-- Applies to: the five lists, one after another. This one does
@@ -457,50 +624,13 @@
                                                                      hundred and fifty controls across a
                                                                      section, nearly all of them empty. -->
                                                                 <ItemsControl Grid.Column="1" Margin="12,2,0,0"
-                                                                              ItemsSource="{Binding Implemented}">
+                                                                              ItemsSource="{Binding Implemented}"
+                                                                              ItemTemplate="{StaticResource RuleChip}">
                                                                     <ItemsControl.ItemsPanel>
                                                                         <ItemsPanelTemplate>
                                                                             <WrapPanel />
                                                                         </ItemsPanelTemplate>
                                                                     </ItemsControl.ItemsPanel>
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate>
-                                                                            <Border x:Name="Chip" Margin="0,0,6,5"
-                                                                                    Padding="7,2,3,2" CornerRadius="3"
-                                                                                    Background="{StaticResource Surface}"
-                                                                                    BorderBrush="{StaticResource FieldEdge}"
-                                                                                    BorderThickness="1">
-                                                                                <StackPanel Orientation="Horizontal">
-                                                                                    <!-- TextBlock, not Content: WPF
-                                                                                         reads _ as an accelerator and
-                                                                                         hides it, and an id is an
-                                                                                         exact key. -->
-                                                                                    <TextBlock x:Name="Label" Text="{Binding Id}"
-                                                                                               VerticalAlignment="Center"
-                                                                                               Foreground="{StaticResource Ink}" />
-                                                                                    <Button Content="✕" Width="18" Padding="0"
-                                                                                            Margin="5,0,0,0"
-                                                                                            Style="{StaticResource ChipClose}"
-                                                                                            ToolTip="Stop implementing this rule"
-                                                                                            Tag="{Binding}" Click="OnRemoveRuleFromType" />
-                                                                                </StackPanel>
-                                                                            </Border>
-                                                                            <DataTemplate.Triggers>
-                                                                                <!-- No rule of that name exists: a
-                                                                                     reference left dangling by a
-                                                                                     hand-edited file. Shown so it can
-                                                                                     be removed, not hidden. -->
-                                                                                <DataTrigger Binding="{Binding IsKnown}" Value="False">
-                                                                                    <Setter TargetName="Chip" Property="BorderBrush"
-                                                                                            Value="{StaticResource BrandBrushTop}" />
-                                                                                    <Setter TargetName="Label" Property="Foreground"
-                                                                                            Value="{StaticResource BrandBrushTop}" />
-                                                                                    <Setter TargetName="Chip" Property="ToolTip"
-                                                                                            Value="No rule with this id. Remove it, or add a rule that name." />
-                                                                                </DataTrigger>
-                                                                            </DataTemplate.Triggers>
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
                                                                 </ItemsControl>
 
                                                                 <StackPanel Grid.Column="2" Orientation="Horizontal"

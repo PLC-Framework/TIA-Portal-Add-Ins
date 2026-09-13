@@ -40,7 +40,15 @@ namespace Satellite.ConfigEditor.Editing
         public bool IsKnown { get; }
     }
 
-    /// <summary>One entry of one of the five lists: a TIA object type and its rules.</summary>
+    /// <summary>
+    /// One entry of one of the five lists: a TIA object type and its rules.
+    ///
+    /// **It also serves a section of an object rule's interface**, which is the same pair -
+    /// a type from a closed set and the rules it implements - with the section's closed set
+    /// and the interface-rule catalogue supplied by whoever builds it. The two stay separate
+    /// types in Core, where the vocabulary is what the validator checks; here the closed set
+    /// arrives from outside, so one row cannot offer the other's values.
+    /// </summary>
     public sealed class TypeRow : INotifyPropertyChanged
     {
         private readonly JObject _entry;
