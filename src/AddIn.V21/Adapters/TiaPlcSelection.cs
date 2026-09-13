@@ -6,7 +6,7 @@ using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.SW.Blocks;
 
-using AddIn.Shared.Actions;
+using AddIn.Shared.Adapters;
 
 namespace AddIn.Adapters
 {

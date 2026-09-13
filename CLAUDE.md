@@ -88,7 +88,7 @@ A type's layer is decided by **what it depends on**, not by who happens to call 
 | Layer | May depend on | Holds |
 | --- | --- | --- |
 | `Core` | only what **every** consumer needs | `Config` model + loader + **validators**, `Secrets` (`.env`, `${VAR}`), `DependencyGraph` model, `InstallPaths`, `Product` |
-| `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`), its ports (`ITiaNotifier`, `IGroupNode`, `IProcessLauncher`, `HierarchyTargets`, `Icons`), and the embedded `assets\` with their `Assets` loader |
+| `AddIn.Shared` | `Core` + host types that are **not** Siemens | the Add-In's use cases (`Actions/`), its ports (`ITiaNotifier`, `IGroupNode`, `IProcessLauncher`, `HierarchyTargets`, `PlcSelection`, `Icons`), and the embedded `assets\` with their `Assets` loader |
 | `UI.Shared` | `Core` + WPF | brand resources (`BrandLogo.xaml`, `Theme.xaml`), the dark-theme control styles (`Controls.xaml`) and the single-instance guard |
 | `S7PlcWebserverApi` | the network, and nothing of ours | the JSON-RPC client for a CPU's web server: `PlcClient`, `PlcVariable`, `PlcValue`, `PlcLimits` |
 | `AddIn.V20` / `.V21` | anything, including Siemens | `AddInProvider`, `AddInController`, `Adapters/` implementing the ports |

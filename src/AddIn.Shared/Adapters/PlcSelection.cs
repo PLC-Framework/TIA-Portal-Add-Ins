@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace AddIn.Shared.Actions
+namespace AddIn.Shared.Adapters
 {
     /// <summary>
     /// What the version-specific adapter found out about the selection, reduced to

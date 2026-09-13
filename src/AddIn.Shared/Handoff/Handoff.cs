@@ -1,6 +1,6 @@
 using System.Runtime.Serialization;
 
-namespace AddIn.Shared.Actions
+namespace AddIn.Shared.Handoff
 {
     /// <summary>
     /// The CPU half of the satellite handoff.

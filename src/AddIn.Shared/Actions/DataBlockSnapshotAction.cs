@@ -5,7 +5,7 @@ using System.Runtime.Serialization.Json;
 using System.Text;
 
 using AddIn.Shared.Adapters;
-
+using AddIn.Shared.Handoff;
 using Core;
 
 namespace AddIn.Shared.Actions

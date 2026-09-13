@@ -260,7 +260,25 @@ Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are
 
 ### Walking a PLC for the coding-style check
 
-`Adapters/TiaCheckedObjects.cs` turns a PLC, a block folder or a selection of blocks into the `CheckedObject`s that `Core.Checks.CodingStyleChecker` reads. Read off both assemblies by reflection, **the surface it touches is identical in V20 and V21**, so the two files are byte-identical and duplicated only for the assembly identity. **Compiled against both; not yet run inside TIA** — that happens once an action calls it.
+`Adapters/TiaCheckedObjects.cs` turns whatever was selected into the `CheckedObject`s that `Core.Checks.CodingStyleChecker` reads, and `CheckCodingStyleAction` runs the check. Read off both assemblies by reflection, **the surface it touches is identical in V20 and V21**, so the two files are byte-identical and duplicated only for the assembly identity. **Compiled against both and exercised with doubles; not yet run inside TIA.**
+
+"Check coding style" is registered on eleven kinds of node, one `AddActionItemWithIcon<T>` each, and only the one matching the selection shows:
+
+| Registered on | Checks |
+| --- | --- |
+| `Project` | every PLC in the project, found through `Devices`, `UngroupedDevicesGroup` and every `DeviceGroups` folder |
+| `DeviceItem` | the PLC it carries; any other device item contributes nothing |
+| `PlcUnitBase` | one software unit, or a safety unit |
+| `PlcBlockGroup`, `TechnologicalInstanceDBGroup`, `PlcTagTableGroup`, `PlcTypeGroup`, `PlcAlarmTextlistGroup` | a folder and everything below it — the system root and a user folder alike, since both derive from the registered type |
+| `PlcBlock`, `PlcTagTable`, `PlcType`, `PlcAlarmTextlist` | the selected objects |
+
+**Technology objects get no registration of their own**, and that is not an omission: `TechnologicalInstanceDB` derives from `InstanceDB`, so it already is a `PlcBlock` and a second registration would show the entry twice. The adapter recognises it and files it under `technologyObjects`. Every registration takes the whole selection, and the action drops an object reached twice — a folder selected together with a folder inside it.
+
+**The action loads and validates before it walks.** The walk arrives as a delegate, so a broken `codingStyle` is reported without first reading several thousand objects on TIA's own thread; only `codingStyle` is validated, so a broken `hierarchy` does not stop a naming check. Until the report satellite exists, the result is a summary in a notification.
+
+**The checker survives the tightest partial trust.** Run inside an `AppDomain` granted `Execution` alone, the validator, the checker and a pattern hitting its match timeout all behave as they do outside, with no `SecurityException` — the first time `Regex` with a timeout runs in TIA's process, checked before it gets there.
+
+**Every path starts with the PLC's name**, because a project holds several and the same folder exists in each. It is built downwards from a PLC or unit and upwards through `Parent` from a folder or an object, to the same shape; links in the chain it does not recognise are stepped over rather than ending the walk.
 
 What the object model offers, and therefore what phase one can check without exporting anything:
 
@@ -272,7 +290,7 @@ What the object model offers, and therefore what phase one can check without exp
 | Types | `TypeGroup` → `Types` / `Groups` | none: `PlcType` exposes no interface |
 | Alarm text lists | `PlcAlarmTextlistGroup` → `PlcAlarmUserTextlists` | none. The group has **no folders and no `Name`** |
 
-Software units — `PlcUnit` and `PlcSafetyUnit` — repeat four of those roots and are walked the same way, with the unit's name heading the path; technology objects exist only at PLC level. On an S7-1200 `GetService<PlcUnitProvider>()` answers nothing, which is expected.
+Software units — `PlcUnit` and `PlcSafetyUnit` — repeat four of those roots and are walked the same way, with the unit's name after the PLC's in the path; technology objects exist only at PLC level. On an S7-1200 `GetService<PlcUnitProvider>()` answers nothing, which is expected.
 
 Decisions worth keeping:
 

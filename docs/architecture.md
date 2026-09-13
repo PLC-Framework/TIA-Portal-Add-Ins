@@ -77,7 +77,7 @@ src/AddIn.Shared/
 │                             Handoff.cs holds the payload types — public and top level,
 │                             because partial trust refuses to serialize anything else
 └── Adapters/                 ports: ITiaNotifier, IGroupNode, IProcessLauncher,
-                              HierarchyTargets, plus Icons (assets → System.Drawing.Icon)
+                              HierarchyTargets, PlcSelection, plus Icons (assets → System.Drawing.Icon)
 ```
 
 ```
