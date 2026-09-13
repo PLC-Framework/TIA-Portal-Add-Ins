@@ -17,13 +17,15 @@ namespace Core.Checks
             string type,
             string name,
             string path = null,
-            IReadOnlyList<CheckedMember> members = null)
+            IReadOnlyList<CheckedMember> members = null,
+            string membersUnreadable = null)
         {
             Family = family;
             Type = type;
             Name = name;
             Path = path ?? string.Empty;
             Members = members ?? new List<CheckedMember>();
+            MembersUnreadable = membersUnreadable;
         }
 
         public ObjectFamily Family { get; }
@@ -41,11 +43,21 @@ namespace Core.Checks
         public string Path { get; }
 
         /// <summary>
-        /// What lives inside it. Empty in phase one, where only the object-model surface is
-        /// read; the members of a code block and of a UDT need the export that phase two
-        /// brings.
+        /// What lives inside it, as far as the object model shows. In phase one that is a
+        /// tag table's tags and constants and a global DB's top-level members; the members
+        /// of a code block and of a UDT need the export that phase two brings.
         /// </summary>
         public IReadOnlyList<CheckedMember> Members { get; }
+
+        /// <summary>
+        /// Why the members could not be read - a know-how protected block, or TIA refusing
+        /// the call - and null when they were, or when nothing was asked of them.
+        ///
+        /// Carried rather than swallowed: an object whose members could not be read and an
+        /// object with no members to report look identical in a table, and only one of them
+        /// is a clean result.
+        /// </summary>
+        public string MembersUnreadable { get; }
     }
 
     /// <summary>One member of an object's interface, or one tag or constant of a table.</summary>

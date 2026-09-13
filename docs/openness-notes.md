@@ -258,6 +258,30 @@ DeviceItem.GetService<NetworkInterface>()   // per device item, walking the whol
 
 Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are filtered out by shape, so the drop-down only offers things worth pointing a browser at.
 
+### Walking a PLC for the coding-style check
+
+`Adapters/TiaCheckedObjects.cs` turns a PLC, a block folder or a selection of blocks into the `CheckedObject`s that `Core.Checks.CodingStyleChecker` reads. Read off both assemblies by reflection, **the surface it touches is identical in V20 and V21**, so the two files are byte-identical and duplicated only for the assembly identity. **Compiled against both; not yet run inside TIA** — that happens once an action calls it.
+
+What the object model offers, and therefore what phase one can check without exporting anything:
+
+| Family | Walked through | Members |
+| --- | --- | --- |
+| Blocks | `BlockGroup` → `Blocks` / `Groups` | a `GlobalDB`'s top-level `Interface.Members`, as `Static`. `Member` exposes a `Name` and nothing else — no section, no nesting |
+| Technology objects | `TechnologicalObjectGroup` → `TechnologicalObjects` / `Groups` | none |
+| Tag tables | `TagTableGroup` → `TagTables` / `Groups` | `Tags` as `Tag`, `UserConstants` as `UserConstant` |
+| Types | `TypeGroup` → `Types` / `Groups` | none: `PlcType` exposes no interface |
+| Alarm text lists | `PlcAlarmTextlistGroup` → `PlcAlarmUserTextlists` | none. The group has **no folders and no `Name`** |
+
+Software units — `PlcUnit` and `PlcSafetyUnit` — repeat four of those roots and are walked the same way, with the unit's name heading the path; technology objects exist only at PLC level. On an S7-1200 `GetService<PlcUnitProvider>()` answers nothing, which is expected.
+
+Decisions worth keeping:
+
+- **Only names an engineer chose.** `SystemBlockGroups`, `SystemTypeGroups`, system constants, system text lists and the default tag table are named by TIA. A rule could only fail them, and nobody reading the report could act on it.
+- **Only a global DB's members are its own.** An instance DB's are its FB's interface, which is where they get checked; a technology object's are defined by Siemens.
+- **A `TechnologicalInstanceDB` is an `InstanceDB` to the type system**, so the type name is decided most specific first — the other way round reports every technology object as an instance DB.
+- **Reading the tree is not guarded; reading members is.** A folder that silently failed to read would drop out of the report and leave it looking complete. Members that cannot be read — a know-how protected block, or TIA refusing — travel as `MembersUnreadable`, and the checker turns that into a skipped row with the reason rather than an object that looks clean.
+- **The closed-set names come from `Core.Config.CodingStyleNames`**, the same constants the validator uses. A misspelt type on this side would not fail; it would read as "no rule for this type".
+
 ## The Add-In API
 
 Verified by reflection over `V20.addIn\Siemens.Engineering.AddIn.dll` and `V21\net48\Siemens.Engineering.AddIn.Base.dll`. **These signatures are identical in both versions** — only the assembly they live in changes:

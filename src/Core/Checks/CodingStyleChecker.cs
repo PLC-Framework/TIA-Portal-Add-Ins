@@ -117,7 +117,8 @@ namespace Core.Checks
                                            : passed ? CheckOutcome.Passed : CheckOutcome.Failed,
                 subject.Type, subject.Name, subject.Path, matched, missed, trouble));
 
-            if (subject.Members.Count == 0) return rows;
+            bool unreadable = subject.MembersUnreadable != null;
+            if (subject.Members.Count == 0 && !unreadable) return rows;
 
             string inside = string.IsNullOrEmpty(subject.Path)
                 ? subject.Name
@@ -137,6 +138,21 @@ namespace Core.Checks
             }
 
             Dictionary<string, List<string>> expected = ExpectedSections(matched);
+
+            if (unreadable)
+            {
+                // Only worth a row when the matched rules expected something inside. An
+                // object whose interface nobody configured has nothing to miss, and a row
+                // saying otherwise would be noise the reader learns to skip.
+                if (expected.Count > 0)
+                {
+                    rows.Add(new CheckRow(
+                        RowScope.Member, CheckOutcome.Skipped, string.Empty, string.Empty, inside,
+                        note: "Interface not checked. " + subject.MembersUnreadable));
+                }
+
+                return rows;
+            }
 
             foreach (CheckedMember member in subject.Members)
             {

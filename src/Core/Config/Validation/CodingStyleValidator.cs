@@ -24,13 +24,18 @@ namespace Core.Config.Validation
     {
         // Closed sets, per section. Read off the object types TIA actually exposes; a
         // value outside them cannot ever match a real object, so it is a broken file.
+        // The strings themselves live in CodingStyleNames, because the Add-In has to spell
+        // them too when it names what it found in a PLC.
         private static readonly string[] BlockTypes =
-            { "OB", "ArrayDB", "GlobalDB", "InstanceDB", "FC", "FB" };
+        {
+            CodingStyleNames.OB, CodingStyleNames.ArrayDB, CodingStyleNames.GlobalDB,
+            CodingStyleNames.InstanceDB, CodingStyleNames.FC, CodingStyleNames.FB
+        };
 
-        private static readonly string[] TechnologyObjectTypes = { "TechnologicalInstanceDB" };
-        private static readonly string[] TagTableTypes = { "PlcTagTable" };
-        private static readonly string[] TypeTypes = { "PlcStruct" };
-        private static readonly string[] AlarmTextListTypes = { "AlarmTexts" };
+        private static readonly string[] TechnologyObjectTypes = { CodingStyleNames.TechnologicalInstanceDB };
+        private static readonly string[] TagTableTypes = { CodingStyleNames.PlcTagTable };
+        private static readonly string[] TypeTypes = { CodingStyleNames.PlcStruct };
+        private static readonly string[] AlarmTextListTypes = { CodingStyleNames.AlarmTexts };
 
         // Where members live, spelled as TIA spells it - the same rule the five sets above
         // follow, and the one that lets a check compare without folding case. The first six
@@ -38,7 +43,11 @@ namespace Core.Config.Validation
         // two different things and are named apart on purpose: a tag and a user constant
         // answer to different rules.
         private static readonly string[] InterfaceSectionTypes =
-            { "Input", "Output", "InOut", "Static", "Temp", "Constant", "Tag", "UserConstant" };
+        {
+            CodingStyleNames.Input, CodingStyleNames.Output, CodingStyleNames.InOut,
+            CodingStyleNames.Static, CodingStyleNames.Temp, CodingStyleNames.Constant,
+            CodingStyleNames.Tag, CodingStyleNames.UserConstant
+        };
 
         public static ValidationResult Validate(CodingStyle style, string path = "codingStyle")
         {
