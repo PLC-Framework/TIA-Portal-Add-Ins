@@ -105,6 +105,20 @@ Three things there are deliberate:
 
 The adapter wraps Siemens' `Process` — what `ProcessStartPermission` authorises — and is duplicated per version for the reason given under [*Known V20 / V21 divergences*](openness-notes.md).
 
+## Reporting a coding-style check
+
+`Satellite.CodingStyleReport` opens when *Check coding style* runs in TIA Portal. **The Add-In computes and the satellite shows**: the Add-In walks the selection, checks every name and sends the result on the window's standard input, so nothing is written anywhere nobody asked for a file. Writing the report to disk is the window's job, when the operator exports it.
+
+**The document is `Core.Checks.StyleReport`, one definition for both ends.** The Add-In serializes it and the satellite reads it with the same type, so the two cannot drift into the window showing less than was sent. It carries the project, what was selected ("2 block folders"), a UTC timestamp, the framework version, every row, and **the rules the rows mention, with their patterns and descriptions**. A report is read after the fact — exported, attached to a ticket, imported next week — and the configuration it was checked against may have changed or be on another machine by then; explaining an old result with today's rules would describe rules that did not produce it.
+
+- **Every type in it is public with public setters.** The Add-In serializes it inside TIA's partial-trust sandbox, which refuses anything less. Built, serialized and read back inside an `AppDomain` granted `Execution` alone, identical after the round trip.
+- **It carries a `format` number.** A window reading a report from a newer framework says so rather than showing half of it.
+- **Named `StyleReport`, not `CodingStyleReport`.** Inside the namespace `Satellite.CodingStyleReport` a type of that name loses to the namespace and every use fails to compile — the same trap as a namespace called `AddIn.Core`.
+- **No instance guard.** Each run is a report of its own selection at its own moment; a single window would refuse the second or throw the first away, and two side by side is how a before-and-after gets compared.
+- **Two empty states, two sentences.** Started by hand, it says how to get a report from TIA Portal; handed something it cannot read, it says that, with the reason in the status line — sending the operator back to repeat what already failed would be the wrong advice.
+
+Verified here with the payload the action really produced: handed over on standard input the way `ProcessLauncher` does it and through the fallback path argument, twelve rows with their header and counts, a second window opening beside the first, and both empty states. Colour, filters and export come next; the table today shows every row as it arrived.
+
 ## Editing a configuration
 
 `Satellite.ConfigEditor` opens from **"Config. Editor"** on the project root of both Add-Ins. Section navigation down the left rather than tabs — two of the four sections subdivide again — and a **dot beside a section** marks where the problems are, which costs nothing because the validator already reports per concern.

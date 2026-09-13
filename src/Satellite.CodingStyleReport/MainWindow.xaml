@@ -1,0 +1,67 @@
+<Window x:Class="Satellite.CodingStyleReport.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Coding style report"
+        Icon="{StaticResource BrandLogo}"
+        Height="660" Width="1040"
+        MinHeight="480" MinWidth="760"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource DarkThemeGradientBrush}"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,14">
+            <Image Source="{StaticResource BrandLogo}" Width="38" Height="38" VerticalAlignment="Center" />
+            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="Coding style report" FontSize="18" FontWeight="SemiBold"
+                           Foreground="{StaticResource BrandBrushTop}" />
+                <!-- Which project, what was selected and when. Several of these windows can
+                     be open at once, one per run, so each has to say which run it is. -->
+                <TextBlock x:Name="ProjectLine" FontSize="11" Foreground="{StaticResource InkMuted}" />
+            </StackPanel>
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" x:Name="SummaryLine" Margin="0,0,0,10" TextWrapping="Wrap"
+                   Foreground="{StaticResource Ink}" />
+
+        <Border Grid.Row="2" BorderBrush="{StaticResource FieldEdge}" BorderThickness="1"
+                Background="{StaticResource Surface}">
+            <Grid>
+                <!-- A first table: every row as it arrived. Colour, filters and grouping are
+                     the next stage; this one proves the report crosses whole. -->
+                <ListView x:Name="RowList" BorderThickness="0" Background="Transparent"
+                          Foreground="{StaticResource Ink}"
+                          VirtualizingPanel.IsVirtualizing="True">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Result" Width="110" DisplayMemberBinding="{Binding Result}" />
+                            <GridViewColumn Header="Kind" Width="110" DisplayMemberBinding="{Binding Kind}" />
+                            <GridViewColumn Header="Name" Width="200" DisplayMemberBinding="{Binding Name}" />
+                            <GridViewColumn Header="Path" Width="240" DisplayMemberBinding="{Binding Path}" />
+                            <GridViewColumn Header="Rules" Width="200" DisplayMemberBinding="{Binding Rules}" />
+                            <GridViewColumn Header="Note" Width="300" DisplayMemberBinding="{Binding Note}" />
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+
+                <!-- No report: started by hand, or what arrived could not be read. -->
+                <TextBlock x:Name="EmptyNote" Visibility="Collapsed" Margin="24"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           TextAlignment="Center" TextWrapping="Wrap" MaxWidth="520"
+                           Foreground="{StaticResource InkMuted}" />
+            </Grid>
+        </Border>
+
+        <TextBlock Grid.Row="3" x:Name="StatusLine" Margin="0,12,0,0"
+                   TextWrapping="Wrap" Foreground="{StaticResource Ink}" />
+    </Grid>
+</Window>

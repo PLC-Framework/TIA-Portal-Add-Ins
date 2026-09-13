@@ -1,0 +1,16 @@
+<Application x:Class="Satellite.CodingStyleReport.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- The URI carries the AssemblyName, not the project name.
+
+                     Controls.xaml pulls Theme.xaml in itself, so listing it here as well
+                     would only load the palette twice. -->
+                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/Controls.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/BrandLogo.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

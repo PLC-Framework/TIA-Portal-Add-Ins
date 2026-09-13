@@ -18,6 +18,7 @@ TIA-Portal-Add-Ins.slnx
     ├── Satellite.About/      (net48, WPF) — the About window                         ← EXISTS
     ├── Satellite.DataBlockSnapshot/  (net48, WPF) — captures a DB to .xlsx           ← EXISTS
     ├── Satellite.ConfigEditor/       (net48, WPF) — edits config.json                ← EXISTS
+    ├── Satellite.CodingStyleReport/  (net48, WPF) — shows a coding-style check       ← EXISTS
     ├── Satellite.<Name>/     (net48, WPF) — a UI app the Add-In launches
     └── Tool.<Name>/          (net48) — a command-line helper
 ```
@@ -61,6 +62,10 @@ src/Core/
 │       ├── HierarchyValidator.cs · CodingStyleValidator.cs
 │       ├── ConfigValidator.cs        structural, whole document
 │       └── EnvironmentValidator.cs   paths that exist, ${VAR} that resolve
+├── Checks/                   the coding-style check, pure: handed names, returns rows
+│   ├── CodingStyleChecker.cs names against the rules, with a match timeout
+│   ├── CheckedObject.cs · CheckRow.cs · ObjectFamily.cs
+│   └── StyleReport.cs        the report document the Add-In sends and the satellite reads
 ├── Secrets/
 │   ├── DotEnv.cs             the per-user .env: read, and written back surgically
 │   └── Variables.cs          ${NAME} references — pure, given a lookup
@@ -105,6 +110,15 @@ src/Satellite.ConfigEditor/
 │   └── ConfigTemplate.cs     the per-user template, with the embedded one behind it
 ├── App.xaml(.cs)             one instance per TIA Portal
 └── MainWindow.xaml(.cs)      section navigation; Metadata and Repository so far
+```
+
+```
+src/Satellite.CodingStyleReport/
+├── Satellite.CodingStyleReport.csproj  references Core, UI.Shared
+├── Handoff/HandoffReader.cs  stdin, or a path as the argument; parsed by Core's StyleReport
+├── Report/ReportLine.cs      one report row as the table shows it
+├── App.xaml(.cs)             no instance guard: every run is its own report
+└── MainWindow.xaml(.cs)      header, summary counts, the table, or why there is no report
 ```
 
 ```

@@ -274,7 +274,7 @@ Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are
 
 **Technology objects get no registration of their own**, and that is not an omission: `TechnologicalInstanceDB` derives from `InstanceDB`, so it already is a `PlcBlock` and a second registration would show the entry twice. The adapter recognises it and files it under `technologyObjects`. Every registration takes the whole selection, and the action drops an object reached twice — a folder selected together with a folder inside it.
 
-**The action loads and validates before it walks.** The walk arrives as a delegate, so a broken `codingStyle` is reported without first reading several thousand objects on TIA's own thread; only `codingStyle` is validated, so a broken `hierarchy` does not stop a naming check. Until the report satellite exists, the result is a summary in a notification.
+**The action loads and validates before it walks.** The walk arrives as a delegate, so a broken `codingStyle` is reported without first reading several thousand objects on TIA's own thread; only `codingStyle` is validated, so a broken `hierarchy` does not stop a naming check. Before any of that it checks the report window is installed, since no amount of walking helps a missing executable. The result travels to `Satellite.CodingStyleReport` as a `Core.Checks.StyleReport` over standard input — see [the satellites page](satellites.md).
 
 **The checker survives the tightest partial trust.** Run inside an `AppDomain` granted `Execution` alone, the validator, the checker and a pattern hitting its match timeout all behave as they do outside, with no `SecurityException` — the first time `Regex` with a timeout runs in TIA's process, checked before it gets there.
 

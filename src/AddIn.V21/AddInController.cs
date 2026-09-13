@@ -1,4 +1,4 @@
-﻿using AddIn.Adapters;
+using AddIn.Adapters;
 using AddIn.Shared.Actions;
 using AddIn.Shared.Adapters;
 using Core;
@@ -48,7 +48,7 @@ namespace AddIn
             // The coding-style check on the project root checks every PLC in it. The same
             // entry on narrower nodes is registered below, after the actions that belong
             // to those nodes.
-            AddCheck<Project>(menuAddInRoot, TiaCheckedObjects.FromProjects);
+            AddCheck<Project>(menuAddInRoot, "project", "projects", TiaCheckedObjects.FromProjects);
 
             // On the project root, and last: it is about the framework rather than about
             // anything selected. The window itself is a separate executable on disk, so
@@ -105,36 +105,46 @@ namespace AddIn
             // FC and a DB, share one registration. Technology objects are deliberately not
             // registered on their own: a TechnologicalInstanceDB is a PlcBlock, so it would
             // show the entry twice.
-            AddCheck<DeviceItem>(menuAddInRoot, TiaCheckedObjects.FromPlcs);
-            AddCheck<PlcUnitBase>(menuAddInRoot, TiaCheckedObjects.FromUnits);
-            AddCheck<PlcBlockGroup>(menuAddInRoot, TiaCheckedObjects.FromBlockGroups);
-            AddCheck<TechnologicalInstanceDBGroup>(menuAddInRoot, TiaCheckedObjects.FromTechnologyObjectGroups);
-            AddCheck<PlcTagTableGroup>(menuAddInRoot, TiaCheckedObjects.FromTagTableGroups);
-            AddCheck<PlcTypeGroup>(menuAddInRoot, TiaCheckedObjects.FromTypeGroups);
-            AddCheck<PlcAlarmTextlistGroup>(menuAddInRoot, TiaCheckedObjects.FromAlarmTextListGroups);
-            AddCheck<PlcBlock>(menuAddInRoot, TiaCheckedObjects.FromBlocks);
-            AddCheck<PlcTagTable>(menuAddInRoot, TiaCheckedObjects.FromTagTables);
-            AddCheck<PlcType>(menuAddInRoot, TiaCheckedObjects.FromTypes);
-            AddCheck<PlcAlarmTextlist>(menuAddInRoot, TiaCheckedObjects.FromAlarmTextLists);
+            AddCheck<DeviceItem>(menuAddInRoot, "PLC", "PLCs", TiaCheckedObjects.FromPlcs);
+            AddCheck<PlcUnitBase>(menuAddInRoot, "software unit", "software units", TiaCheckedObjects.FromUnits);
+            AddCheck<PlcBlockGroup>(menuAddInRoot, "block folder", "block folders", TiaCheckedObjects.FromBlockGroups);
+            AddCheck<TechnologicalInstanceDBGroup>(menuAddInRoot, "technology object folder", "technology object folders", TiaCheckedObjects.FromTechnologyObjectGroups);
+            AddCheck<PlcTagTableGroup>(menuAddInRoot, "tag table folder", "tag table folders", TiaCheckedObjects.FromTagTableGroups);
+            AddCheck<PlcTypeGroup>(menuAddInRoot, "PLC data type folder", "PLC data type folders", TiaCheckedObjects.FromTypeGroups);
+            AddCheck<PlcAlarmTextlistGroup>(menuAddInRoot, "PLC alarm text lists", "PLC alarm text list groups", TiaCheckedObjects.FromAlarmTextListGroups);
+            AddCheck<PlcBlock>(menuAddInRoot, "block", "blocks", TiaCheckedObjects.FromBlocks);
+            AddCheck<PlcTagTable>(menuAddInRoot, "tag table", "tag tables", TiaCheckedObjects.FromTagTables);
+            AddCheck<PlcType>(menuAddInRoot, "PLC data type", "PLC data types", TiaCheckedObjects.FromTypes);
+            AddCheck<PlcAlarmTextlist>(menuAddInRoot, "text list", "text lists", TiaCheckedObjects.FromAlarmTextLists);
         }
 
         /// <summary>
-        /// One coding-style entry for one kind of node. The whole selection is handed to the
-        /// walk, and the walk itself is handed to the action, which runs it only once the
-        /// configuration has been loaded and validated.
+        /// One coding-style entry for one kind of node. The selection is taken once, so the
+        /// words describing it and the walk over it cannot disagree; the walk itself is
+        /// handed to the action, which runs it only once nothing else has refused.
         /// </summary>
         private void AddCheck<T>(
             ContextMenuAddInRoot root,
+            string one,
+            string many,
             Func<IEnumerable<T>, List<CheckedObject>> walk) where T : IEngineeringObject
         {
             AddAction<T>(
                 root,
                 CheckCodingStyleAction.Title,
                 CheckCodingStyleAction.IconPath,
-                menuSelectionProvider => CheckCodingStyleAction.Execute(
-                    _notifier,
-                    ProjectDirectory(),
-                    () => walk(menuSelectionProvider?.GetSelection<T>() ?? Enumerable.Empty<T>())));
+                menuSelectionProvider =>
+                {
+                    List<T> selected = menuSelectionProvider?.GetSelection<T>().ToList() ?? new List<T>();
+
+                    CheckCodingStyleAction.Execute(
+                        _notifier,
+                        _launcher,
+                        ProjectDirectory(),
+                        ProjectName(),
+                        CheckCodingStyleAction.Scope(selected.Count, one, many),
+                        () => walk(selected));
+                });
         }
         
         /// <summary>

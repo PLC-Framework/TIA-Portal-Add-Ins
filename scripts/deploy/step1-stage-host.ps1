@@ -37,7 +37,7 @@ function Copy-Tree($from, $to, $extra)
     if ($code -ge 8) { throw "robocopy failed with $code copying $from" }
 }
 
-$satellites = @("Satellite.About", "Satellite.DataBlockSnapshot", "Satellite.ConfigEditor")
+$satellites = @("Satellite.About", "Satellite.DataBlockSnapshot", "Satellite.ConfigEditor", "Satellite.CodingStyleReport")
 $versions   = @(@{ Project = "AddIn.V20"; Package = "PLC-Framework.V20.addin" },
                 @{ Project = "AddIn.V21"; Package = "PLC-Framework.V21.addin" })
 

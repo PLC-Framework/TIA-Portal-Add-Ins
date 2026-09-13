@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Satellite.CodingStyleReport</RootNamespace>
+    <AssemblyName>PLC-Framework.Satellite.CodingStyleReport</AssemblyName>
+    <!-- Win32 icon resource: what Explorer, Alt-Tab and shortcuts show. It must be a
+         file on disk at build time, so it reads assets\ directly. Window.Icon is set
+         separately, in XAML. -->
+    <ApplicationIcon>..\..\assets\Brand\favicon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- Core carries the report contract the Add-In writes, so this reads exactly the shape
+       that was sent - no second definition to drift from it. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Core.csproj" />
+    <ProjectReference Include="..\UI.Shared\UI.Shared.csproj" />
+  </ItemGroup>
+
+</Project>
