@@ -28,20 +28,7 @@ namespace Satellite.CodingStyleReport.Report
         /// <summary>The outcome's name, what the row's colour triggers on.</summary>
         public string OutcomeName => Row.Outcome;
 
-        public string Result
-        {
-            get
-            {
-                switch (Row.OutcomeValue)
-                {
-                    case CheckOutcome.Passed: return "Passed";
-                    case CheckOutcome.Failed: return "Failed";
-                    case CheckOutcome.NotConfigured: return "Not configured";
-                    case CheckOutcome.Skipped: return "Skipped";
-                    default: return Row.Outcome;
-                }
-            }
-        }
+        public string Result => Outcomes.Label(Row);
 
         public string Kind => Row.Kind;
 

@@ -22,4 +22,17 @@
     <ProjectReference Include="..\UI.Shared\UI.Shared.csproj" />
   </ItemGroup>
 
+  <!-- The report is exported as .xlsx, like every other export the framework writes, with the
+       same SDK and version as the snapshot: one way of writing a workbook, and its own
+       validator to check the result against. -->
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
+  </ItemGroup>
+
+  <!-- FolderBrowserDialog, for choosing where the export goes: WPF has no folder picker of its
+       own, and an SDK-style net48 project does not reference the WinForms assembly by default. -->
+  <ItemGroup>
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
 </Project>

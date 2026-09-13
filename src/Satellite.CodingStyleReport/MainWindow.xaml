@@ -59,6 +59,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -216,7 +217,35 @@
             </Grid>
         </Border>
 
-        <TextBlock Grid.Row="4" x:Name="StatusLine" Margin="0,12,0,0"
+        <!-- Export. The folder defaults to the project's .plc-framework\reports and stays
+             editable; the file name is the window's to choose, so it never overwrites. -->
+        <Grid Grid.Row="4" x:Name="ExportBar" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="Folder" Style="{StaticResource FieldLabel}" />
+            <TextBox   Grid.Column="1" x:Name="FolderBox" />
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <Button x:Name="BrowseButton" Content="..." Width="34" Margin="8,0,0,0" Padding="0,4"
+                        Style="{StaticResource Quiet}" ToolTip="Choose where the workbook is written"
+                        Click="OnBrowseFolder" />
+                <Button x:Name="OpenFolderButton" Content="Open" Width="70" Margin="8,0,0,0" Padding="0,4"
+                        Style="{StaticResource Quiet}" ToolTip="Open the folder in Explorer"
+                        Click="OnOpenFolder" />
+                <!-- Every row, whatever the filters show: a workbook of the failures alone would
+                     read as a clean report to whoever opens it next. -->
+                <Button x:Name="ExportButton" Content="Export .xlsx" Width="130" Margin="16,0,0,0" Padding="0,6"
+                        Style="{StaticResource Primary}"
+                        ToolTip="Write every row of the report, whatever the filters show, with its rules and provenance"
+                        Click="OnExport" />
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Grid.Row="5" x:Name="StatusLine" Margin="0,12,0,0"
                    TextWrapping="Wrap" Foreground="{StaticResource Ink}" />
     </Grid>
 </Window>

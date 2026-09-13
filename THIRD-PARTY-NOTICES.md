@@ -18,7 +18,7 @@ Reads and writes `config.json` in `Satellite.ConfigEditor`, and the JSON-RPC env
 
 © Microsoft Corporation. All rights reserved. [https://github.com/dotnet/Open-XML-SDK](https://github.com/dotnet/Open-XML-SDK) · MIT
 
-Writes the `.xlsx` workbooks in `Satellite.DataBlockSnapshot`. Ships together with `DocumentFormat.OpenXml.Framework` 3.5.1, under the same copyright and licence.
+Writes the `.xlsx` workbooks in `Satellite.DataBlockSnapshot` and `Satellite.CodingStyleReport`. Ships together with `DocumentFormat.OpenXml.Framework` 3.5.1, under the same copyright and licence.
 
 ---
 

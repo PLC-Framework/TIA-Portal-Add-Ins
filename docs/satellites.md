@@ -130,6 +130,19 @@ Verified here with the payload the action really produced: handed over on standa
 
 Exercised through UI Automation on the real payload: counts on every chip, every combination of chips down to "No row matches the filters", a kind filter, searches that hit a name, a note and a rule, Esc and Ctrl+F, and the tooltip text read back for a matched rule, nine suggestions and an interface rule. Checked by capture at the default and the minimum size, where the chips wrap and both scroll bars show.
 
+### Exporting the report
+
+**`.xlsx` only, like every other export the framework writes** — the snapshot's workbooks and this one read and sort alike, and one format is one thing to import back. `Export .xlsx` writes `<project>-coding-style-<timestamp>.xlsx` into `<TIA project>\.plc-framework\reports\` by default, with the folder editable, a `...` to pick another and `Open` to show it. The timestamp is **when the check ran**, the report's own moment, not when it was exported.
+
+- **Every row is exported, whatever the filters show.** A workbook of the failures alone would read as a clean report to whoever opens it next; the sheet carries an autofilter for narrowing.
+- **Three sheets, and together they are the whole report**: *Report*, one row per report row — Result, Level, Kind, Name, Path, Matched, Suggestions, Note — coloured as the window colours it, members indented, header frozen, autofilter on; *Rules*, every rule the rows name with its pattern and description; *Info*, project, directory, scope, when it was checked and exported, framework version, report format, and the counts as numbers. That is what will let a workbook be opened again as a report.
+- **Names are written exactly**: whitespace preserved, and members indented by cell alignment rather than by padding the name, so a cell holds the name and a filter on it still matches.
+- **Suggestions only where nothing matched**, as the window shows them. The checker lists every rule a name missed, so a passed FB would otherwise carry ten "suggestions".
+- **Never overwrites**: a taken name gets ` (2)`. **The folder is checked, and created, before anything is written** — `.plc-framework\reports` does not exist until the first export. **A failed write leaves nothing behind**: a half-written workbook would later be opened as the report.
+- **Colours are darker in the workbook than in the window.** The window paints on a dark surface and a spreadsheet on white; the same red cannot serve both.
+
+Verified with the OpenXML SDK's own validator — zero errors — on the report the action produces and on a synthetic one of 20,000 rows (written in under half a second), and by reading every sheet back: cell by cell, with styles, frozen pane, autofilter and its defined name, and a name ending in a blank kept whole. Through UI Automation: the default folder resolved and created on first export, a second export taking ` (2)`, an export with a filter on still carrying all twelve rows, an unwritable and an empty folder refused with a sentence, and no export row without a report.
+
 The scroll bars were light grey in every satellite until this window, whose table scrolls both ways, made it impossible to miss; they are now themed for all of them — see *Theming* in [architecture.md](architecture.md).
 
 ## Editing a configuration

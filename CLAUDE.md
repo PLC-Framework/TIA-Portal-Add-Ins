@@ -294,7 +294,7 @@ The repo went without packages until the web API client. Two were taken, both co
 | Package | Where | Why |
 | --- | --- | --- |
 | `Newtonsoft.Json` 13.0.4 | `S7PlcWebserverApi` | the JSON-RPC `result` is a different shape per method and a variable's `value` arrives as bool, integer, real or string. `DataContractJsonSerializer`, which `Core` uses, is the wrong tool for a document whose type is only known at runtime |
-| `DocumentFormat.OpenXml` 3.5.1 | `Satellite.DataBlockSnapshot` | writing a real `.xlsx` by hand is five XML parts in a zip whose only true test is whether Excel opens it. Microsoft's own SDK, MIT, and it ships a validator that can be run in the build loop |
+| `DocumentFormat.OpenXml` 3.5.1 | `Satellite.DataBlockSnapshot`, `Satellite.CodingStyleReport` | **`.xlsx` is the framework's one export format** (2026-09-13: the coding-style report exports and imports `.xlsx` only, "to keep every export coherent"). Writing a real `.xlsx` by hand is five XML parts in a zip whose only true test is whether Excel opens it. Microsoft's own SDK, MIT, and it ships a validator that can be run in the build loop |
 
 **Neither may reach `Core`, `AddIn.Shared` or a version project.** What loads into TIA's process stays on the framework's own assemblies.
 

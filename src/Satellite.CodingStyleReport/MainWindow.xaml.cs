@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,7 +13,9 @@ using System.Windows.Input;
 
 using Core;
 using Core.Checks;
+using Core.Config;
 
+using Satellite.CodingStyleReport.Export;
 using Satellite.CodingStyleReport.Report;
 
 namespace Satellite.CodingStyleReport
@@ -22,6 +26,9 @@ namespace Satellite.CodingStyleReport
 
         private readonly List<ReportLine> _lines = new List<ReportLine>();
         private ICollectionView _view;
+
+        /// <summary>The report on screen, kept whole for export whatever the filters hide.</summary>
+        private readonly StyleReport _report;
 
         public MainWindow(StyleReport report, bool handedOver, string problem)
         {
@@ -36,6 +43,12 @@ namespace Satellite.CodingStyleReport
                 ShowEmpty(handedOver, problem);
                 return;
             }
+
+            _report = report;
+
+            // Straight into the project the check came from; empty when the report carries no
+            // project directory, and then the operator picks.
+            FolderBox.Text = ConfigPaths.FolderFor(report.ProjectDirectory, ConfigPaths.Reports) ?? string.Empty;
 
             // First rule of an id wins: the report writes each once, and a hand-made file that
             // repeats one should not stop the window opening.
@@ -76,6 +89,7 @@ namespace Satellite.CodingStyleReport
         {
             RowList.Visibility = Visibility.Collapsed;
             FilterBar.Visibility = Visibility.Collapsed;
+            ExportBar.Visibility = Visibility.Collapsed;
             SummaryLine.Visibility = Visibility.Collapsed;
             EmptyNote.Visibility = Visibility.Visible;
 
@@ -163,6 +177,101 @@ namespace Satellite.CodingStyleReport
 
             SearchBox.Clear();
             e.Handled = true;
+        }
+
+        // ------------------------------------------------------------------ export
+
+        private void OnExport(object sender, RoutedEventArgs e)
+        {
+            if (_report == null) return;
+
+            string folder = FolderBox.Text.Trim();
+
+            // Checked, and the folder created, before anything is written: .plc-framework\reports
+            // does not exist until the first export makes it.
+            string problem = ReportFile.ProblemWith(folder);
+            if (problem != null)
+            {
+                StatusLine.Text = problem;
+                return;
+            }
+
+            string path = null;
+            try
+            {
+                path = ReportFile.Unique(folder, ReportFile.NameFor(_report.Project, CheckedAt()));
+                ReportWorkbook.Write(_report, path, DateTime.UtcNow);
+
+                StatusLine.Text = "Exported to " + path;
+            }
+            catch (Exception exception)
+            {
+                // A half-written workbook left behind would be opened later as a report. Nothing
+                // on disk is better than something that looks like the whole of it.
+                TryDelete(path);
+                StatusLine.Text = "The report could not be exported: " + exception.Message;
+            }
+        }
+
+        /// <summary>When the check ran, in local time, for the file name; now, if the report does not say.</summary>
+        private DateTime CheckedAt()
+        {
+            return DateTime.TryParse(_report.GeneratedAtUtc, CultureInfo.InvariantCulture,
+                                     DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal,
+                                     out DateTime parsed)
+                ? parsed.ToLocalTime()
+                : DateTime.Now;
+        }
+
+        private static void TryDelete(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+
+            try { if (File.Exists(path)) File.Delete(path); }
+            catch (Exception) { }
+        }
+
+        private void OnBrowseFolder(object sender, RoutedEventArgs e)
+        {
+            using (System.Windows.Forms.FolderBrowserDialog dialog = new System.Windows.Forms.FolderBrowserDialog())
+            {
+                dialog.Description = "Where the exported report is written";
+                dialog.SelectedPath = FolderBox.Text;
+
+                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                    FolderBox.Text = dialog.SelectedPath;
+            }
+        }
+
+        /// <summary>
+        /// Shows the folder in Explorer, without creating it: an "open" that silently makes a
+        /// directory is a surprise, and before the first export there is nothing in it to see.
+        /// </summary>
+        private void OnOpenFolder(object sender, RoutedEventArgs e)
+        {
+            string folder = FolderBox.Text.Trim();
+
+            if (string.IsNullOrEmpty(folder))
+            {
+                StatusLine.Text = "Choose a destination folder first.";
+                return;
+            }
+
+            if (!Directory.Exists(folder))
+            {
+                StatusLine.Text = "That folder does not exist yet - exporting creates it: " + folder;
+                return;
+            }
+
+            try
+            {
+                // UseShellExecute is what opens a window rather than trying to run the directory.
+                Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
+            }
+            catch (Exception exception)
+            {
+                StatusLine.Text = "The folder could not be opened: " + exception.Message;
+            }
         }
 
         // ------------------------------------------------------------------ text

@@ -114,9 +114,14 @@ src/Satellite.ConfigEditor/
 
 ```
 src/Satellite.CodingStyleReport/
-├── Satellite.CodingStyleReport.csproj  references Core, UI.Shared
+├── Satellite.CodingStyleReport.csproj  references Core, UI.Shared; DocumentFormat.OpenXml
 ├── Handoff/HandoffReader.cs  stdin, or a path as the argument; parsed by Core's StyleReport
-├── Report/ReportLine.cs      one report row as the table shows it
+├── Report/
+│   ├── ReportLine.cs         one report row as the table shows it
+│   └── Outcomes.cs           an outcome's words, shared by the table and the workbook
+├── Export/
+│   ├── ReportWorkbook.cs     the report as .xlsx: Report, Rules and Info sheets
+│   └── ReportFile.cs         file name, " (n)" on a collision, the folder checked first
 ├── App.xaml(.cs)             no instance guard: every run is its own report
 └── MainWindow.xaml(.cs)      header, summary counts, the table, or why there is no report
 ```
@@ -341,7 +346,7 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx` | no |
 | `logs\` | what a run recorded about itself | no |
 | `tmp\` | scratch space for one action | no |
-| `reports\` | generated reports, the coding-style check first | no |
+| `reports\` | `Satellite.CodingStyleReport`, on export → `<project>-coding-style-<timestamp>.xlsx` | no |
 
 The four folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and `ConfigPaths.FolderFor(projectDirectory, name)` resolves one. **Three of them have no writer yet, which is exactly when two components drift apart on a string** — the same reason the other literals are there. Nothing creates them: whoever writes the first file creates it then, so a project that never ran an action does not collect four empty folders, and git would not record them anyway.
 
