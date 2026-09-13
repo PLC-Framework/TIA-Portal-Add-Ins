@@ -49,6 +49,16 @@ namespace Satellite.CodingStyleReport.Export
         /// </summary>
         public const string ListSeparator = ", ";
 
+        // The Info sheet's keys that are read back. Spelled once, because the writer and the
+        // reader disagreeing on one would lose that fact on import without a word.
+        private const string InfoProject = "Project";
+        private const string InfoProjectDirectory = "Project directory";
+        private const string InfoScope = "Scope";
+        private const string InfoChecked = "Checked (UTC)";
+        private const string InfoExported = "Exported (UTC)";
+        private const string InfoFramework = "Framework";
+        private const string InfoFormat = "Report format";
+
         // Cell formats, by index into the stylesheet below.
         private const uint StylePlain = 0;
         private const uint StyleHeader = 1;
@@ -95,6 +105,293 @@ namespace Satellite.CodingStyleReport.Export
                         }));
             }
         }
+
+        // ------------------------------------------------------------------ reading
+
+        /// <summary>
+        /// Reads a workbook this class wrote back into a report. Null when it is not one, with the
+        /// reason in <paramref name="problem"/> - never an exception, since the caller is a window
+        /// that must stay usable.
+        ///
+        /// **It reads what Excel leaves behind, not only what was written.** Opened and saved in
+        /// Excel, a workbook has its text moved into the shared string table, its columns possibly
+        /// rearranged and its rows sorted. So columns are found by their header, not their
+        /// position; every kind of text cell is read; and a sorted sheet simply gives rows in
+        /// that order. A column that is missing is refused by name - quietly reading the rest
+        /// would present a report with a hole in it as whole.
+        /// </summary>
+        public static StyleReport Read(string path, out string problem)
+        {
+            problem = null;
+
+            try
+            {
+                // Shared for reading and writing: Excel keeps the file open while it shows it, and
+                // importing a report somebody still has open is an ordinary thing to do.
+                using (System.IO.FileStream stream = new System.IO.FileStream(
+                           path, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite))
+                using (SpreadsheetDocument document = SpreadsheetDocument.Open(stream, false))
+                {
+                    WorkbookPart workbook = document.WorkbookPart;
+                    if (workbook?.Workbook?.Sheets == null)
+                    {
+                        problem = "The file holds no sheets.";
+                        return null;
+                    }
+
+                    string[] shared = SharedStrings(workbook);
+
+                    List<string[]> reportRows = ReadSheet(workbook, ReportSheet, shared);
+                    if (reportRows == null)
+                    {
+                        problem = "This is not a coding-style report: it has no '" + ReportSheet + "' sheet.";
+                        return null;
+                    }
+
+                    Dictionary<string, string> info = Facts(ReadSheet(workbook, InfoSheet, shared));
+
+                    if (info.TryGetValue(InfoFormat, out string formatText) &&
+                        int.TryParse(formatText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int format) &&
+                        format > StyleReport.CurrentFormat)
+                    {
+                        problem = "This report was written by a newer version of the framework (format " + format +
+                                  "); this window reads format " + StyleReport.CurrentFormat + ".";
+                        return null;
+                    }
+
+                    List<ReportRow> rows = Rows(reportRows, out problem);
+                    if (rows == null) return null;
+
+                    List<ReportRule> rules = Rules(ReadSheet(workbook, RulesSheet, shared), out problem);
+                    if (rules == null) return null;
+
+                    return new StyleReport
+                    {
+                        Format = StyleReport.CurrentFormat,
+                        GeneratedAtUtc = Fact(info, InfoChecked),
+                        Framework = Fact(info, InfoFramework),
+                        Project = Fact(info, InfoProject),
+                        ProjectDirectory = Fact(info, InfoProjectDirectory),
+                        Scope = Fact(info, InfoScope),
+                        Rules = rules,
+                        Rows = rows
+                    };
+                }
+            }
+            catch (Exception exception)
+            {
+                problem = "The workbook could not be read: " + exception.Message;
+                return null;
+            }
+        }
+
+        private static List<ReportRow> Rows(List<string[]> sheet, out string problem)
+        {
+            problem = null;
+
+            Dictionary<string, int> columns = Header(sheet, ReportColumns, ReportSheet, out problem);
+            if (columns == null) return null;
+
+            List<ReportRow> rows = new List<ReportRow>();
+
+            foreach (string[] cells in sheet.Skip(1))
+            {
+                if (cells.All(string.IsNullOrWhiteSpace)) continue;
+
+                string matched = ValueAt(cells, columns["Matched"]);
+                string suggestions = ValueAt(cells, columns["Suggestions"]);
+
+                rows.Add(new ReportRow
+                {
+                    Outcome = Outcomes.Parse(ValueAt(cells, columns["Result"])),
+                    Scope = string.Equals(ValueAt(cells, columns["Level"]), "Member", StringComparison.OrdinalIgnoreCase)
+                        ? RowScope.Member.ToString()
+                        : RowScope.Object.ToString(),
+                    Kind = ValueAt(cells, columns["Kind"]),
+                    Name = ValueAt(cells, columns["Name"]),
+                    Path = ValueAt(cells, columns["Path"]),
+                    Matched = Ids(matched),
+                    Suggestions = Ids(suggestions),
+                    Note = NullIfEmpty(ValueAt(cells, columns["Note"]))
+                });
+            }
+
+            return rows;
+        }
+
+        /// <summary>
+        /// The rules, or an empty list when the sheet is gone. A report without them still reads -
+        /// its tooltips say the rules are not described - where a report without rows would not.
+        /// </summary>
+        private static List<ReportRule> Rules(List<string[]> sheet, out string problem)
+        {
+            problem = null;
+            List<ReportRule> rules = new List<ReportRule>();
+            if (sheet == null || sheet.Count == 0) return rules;
+
+            Dictionary<string, int> columns = Header(sheet, RulesColumns, RulesSheet, out problem);
+            if (columns == null) return null;
+
+            foreach (string[] cells in sheet.Skip(1))
+            {
+                string id = ValueAt(cells, columns["Id"]);
+                if (string.IsNullOrWhiteSpace(id)) continue;
+
+                string description = ValueAt(cells, columns["Description"]);
+
+                rules.Add(new ReportRule
+                {
+                    Id = id,
+                    Catalogue = ValueAt(cells, columns["Catalogue"]),
+                    Regex = ValueAt(cells, columns["Pattern"]),
+                    Descriptions = string.IsNullOrEmpty(description)
+                        ? new List<string>()
+                        : description.Split('\n').ToList()
+                });
+            }
+
+            return rules;
+        }
+
+        /// <summary>Where each expected column is, by its header text, or null naming the ones missing.</summary>
+        private static Dictionary<string, int> Header(List<string[]> sheet, IReadOnlyList<string> expected, string name, out string problem)
+        {
+            problem = null;
+
+            string[] header = sheet.FirstOrDefault() ?? new string[0];
+            Dictionary<string, int> columns = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < header.Length; i++)
+            {
+                string text = (header[i] ?? string.Empty).Trim();
+                if (text.Length > 0 && !columns.ContainsKey(text)) columns.Add(text, i);
+            }
+
+            List<string> missing = expected.Where(column => !columns.ContainsKey(column)).ToList();
+            if (missing.Count == 0) return columns;
+
+            problem = "This is not a coding-style report the window can read: the '" + name +
+                      "' sheet has no " + string.Join(", ", missing.Select(m => "'" + m + "'")) + " column.";
+            return null;
+        }
+
+        /// <summary>The sheet's rows as text, each cell at its column's index. Null when there is no such sheet.</summary>
+        private static List<string[]> ReadSheet(WorkbookPart workbook, string name, string[] shared)
+        {
+            Sheet sheet = workbook.Workbook.Sheets.Elements<Sheet>()
+                .FirstOrDefault(candidate => string.Equals(candidate.Name?.Value, name, StringComparison.OrdinalIgnoreCase));
+
+            if (sheet?.Id?.Value == null) return null;
+            if (!(workbook.GetPartById(sheet.Id.Value) is WorksheetPart part)) return null;
+
+            List<string[]> rows = new List<string[]>();
+            SheetData data = part.Worksheet?.GetFirstChild<SheetData>();
+            if (data == null) return rows;
+
+            foreach (Row row in data.Elements<Row>())
+            {
+                List<KeyValuePair<int, string>> cells = new List<KeyValuePair<int, string>>();
+                int position = 0;
+
+                foreach (Cell cell in row.Elements<Cell>())
+                {
+                    // By reference when there is one - Excel omits empty cells, so position alone
+                    // would shift every value after a gap one column to the left.
+                    int index = cell.CellReference?.Value != null ? ColumnIndex(cell.CellReference.Value) : position;
+                    cells.Add(new KeyValuePair<int, string>(index, TextOf(cell, shared)));
+                    position = index + 1;
+                }
+
+                string[] values = new string[cells.Count == 0 ? 0 : cells.Max(cell => cell.Key) + 1];
+                foreach (KeyValuePair<int, string> cell in cells) values[cell.Key] = cell.Value;
+
+                rows.Add(values);
+            }
+
+            return rows;
+        }
+
+        private static string[] SharedStrings(WorkbookPart workbook)
+        {
+            SharedStringTable table = workbook.SharedStringTablePart?.SharedStringTable;
+
+            // Materialised once: looking each index up in the table would make a large sheet
+            // quadratic.
+            return table == null
+                ? new string[0]
+                : table.Elements<SharedStringItem>().Select(item => Clean(item.InnerText)).ToArray();
+        }
+
+        private static string TextOf(Cell cell, string[] shared)
+        {
+            CellValues? type = cell.DataType?.Value;
+
+            if (type == CellValues.InlineString) return Clean(cell.InlineString?.InnerText);
+
+            if (type == CellValues.SharedString)
+            {
+                return int.TryParse(cell.CellValue?.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int index) &&
+                       index >= 0 && index < shared.Length
+                    ? shared[index]
+                    : null;
+            }
+
+            if (type == CellValues.Boolean) return cell.CellValue?.Text == "1" ? "TRUE" : "FALSE";
+
+            // A number, or the cached result of a formula somebody typed in.
+            return Clean(cell.CellValue?.Text);
+        }
+
+        /// <summary>
+        /// Undoes what Excel does to text on saving: a carriage return written as _x000D_, and
+        /// line breaks as \r\n where this class wrote \n.
+        /// </summary>
+        private static string Clean(string text) =>
+            text?.Replace("_x000D_", string.Empty).Replace("\r\n", "\n").Replace("\r", "\n");
+
+        private static Dictionary<string, string> Facts(List<string[]> sheet)
+        {
+            Dictionary<string, string> facts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (sheet == null) return facts;
+
+            foreach (string[] cells in sheet)
+            {
+                string key = ValueAt(cells, 0);
+                if (!string.IsNullOrWhiteSpace(key) && !facts.ContainsKey(key.Trim())) facts.Add(key.Trim(), ValueAt(cells, 1));
+            }
+
+            return facts;
+        }
+
+        private static string Fact(Dictionary<string, string> facts, string key) =>
+            facts.TryGetValue(key, out string value) ? NullIfEmpty(value) : null;
+
+        private static string ValueAt(string[] cells, int index) =>
+            index >= 0 && index < cells.Length ? cells[index] ?? string.Empty : string.Empty;
+
+        private static List<string> Ids(string cell) =>
+            (cell ?? string.Empty)
+                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(id => id.Trim())
+                .Where(id => id.Length > 0)
+                .ToList();
+
+        private static string NullIfEmpty(string text) => string.IsNullOrEmpty(text) ? null : text;
+
+        private static int ColumnIndex(string reference)
+        {
+            int index = 0;
+
+            foreach (char character in reference)
+            {
+                if (character < 'A' || character > 'Z') break;
+                index = index * 26 + (character - 'A' + 1);
+            }
+
+            return index - 1;
+        }
+
+        // ------------------------------------------------------------------ writing
 
         // Written with OpenXmlWriter rather than a document built in memory: a project-wide check
         // can produce tens of thousands of rows, and the DOM keeps every one alive at once.
@@ -207,13 +504,13 @@ namespace Satellite.CodingStyleReport.Export
 
             List<KeyValuePair<string, object>> facts = new List<KeyValuePair<string, object>>
             {
-                Fact("Project", report.Project),
-                Fact("Project directory", report.ProjectDirectory),
-                Fact("Scope", report.Scope),
-                Fact("Checked (UTC)", report.GeneratedAtUtc),
-                Fact("Exported (UTC)", exportedUtc.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)),
-                Fact("Framework", report.Framework),
-                Fact("Report format", report.Format),
+                Fact(InfoProject, report.Project),
+                Fact(InfoProjectDirectory, report.ProjectDirectory),
+                Fact(InfoScope, report.Scope),
+                Fact(InfoChecked, report.GeneratedAtUtc),
+                Fact(InfoExported, exportedUtc.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)),
+                Fact(InfoFramework, report.Framework),
+                Fact(InfoFormat, report.Format),
                 Fact("Objects", rows.Count(row => !row.IsMember)),
                 Fact("Members", rows.Count(row => row.IsMember)),
                 Fact("Passed", rows.Count(row => row.OutcomeValue == CheckOutcome.Passed)),

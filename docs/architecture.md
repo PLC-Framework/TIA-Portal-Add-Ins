@@ -120,10 +120,10 @@ src/Satellite.CodingStyleReport/
 │   ├── ReportLine.cs         one report row as the table shows it
 │   └── Outcomes.cs           an outcome's words, shared by the table and the workbook
 ├── Export/
-│   ├── ReportWorkbook.cs     the report as .xlsx: Report, Rules and Info sheets
+│   ├── ReportWorkbook.cs     the report as .xlsx and back: Report, Rules and Info sheets
 │   └── ReportFile.cs         file name, " (n)" on a collision, the folder checked first
-├── App.xaml(.cs)             no instance guard: every run is its own report
-└── MainWindow.xaml(.cs)      header, summary counts, the table, or why there is no report
+├── App.xaml(.cs)             no instance guard; a .xlsx argument is imported, not read as a handoff
+└── MainWindow.xaml(.cs)      the table, filters, export; import only when TIA sent nothing
 ```
 
 ```

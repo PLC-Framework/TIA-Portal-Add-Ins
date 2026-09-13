@@ -63,16 +63,31 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,14">
-            <Image Source="{StaticResource BrandLogo}" Width="38" Height="38" VerticalAlignment="Center" />
-            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                <TextBlock Text="Coding style report" FontSize="18" FontWeight="SemiBold"
-                           Foreground="{StaticResource BrandBrushTop}" />
-                <!-- Which project, what was selected and when. Several of these windows can
-                     be open at once, one per run, so each has to say which run it is. -->
-                <TextBlock x:Name="ProjectLine" FontSize="11" Foreground="{StaticResource InkMuted}" />
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Image Source="{StaticResource BrandLogo}" Width="38" Height="38" VerticalAlignment="Center" />
+                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="Coding style report" FontSize="18" FontWeight="SemiBold"
+                               Foreground="{StaticResource BrandBrushTop}" />
+                    <!-- Which project, what was selected and when. Several of these windows can
+                         be open at once, one per run, so each has to say which run it is. -->
+                    <TextBlock x:Name="ProjectLine" FontSize="11" Foreground="{StaticResource InkMuted}"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
             </StackPanel>
-        </StackPanel>
+
+            <!-- Only when TIA Portal sent nothing: a window opened from the menu is that run's
+                 report, and another workbook over it would contradict its own header. -->
+            <Button Grid.Column="1" x:Name="ImportButton" Content="Import .xlsx..." Width="130" Padding="0,6"
+                    VerticalAlignment="Center" Style="{StaticResource Quiet}"
+                    ToolTip="Open a coding-style report exported earlier"
+                    Click="OnImport" />
+        </Grid>
 
         <TextBlock Grid.Row="1" x:Name="SummaryLine" Margin="0,0,0,10" TextWrapping="Wrap"
                    Foreground="{StaticResource Ink}" />

@@ -115,7 +115,7 @@ The adapter wraps Siemens' `Process` — what `ProcessStartPermission` authorise
 - **It carries a `format` number.** A window reading a report from a newer framework says so rather than showing half of it.
 - **Named `StyleReport`, not `CodingStyleReport`.** Inside the namespace `Satellite.CodingStyleReport` a type of that name loses to the namespace and every use fails to compile — the same trap as a namespace called `AddIn.Core`.
 - **No instance guard.** Each run is a report of its own selection at its own moment; a single window would refuse the second or throw the first away, and two side by side is how a before-and-after gets compared.
-- **Two empty states, two sentences.** Started by hand, it says how to get a report from TIA Portal; handed something it cannot read, it says that, with the reason in the status line — sending the operator back to repeat what already failed would be the wrong advice.
+- **Two empty states, two sentences.** Started by hand, it says how to get a report — from TIA Portal, or by importing one; handed something it cannot read, it says that, with the reason in the status line — sending the operator back to repeat what already failed would be the wrong advice.
 
 Verified here with the payload the action really produced: handed over on standard input the way `ProcessLauncher` does it and through the fallback path argument, twelve rows with their header and counts, a second window opening beside the first, and both empty states.
 
@@ -142,6 +142,21 @@ Exercised through UI Automation on the real payload: counts on every chip, every
 - **Colours are darker in the workbook than in the window.** The window paints on a dark surface and a spreadsheet on white; the same red cannot serve both.
 
 Verified with the OpenXML SDK's own validator — zero errors — on the report the action produces and on a synthetic one of 20,000 rows (written in under half a second), and by reading every sheet back: cell by cell, with styles, frozen pane, autofilter and its defined name, and a name ending in a blank kept whole. Through UI Automation: the default folder resolved and created on first export, a second export taking ` (2)`, an export with a filter on still carrying all twelve rows, an unwritable and an empty folder refused with a sentence, and no export row without a report.
+
+### Importing a report
+
+**Import is offered only to a window TIA Portal sent nothing to.** One opened from the menu is that run's report, and its header says which selection it checked; loading another workbook over it would contradict that. Started by hand, the window shows **Import .xlsx…** in its header and says both ways in: run the check from TIA Portal, or import a report exported earlier. The button stays after an import, so another report can replace it.
+
+- **A workbook named on the command line is imported at start** — "Open with", or a shortcut. It is not a handoff: nobody in TIA sent it, so the window keeps its button, and a `.xlsx` argument is never read as JSON — which, before this, would have opened as a report that "could not be read".
+- **It reads what Excel leaves behind, not only what the window wrote.** Opened and saved in Excel, a workbook has its text moved into the shared string table, and its columns may have been rearranged or its rows sorted. Columns are therefore found **by header**, every kind of text cell is read, and a sorted sheet simply gives rows in that order.
+- **A workbook that is not a report is refused with the reason**, and nothing on screen changes: no *Report* sheet, a column missing — named, since reading the rest would present a report with a hole in it as whole — a report from a newer framework, or a file that is not a workbook at all. **An import that fails never costs the report already open.**
+- **A missing *Rules* sheet is tolerated**: the rows still read, and their tooltips say the rules are not described. A report without rows would say nothing; one without rule descriptions still says which names failed.
+- **The header names the file** — "imported from …" — so an imported report is never taken for a fresh run. Exported again, it goes to its project's `reports` folder when the workbook records one, and beside the workbook it came from when it does not.
+- **The file is opened shared for reading and writing**, so a report somebody still has open in Excel imports anyway.
+
+The reader lives beside the writer in `ReportWorkbook`, with the sheet names, the columns and the *Info* keys spelled once for both: the two disagreeing about one would lose that fact on import without a word.
+
+Verified: an export read back identical field by field, for the real report and for 20,000 rows (read in under 0.6 s, a trailing blank kept); a workbook opened and saved by the real Excel — shared strings, a column inserted in front, rows sorted by name — read back identical; refused with the right sentence, an unrelated workbook, one with the *Note* column deleted, one claiming format 9, and a text file renamed `.xlsx`; read without its *Rules* sheet; and read while Excel had it open. Through UI Automation: no button when handed a report, the button and the note when started by hand, a failed import through the dialog changing nothing but the status line — over an empty window and over a filtered report alike — a successful one filling table, chips and header, and a workbook named on the command line imported at start.
 
 The scroll bars were light grey in every satellite until this window, whose table scrolls both ways, made it impossible to miss; they are now themed for all of them — see *Theming* in [architecture.md](architecture.md).
 

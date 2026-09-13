@@ -42,7 +42,10 @@ namespace Satellite.CodingStyleReport.Handoff
 
             foreach (string argument in arguments)
             {
-                if (string.IsNullOrWhiteSpace(argument)) continue;
+                // A workbook is never a handoff; App imports it instead. Read as text here, it
+                // would arrive as a report that "could not be read".
+                if (string.IsNullOrWhiteSpace(argument) ||
+                    argument.EndsWith(Export.ReportFile.Extension, StringComparison.OrdinalIgnoreCase)) continue;
 
                 try
                 {

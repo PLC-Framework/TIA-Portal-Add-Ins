@@ -28,8 +28,17 @@ namespace Satellite.CodingStyleReport
         private ICollectionView _view;
 
         /// <summary>The report on screen, kept whole for export whatever the filters hide.</summary>
-        private readonly StyleReport _report;
+        private StyleReport _report;
 
+        /// <summary>The workbook the report came from, when it was imported rather than handed over.</summary>
+        private string _importedFrom;
+
+        /// <param name="handedOver">
+        /// Whether TIA Portal sent something. **Only a window that received nothing offers
+        /// Import**: one opened from the menu shows that run's report, and loading another
+        /// workbook over it would leave a window that says which selection it checked showing a
+        /// different one.
+        /// </param>
         public MainWindow(StyleReport report, bool handedOver, string problem)
         {
             InitializeComponent();
@@ -38,17 +47,27 @@ namespace Satellite.CodingStyleReport
             // having to go and find it.
             Title = "Coding style report " + Product.Version;
 
+            ImportButton.Visibility = handedOver ? Visibility.Collapsed : Visibility.Visible;
+
             if (report == null)
             {
                 ShowEmpty(handedOver, problem);
                 return;
             }
 
+            ShowReport(report);
+            ShowCount();
+        }
+
+        /// <summary>Puts a report on screen, replacing whatever was there - the filters start over with it.</summary>
+        private void ShowReport(StyleReport report)
+        {
             _report = report;
 
-            // Straight into the project the check came from; empty when the report carries no
-            // project directory, and then the operator picks.
-            FolderBox.Text = ConfigPaths.FolderFor(report.ProjectDirectory, ConfigPaths.Reports) ?? string.Empty;
+            // The view is dropped first: resetting the chips and the kind below fires their
+            // handlers, which must not refresh a view over the previous report's rows.
+            _view = null;
+            _lines.Clear();
 
             // First rule of an id wins: the report writes each once, and a hand-made file that
             // repeats one should not stop the window opening.
@@ -60,7 +79,7 @@ namespace Satellite.CodingStyleReport
 
             _lines.AddRange(report.Rows.Where(row => row != null).Select(row => new ReportLine(row, rules)));
 
-            ProjectLine.Text = Describe(report);
+            ProjectLine.Text = Describe(report, _importedFrom);
             SummaryLine.Text = Summarise(report.Rows);
 
             FailedCount.Text = Chip("Failed", CheckOutcome.Failed);
@@ -68,6 +87,11 @@ namespace Satellite.CodingStyleReport
             SkippedCount.Text = Chip("Skipped", CheckOutcome.Skipped);
             PassedCount.Text = Chip("Passed", CheckOutcome.Passed);
 
+            foreach (ToggleButton chip in new[] { FailedChip, NotConfiguredChip, SkippedChip, PassedChip })
+                chip.IsChecked = true;
+            SearchBox.Clear();
+
+            KindBox.Items.Clear();
             KindBox.Items.Add(AllKinds);
             foreach (string kind in _lines.Select(line => line.Kind)
                                           .Where(kind => !string.IsNullOrEmpty(kind))
@@ -78,11 +102,22 @@ namespace Satellite.CodingStyleReport
             }
             KindBox.SelectedIndex = 0;
 
+            // Straight into the project the check came from. An imported report whose project
+            // is unknown exports beside the workbook it came from; with neither, the operator picks.
+            FolderBox.Text = ConfigPaths.FolderFor(report.ProjectDirectory, ConfigPaths.Reports)
+                             ?? (_importedFrom == null ? string.Empty : Path.GetDirectoryName(_importedFrom));
+
+            RowList.ItemsSource = null;
             RowList.ItemsSource = _lines;
             _view = CollectionViewSource.GetDefaultView(_lines);
             _view.Filter = Accepts;
+            _view.Refresh();
 
-            ShowCount();
+            RowList.Visibility = Visibility.Visible;
+            FilterBar.Visibility = Visibility.Visible;
+            ExportBar.Visibility = Visibility.Visible;
+            SummaryLine.Visibility = Visibility.Visible;
+            EmptyNote.Visibility = Visibility.Collapsed;
         }
 
         private void ShowEmpty(bool handedOver, string problem)
@@ -98,9 +133,51 @@ namespace Satellite.CodingStyleReport
             // to TIA Portal to repeat what already failed.
             EmptyNote.Text = handedOver
                 ? "The report handed over by TIA Portal could not be read."
-                : "No report yet. In TIA Portal, right-click the project, a PLC, a folder or some objects and choose Check coding style.";
+                : "No report yet. In TIA Portal, right-click the project, a PLC, a folder or some objects and choose Check coding style - or import a report exported earlier.";
 
             StatusLine.Text = problem ?? string.Empty;
+        }
+
+        // ------------------------------------------------------------------ import
+
+        private void OnImport(object sender, RoutedEventArgs e)
+        {
+            Microsoft.Win32.OpenFileDialog dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Import a coding-style report",
+                Filter = "Coding-style report (*" + ReportFile.Extension + ")|*" + ReportFile.Extension,
+                CheckFileExists = true
+            };
+
+            // Where a report is most likely to be: beside the last one this window touched, or in
+            // the reports folder of the project on screen.
+            string folder = FolderBox.Text.Trim();
+            if (string.IsNullOrEmpty(folder) && _importedFrom != null) folder = Path.GetDirectoryName(_importedFrom);
+            if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder)) dialog.InitialDirectory = folder;
+
+            if (dialog.ShowDialog(this) == true) Import(dialog.FileName);
+        }
+
+        /// <summary>
+        /// Reads a workbook and shows it. A file that is not a report changes nothing on screen:
+        /// the status line says why, and whatever was showing stays - an import that fails
+        /// should not cost the report that was already open.
+        /// </summary>
+        public void Import(string path)
+        {
+            StyleReport report = ReportWorkbook.Read(path, out string problem);
+
+            if (report == null)
+            {
+                StatusLine.Text = "'" + Path.GetFileName(path) + "' was not imported. " + problem;
+                return;
+            }
+
+            _importedFrom = path;
+            ShowReport(report);
+
+            StatusLine.Text = string.Format(CultureInfo.CurrentCulture,
+                "Imported {0} - {1} row(s).", path, report.Rows.Count);
         }
 
         // ------------------------------------------------------------------ filtering
@@ -279,13 +356,15 @@ namespace Satellite.CodingStyleReport
         private string Chip(string label, CheckOutcome outcome) =>
             string.Format(CultureInfo.CurrentCulture, "{0}  {1}", label, _lines.Count(line => line.Outcome == outcome));
 
-        private static string Describe(StyleReport report)
+        /// <param name="importedFrom">The workbook it was read from, named in the header so an imported report is never taken for a fresh run.</param>
+        private static string Describe(StyleReport report, string importedFrom)
         {
             List<string> parts = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(report.Project)) parts.Add(report.Project);
             if (!string.IsNullOrWhiteSpace(report.Scope)) parts.Add(report.Scope);
             if (!string.IsNullOrWhiteSpace(report.GeneratedAtUtc)) parts.Add(Local(report.GeneratedAtUtc));
+            if (importedFrom != null) parts.Add("imported from " + Path.GetFileName(importedFrom));
 
             return string.Join("  -  ", parts);
         }
