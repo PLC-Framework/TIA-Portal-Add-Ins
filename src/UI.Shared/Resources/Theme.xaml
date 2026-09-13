@@ -45,7 +45,10 @@
     <SolidColorBrush x:Key="FieldEdge"      Color="#5A6473" />
     <SolidColorBrush x:Key="FieldEdgeHover" Color="#7A8494" />
     <SolidColorBrush x:Key="FieldHover"     Color="#3E4756" />
-    <SolidColorBrush x:Key="Surface"        Color="#2A313B" />
+    <!-- A Color as well as the brush: the scroll viewer's corner has to redefine a system brush
+         key with this colour, and a brush cannot be handed out under a second key. -->
+    <Color x:Key="SurfaceColor">#2A313B</Color>
+    <SolidColorBrush x:Key="Surface"        Color="{StaticResource SurfaceColor}" />
     <SolidColorBrush x:Key="SurfaceHead"    Color="#3A4350" />
     <SolidColorBrush x:Key="Ink"            Color="#E8ECF2" />
     <SolidColorBrush x:Key="InkMuted"       Color="#98A3B2" />
@@ -59,5 +62,12 @@
     <SolidColorBrush x:Key="FieldDisabled"     Color="#2B323C" />
     <SolidColorBrush x:Key="FieldEdgeDisabled" Color="#454E5B" />
     <SolidColorBrush x:Key="InkDisabled"       Color="#6C7686" />
+
+    <!-- Outcomes: what passed, what failed, and what could not be judged. Ink rather than
+         fills, because they colour text on the dark surface; the first two are the values the
+         config editor already shows "compiles" and "does not match" in. -->
+    <SolidColorBrush x:Key="InkGood" Color="#7FC98A" />
+    <SolidColorBrush x:Key="InkBad"  Color="#E26D6D" />
+    <SolidColorBrush x:Key="InkWarn" Color="#E0B45A" />
 
 </ResourceDictionary>

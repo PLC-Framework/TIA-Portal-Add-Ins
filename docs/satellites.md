@@ -117,7 +117,20 @@ The adapter wraps Siemens' `Process` — what `ProcessStartPermission` authorise
 - **No instance guard.** Each run is a report of its own selection at its own moment; a single window would refuse the second or throw the first away, and two side by side is how a before-and-after gets compared.
 - **Two empty states, two sentences.** Started by hand, it says how to get a report from TIA Portal; handed something it cannot read, it says that, with the reason in the status line — sending the operator back to repeat what already failed would be the wrong advice.
 
-Verified here with the payload the action really produced: handed over on standard input the way `ProcessLauncher` does it and through the fallback path argument, twelve rows with their header and counts, a second window opening beside the first, and both empty states. Colour, filters and export come next; the table today shows every row as it arrived.
+Verified here with the payload the action really produced: handed over on standard input the way `ProcessLauncher` does it and through the fallback path argument, twelve rows with their header and counts, a second window opening beside the first, and both empty states.
+
+### Reading the table
+
+- **The outcome colours the whole row**: red for a name that matched none of its rules, amber for what could not be judged — not configured, or skipped with a reason. The two are different problems, and an unjudged row painted red would read as a naming mistake nobody made.
+- **Four outcome chips carry the counts and are the filters.** On shows those rows, off hides them, so the bar is also the summary; *Failed* comes first because it is what the window is opened for. A kind drop-down narrows to one object type or interface section, and a search box looks through names, paths, rules and notes. **Ctrl+F** reaches it and **Esc** clears it.
+- **Each row stands on its own under a filter.** A failing member shows without its object, whose name its path already carries: pulling the object in for context would put a passed row on screen under a filter that hides passes.
+- **A row whose outcome the window does not recognise is never hidden** — filtering away what cannot be classified would hide it for good.
+- **Hovering a Rules cell shows the rules behind it, as the report carried them**: the matched ones in full, pattern and description; the suggestions by pattern and first line only. A failing FC is offered nine rules, and nine full descriptions is a tooltip taller than the screen — what a suggestion has to say is which rule the name was aiming at.
+- **A cell cut short hands its full text to a tooltip**, and an empty one opens none: an empty string would still show a small blank box.
+
+Exercised through UI Automation on the real payload: counts on every chip, every combination of chips down to "No row matches the filters", a kind filter, searches that hit a name, a note and a rule, Esc and Ctrl+F, and the tooltip text read back for a matched rule, nine suggestions and an interface rule. Checked by capture at the default and the minimum size, where the chips wrap and both scroll bars show.
+
+The scroll bars were light grey in every satellite until this window, whose table scrolls both ways, made it impossible to miss; they are now themed for all of them — see *Theming* in [architecture.md](architecture.md).
 
 ## Editing a configuration
 

@@ -3,15 +3,58 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Coding style report"
         Icon="{StaticResource BrandLogo}"
-        Height="660" Width="1040"
+        Height="680" Width="1080"
         MinHeight="480" MinWidth="760"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource DarkThemeGradientBrush}"
         SnapsToDevicePixels="True"
-        TextOptions.TextFormattingMode="Display">
+        TextOptions.TextFormattingMode="Display"
+        PreviewKeyDown="OnWindowKey">
+
+    <Window.Resources>
+        <!-- An outcome filter: on shows those rows, off hides them. A chip rather than a tick
+             box, carrying the outcome's colour and its count, so the bar doubles as the summary
+             of what the check found. Kept in this window while nothing else needs one. -->
+        <Style x:Key="OutcomeChip" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="Background" Value="{StaticResource Field}" />
+            <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Margin" Value="0,0,8,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                                CornerRadius="12" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource FieldHover}" />
+                            </Trigger>
+                            <!-- Off: dimmed, and the edge gives way, so what is hidden reads as hidden. -->
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                                <Setter TargetName="Bd" Property="Background" Value="Transparent" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- A cell that shows one line and hands the whole of it to a tooltip. -->
+        <Style x:Key="Cell" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -33,22 +76,134 @@
         <TextBlock Grid.Row="1" x:Name="SummaryLine" Margin="0,0,0,10" TextWrapping="Wrap"
                    Foreground="{StaticResource Ink}" />
 
-        <Border Grid.Row="2" BorderBrush="{StaticResource FieldEdge}" BorderThickness="1"
+        <!-- Filters. The chips wrap onto a second line in a narrow window; the kind and the
+             search keep their width, because a search box that shrinks to nothing is gone. -->
+        <Grid Grid.Row="2" x:Name="FilterBar" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                <!-- Failed first: it is what the report is opened for. -->
+                <ToggleButton x:Name="FailedChip" Style="{StaticResource OutcomeChip}" IsChecked="True"
+                              ToolTip="Names that matched none of the rules offered to them"
+                              Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource InkBad}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="FailedCount" Margin="7,0,0,0" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton x:Name="NotConfiguredChip" Style="{StaticResource OutcomeChip}" IsChecked="True"
+                              ToolTip="Objects of a type no rule is configured for"
+                              Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource InkWarn}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="NotConfiguredCount" Margin="7,0,0,0" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton x:Name="SkippedChip" Style="{StaticResource OutcomeChip}" IsChecked="True"
+                              ToolTip="Not checked, with the reason in the Note column"
+                              Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource InkWarn}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="SkippedCount" Margin="7,0,0,0" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton x:Name="PassedChip" Style="{StaticResource OutcomeChip}" IsChecked="True"
+                              ToolTip="Names that matched a rule"
+                              Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource InkGood}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="PassedCount" Margin="7,0,0,0" />
+                    </StackPanel>
+                </ToggleButton>
+            </WrapPanel>
+
+            <ComboBox Grid.Column="1" x:Name="KindBox" Width="160" Margin="8,0,0,6" VerticalAlignment="Top"
+                      ToolTip="Show one kind of object or interface section"
+                      SelectionChanged="OnFilterChanged" />
+
+            <!-- A watermark rather than a label: the box explains itself until it is used. -->
+            <Grid Grid.Column="2" Width="220" Margin="8,0,0,6" VerticalAlignment="Top">
+                <TextBox x:Name="SearchBox" TextChanged="OnFilterChanged" KeyDown="OnSearchKey"
+                         ToolTip="Searches names, paths, rules and notes. Ctrl+F to get here, Esc to clear." />
+                <TextBlock Text="Search" Margin="9,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                           Foreground="{StaticResource InkDisabled}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </Grid>
+
+        <Border Grid.Row="3" BorderBrush="{StaticResource FieldEdge}" BorderThickness="1"
                 Background="{StaticResource Surface}">
             <Grid>
-                <!-- A first table: every row as it arrived. Colour, filters and grouping are
-                     the next stage; this one proves the report crosses whole. -->
                 <ListView x:Name="RowList" BorderThickness="0" Background="Transparent"
                           Foreground="{StaticResource Ink}"
                           VirtualizingPanel.IsVirtualizing="True">
+                    <!-- The outcome colours the whole row. Red for a name that matched no rule -
+                         what the report is for - and amber for what could not be judged, which
+                         is a different problem and must not be mistaken for a failure. -->
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding OutcomeName}" Value="Failed">
+                                    <Setter Property="Foreground" Value="{StaticResource InkBad}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding OutcomeName}" Value="NotConfigured">
+                                    <Setter Property="Foreground" Value="{StaticResource InkWarn}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding OutcomeName}" Value="Skipped">
+                                    <Setter Property="Foreground" Value="{StaticResource InkWarn}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListView.ItemContainerStyle>
+
                     <ListView.View>
                         <GridView>
                             <GridViewColumn Header="Result" Width="110" DisplayMemberBinding="{Binding Result}" />
                             <GridViewColumn Header="Kind" Width="110" DisplayMemberBinding="{Binding Kind}" />
-                            <GridViewColumn Header="Name" Width="200" DisplayMemberBinding="{Binding Name}" />
-                            <GridViewColumn Header="Path" Width="240" DisplayMemberBinding="{Binding Path}" />
-                            <GridViewColumn Header="Rules" Width="200" DisplayMemberBinding="{Binding Rules}" />
-                            <GridViewColumn Header="Note" Width="300" DisplayMemberBinding="{Binding Note}" />
+                            <GridViewColumn Header="Name" Width="210">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource Cell}" ToolTip="{Binding NameTip}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Path" Width="240">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Path}" Style="{StaticResource Cell}" ToolTip="{Binding PathTip}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <!-- The rule's pattern and description on hover: what the id means is
+                                 the first question a failing row raises. -->
+                            <GridViewColumn Header="Rules" Width="220">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Rules}" Style="{StaticResource Cell}" ToolTip="{Binding RulesTip}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Note" Width="320">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Note}" Style="{StaticResource Cell}" ToolTip="{Binding NoteTip}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
                         </GridView>
                     </ListView.View>
                 </ListView>
@@ -61,7 +216,7 @@
             </Grid>
         </Border>
 
-        <TextBlock Grid.Row="3" x:Name="StatusLine" Margin="0,12,0,0"
+        <TextBlock Grid.Row="4" x:Name="StatusLine" Margin="0,12,0,0"
                    TextWrapping="Wrap" Foreground="{StaticResource Ink}" />
     </Grid>
 </Window>
