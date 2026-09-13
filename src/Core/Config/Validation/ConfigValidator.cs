@@ -51,9 +51,9 @@ namespace Core.Config.Validation
         {
             string source = MetadataValidator.SourceOf(config.Metadata);
 
-            // Null means coreSource is missing or not one of the two. That is already
-            // reported; demanding a section on top of it would be a second complaint
-            // about the same mistake.
+            // Null means no repository - coreSource is null, or not one of the two, which is
+            // already reported and should not be complained about twice. Either way both
+            // sections are left alone, whatever state they are in.
             if (source == null) return;
 
             if (source == MetadataValidator.Remote)

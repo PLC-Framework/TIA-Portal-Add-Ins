@@ -36,6 +36,12 @@ namespace Satellite.ConfigEditor
         private const string TokenVariable = "GITHUB_TOKEN";
         private const string TokenReference = "${" + TokenVariable + "}";
 
+        /// <summary>
+        /// The drop-down's word for a null coreSource. Shown, never written: the file gets a
+        /// JSON null, which is what Core and the schema both read as "no repository".
+        /// </summary>
+        private const string NoCoreSource = "none";
+
         private readonly EditorRequest _request;
         private readonly ObservableCollection<Section> _sections = new ObservableCollection<Section>();
 
@@ -70,6 +76,7 @@ namespace Satellite.ConfigEditor
 
             CoreSourceBox.Items.Add(MetadataValidator.Local);
             CoreSourceBox.Items.Add(MetadataValidator.Remote);
+            CoreSourceBox.Items.Add(NoCoreSource);
 
             ProjectLine.Text = Describe(request);
 
@@ -198,7 +205,7 @@ namespace Satellite.ConfigEditor
             _loading = true;
             try
             {
-                CoreSourceBox.SelectedItem = _document.Get("metadata.coreSource");
+                SelectCoreSource(_document.Get("metadata.coreSource"));
                 VersionBox.Text = _document.Get("metadata.version") ?? string.Empty;
                 AuthorBox.Text = _document.Get("metadata.author") ?? string.Empty;
                 DescriptionBox.Text = _document.Get("metadata.description") ?? string.Empty;
@@ -254,9 +261,29 @@ namespace Satellite.ConfigEditor
                   ". config.json only carries " + TokenReference + ".";
         }
 
+        /// <summary>
+        /// Shows what the file says. A value outside the set - a typo by hand - is added to
+        /// the list and shown as it is, rather than left unselected: the next edit anywhere
+        /// on the form writes the selection back, and an empty selection would have turned
+        /// that typo into "no repository" without a word, where the validator now names it.
+        /// </summary>
+        private void SelectCoreSource(string stored)
+        {
+            string shown = stored ?? NoCoreSource;
+
+            if (!CoreSourceBox.Items.Contains(shown)) CoreSourceBox.Items.Add(shown);
+            CoreSourceBox.SelectedItem = shown;
+        }
+
         private void Collect()
         {
-            _document.Set("metadata.coreSource", CoreSourceBox.SelectedItem as string);
+            string coreSource = CoreSourceBox.SelectedItem as string;
+
+            // Written as an explicit null, never removed: absent reads the same to Core, but
+            // null in the file says somebody chose it.
+            if (coreSource == null || coreSource == NoCoreSource) _document.SetNull("metadata.coreSource");
+            else _document.Set("metadata.coreSource", coreSource);
+
             _document.Set("metadata.version", VersionBox.Text.Trim());
             _document.Set("metadata.author", AuthorBox.Text.Trim());
             _document.Set("metadata.description", DescriptionBox.Text);
@@ -298,17 +325,19 @@ namespace Satellite.ConfigEditor
         }
 
         /// <summary>
-        /// Dims the repository section coreSource does not select. Dimmed rather than
-        /// hidden, and still editable: a project often carries both and switches between
-        /// them, and hiding the other one would make it look lost.
+        /// Dims every repository section coreSource does not select - both of them when it
+        /// selects none. Dimmed rather than hidden, and still editable: a project often
+        /// carries both and switches between them, and hiding one would make it look lost.
         /// </summary>
         private void Emphasise()
         {
-            bool remote = MetadataValidator.Remote.Equals(CoreSourceBox.SelectedItem as string,
-                                                          StringComparison.Ordinal);
+            string selected = CoreSourceBox.SelectedItem as string;
 
-            LocalTitle.Opacity = remote ? 0.45 : 1.0;
-            LocalGrid.Opacity = remote ? 0.45 : 1.0;
+            bool local = MetadataValidator.Local.Equals(selected, StringComparison.Ordinal);
+            bool remote = MetadataValidator.Remote.Equals(selected, StringComparison.Ordinal);
+
+            LocalTitle.Opacity = local ? 1.0 : 0.45;
+            LocalGrid.Opacity = local ? 1.0 : 0.45;
             RemoteTitle.Opacity = remote ? 1.0 : 0.45;
             RemoteGrid.Opacity = remote ? 1.0 : 0.45;
         }

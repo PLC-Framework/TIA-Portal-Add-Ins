@@ -202,7 +202,8 @@ Section navigation down the left, not tabs: two of the sections subdivide again,
 
 - **Structural problems block saving; environmental ones never do.** A configuration prepared here for another station is not wrong because a drive is not mapped on this one, so those are shown as warnings. `Save` is simply disabled while the structure is broken.
 - **A file that exists but does not parse is never offered the template button.** That button would overwrite it, and a file somebody broke by hand is still a file somebody wants back. It shows the parser's line and column instead.
-- **Both repository sections stay visible and editable**; the one `coreSource` does not select is dimmed. A project often carries both and switches between them, and hiding the other one makes it look lost.
+- **Both repository sections stay visible and editable**; every one `coreSource` does not select is dimmed — both, when it is `none`. A project often carries both and switches between them, and hiding the other one makes it look lost. `none` is the drop-down's word for a JSON `null`, **written explicitly** so the file shows a decision rather than an omission; a value outside the set is shown as it is rather than left unselected, because the next edit anywhere would otherwise write the selection back and turn a typo into "no repository".
+- **`ConfigDocument.Set` never creates on the way to removing.** The form writes every field back on each change, and creating the parents of an empty value planted empty repository sections — then a token reference inside them — in files that had none.
 - **Creating from the template writes nothing until Save**, so backing out costs nothing.
 - **`ConfigLocation.Resolve` accepts all three ways of naming a project**: the project folder, the `.plc-framework` inside it, or the `config.json` itself. Appending the convention to whatever was picked is wrong the moment somebody picks one step deeper — which is the natural thing to do, since `.plc-framework` is the folder with the file visibly in it. It produced `…\.plc-framework\.plc-framework\config.json` and a window reporting "no configuration" on a project that had one. It is **shared with `App`** rather than private to the window, because the single-instance guard keys on the same path: two ways of working it out would let two windows open one file each believing it was alone.
 - The token uses the same twin-control eye as the PLC password, and writes to the `.env` **before** the JSON: there is no point leaving a `config.json` behind that references a variable nobody managed to set.
@@ -300,7 +301,7 @@ A different kind of divergence, and easier to miss because the source is identic
 
 The shape of it, worth carrying in your head:
 
-- **`metadata.coreSource` decides the file.** `local` or `remote`, and that selects which of the two repository sections is required. The other one is not validated at all.
+- **`metadata.coreSource` decides the file.** `local` or `remote` selects which of the two repository sections is required; the other one is not validated at all. **`null` — or no key — means no repository** (2026-09-13): a core is needed only by the actions that read one, so requiring it made every project invent a path.
 - **Lists are required but may be empty.** `[]` says "no folders for this concern"; a missing key says nothing. Applies to all four `hierarchy` lists and all six of `codingStyle`.
 - **Two internal references** are what a typo breaks silently, so both are checked: `implements` must name an existing `rules[].id`, and `rules[].id` is unique file-wide.
 - **`Group.name` is unique among siblings only** — the same name in another branch is fine, because they are different folders.
@@ -312,7 +313,7 @@ The shape of it, worth carrying in your head:
 - **Validation lives in `Core` and runs twice**: in the satellite before saving, in the Add-In after loading. Validating only in the UI is useless — hand-editing bypasses it.
 - **Scoped per concern, not per document.** Each action reads only its section, so no section is globally required; "required" belongs to the concern. The satellite runs the composite validator, an action runs only its own.
 - **Structural vs environmental** validation kept apart: closed value sets, required fields, internal references and regex-that-compile are pure; checking a path exists or a `${VAR}` resolves touches disk and belongs in a separate method.
-- `coreSource` is `local | remote`, and it decides which repository section is required.
+- `coreSource` is `local | remote | null`, and it decides which repository section is required — none, for `null`.
 - The `.env` lookup is environment-specific (Add-In vs satellite resolve it differently) → it becomes a `Core` port, with `${VAR}` expansion pure in `Core`.
 - A **JSON Schema** is the highest-leverage addition for the hand-edit path: it validates while the user types, before any of the above runs.
 

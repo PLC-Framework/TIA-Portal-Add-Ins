@@ -8,6 +8,12 @@ namespace Core.Config.Validation
     /// Small, but it is the section that decides the rest of the file: <c>coreSource</c>
     /// selects which of the two repository sections is required, and the other one is not
     /// validated at all.
+    ///
+    /// **<c>coreSource</c> may be null, and null means no repository.** A core is needed
+    /// only by the actions that read one, and a project that runs none of them should not
+    /// have to invent a path to satisfy a validator. Absent and null are the same answer:
+    /// the model cannot tell them apart - the serializer hands both over as null - and a
+    /// schema demanding the key while Core could not would be two validators disagreeing.
     /// </summary>
     public static class MetadataValidator
     {
@@ -32,9 +38,16 @@ namespace Core.Config.Validation
         {
             if (!issues.RequiredObject(path, metadata)) return;
 
-            string coreSource = Issues.Field(path, "coreSource");
-            if (issues.Required(coreSource, metadata.CoreSource))
-                issues.OneOf(coreSource, metadata.CoreSource, Local, Remote);
+            // Present means one of the two. An empty string is not null: it is a value outside
+            // the set, and reading it as "no repository" would turn a half-typed word into a
+            // decision nobody made.
+            if (metadata.CoreSource != null &&
+                !string.Equals(metadata.CoreSource, Local, System.StringComparison.Ordinal) &&
+                !string.Equals(metadata.CoreSource, Remote, System.StringComparison.Ordinal))
+            {
+                issues.Add(Issues.Field(path, "coreSource"),
+                    "Must be " + Local + ", " + Remote + ", or null for no repository.");
+            }
 
             // Optional, but a version that is present and unreadable is worse than none:
             // it looks like it means something.
@@ -50,9 +63,9 @@ namespace Core.Config.Validation
         }
 
         /// <summary>
-        /// Which repository section this configuration must carry. Null when
-        /// <c>coreSource</c> is missing or not one of the two, in which case that is
-        /// already reported and neither section should be demanded on top of it.
+        /// Which repository section this configuration must carry. Null when it needs none:
+        /// <c>coreSource</c> is null, or it is not one of the two - which is already
+        /// reported, and demanding a section on top of it would be a second complaint.
         /// </summary>
         internal static string SourceOf(Metadata metadata)
         {

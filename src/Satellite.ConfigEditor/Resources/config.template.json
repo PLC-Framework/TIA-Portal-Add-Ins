@@ -4,7 +4,7 @@
     "version" : "v1.0",
     "author" : "",
     "description" : "",
-    "coreSource" : "local"
+    "coreSource" : null
   },
   "coreRemoteRepositoryConfig" :
   {

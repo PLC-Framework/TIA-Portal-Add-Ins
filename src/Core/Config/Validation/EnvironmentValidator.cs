@@ -35,8 +35,9 @@ namespace Core.Config.Validation
 
             string source = MetadataValidator.SourceOf(config.Metadata);
 
-            // Neither section is checked when coreSource says nothing usable: the
-            // structural pass already reported that, and this pass has nothing to add.
+            // Neither section is checked when coreSource names none: a configuration with no
+            // repository has no path to find, and one naming something outside the set has
+            // already been reported by the structural pass.
             if (source == MetadataValidator.Remote)
                 Remote(config.CoreRemoteRepositoryConfig, "coreRemoteRepositoryConfig", lookup, issues);
             else if (source == MetadataValidator.Local)

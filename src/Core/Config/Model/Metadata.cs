@@ -14,6 +14,7 @@ namespace Core.Config
         [DataMember(Name = "description")]
         public string Description { get; set; }
 
+        /// <summary><c>local</c>, <c>remote</c>, or null for no repository - absent reads the same.</summary>
         [DataMember(Name = "coreSource")]
         public string CoreSource { get; set; }
     }

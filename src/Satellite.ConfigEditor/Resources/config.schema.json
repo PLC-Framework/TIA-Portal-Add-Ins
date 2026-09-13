@@ -19,10 +19,12 @@
       "$ref": "#/definitions/metadata"
     },
     "coreRemoteRepositoryConfig": {
-      "$ref": "#/definitions/remoteRepository"
+      "type": "object",
+      "description": "The GitHub repository holding the core. Validated only when coreSource is remote; kept but ignored otherwise, as Core ignores it."
     },
     "coreLocalRepositoryConfig": {
-      "$ref": "#/definitions/localRepository"
+      "type": "object",
+      "description": "A core on this machine or a mapped drive. Validated only when coreSource is local; kept but ignored otherwise, as Core ignores it."
     },
     "projectConfig": {
       "$ref": "#/definitions/projectConfig"
@@ -51,7 +53,12 @@
       "then": {
         "required": [
           "coreRemoteRepositoryConfig"
-        ]
+        ],
+        "properties": {
+          "coreRemoteRepositoryConfig": {
+            "$ref": "#/definitions/remoteRepository"
+          }
+        }
       }
     },
     {
@@ -75,7 +82,12 @@
       "then": {
         "required": [
           "coreLocalRepositoryConfig"
-        ]
+        ],
+        "properties": {
+          "coreLocalRepositoryConfig": {
+            "$ref": "#/definitions/localRepository"
+          }
+        }
       }
     }
   ],
@@ -84,16 +96,14 @@
     "metadata": {
       "type": "object",
       "description": "Holds coreSource, which decides the rest of the file.",
-      "required": [
-        "coreSource"
-      ],
       "properties": {
         "coreSource": {
           "enum": [
             "local",
-            "remote"
+            "remote",
+            null
           ],
-          "description": "Which repository section this configuration uses, and therefore which one is required. The other is not validated at all."
+          "description": "Which repository section this configuration uses, and therefore which one is required. null - or no key at all - means no repository: only the actions that read a core need one. Neither unused section is validated."
         },
         "version": {
           "type": "string",
@@ -113,7 +123,7 @@
 
     "remoteRepository": {
       "type": "object",
-      "description": "The GitHub repository holding the core. Required when coreSource is remote, ignored otherwise.",
+      "description": "The GitHub repository holding the core. Required and validated when coreSource is remote, ignored otherwise.",
       "required": [
         "apiUrl",
         "owner",
@@ -162,7 +172,7 @@
 
     "localRepository": {
       "type": "object",
-      "description": "A core on this machine or a mapped drive. Required when coreSource is local, ignored otherwise.",
+      "description": "A core on this machine or a mapped drive. Required and validated when coreSource is local, ignored otherwise.",
       "required": [
         "repository",
         "folder",

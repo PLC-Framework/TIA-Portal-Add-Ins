@@ -104,8 +104,36 @@ namespace Satellite.ConfigEditor.Document
         /// with nothing in it says no more than an absent one, and the validator treats
         /// them the same, so leaving both possible would only produce files that differ
         /// without meaning anything different.
+        ///
+        /// **Removing never creates.** The form writes every field back on each change, so
+        /// creating the parents of an empty value used to plant an empty repository section
+        /// in a file that had none - and then a token reference inside it, because the
+        /// section now existed.
         /// </summary>
         public void Set(string path, string value)
+        {
+            bool removing = string.IsNullOrEmpty(value);
+
+            JObject parent = ParentOf(path, create: !removing);
+            if (parent == null) return;
+
+            string leaf = Leaf(path);
+
+            if (removing) parent.Remove(leaf);
+            else parent[leaf] = value;
+        }
+
+        /// <summary>
+        /// Writes an explicit JSON null, creating the objects on the way. For a key whose
+        /// null is a decision rather than an absence - <c>metadata.coreSource</c>, where it
+        /// means "no repository" - so a reader sees it was chosen, not forgotten.
+        /// </summary>
+        public void SetNull(string path)
+        {
+            ParentOf(path, create: true)[Leaf(path)] = JValue.CreateNull();
+        }
+
+        private JObject ParentOf(string path, bool create)
         {
             string[] steps = path.Split('.');
             JObject parent = _root;
@@ -116,6 +144,8 @@ namespace Satellite.ConfigEditor.Document
 
                 if (next == null)
                 {
+                    if (!create) return null;
+
                     next = new JObject();
                     parent[steps[i]] = next;
                 }
@@ -123,10 +153,13 @@ namespace Satellite.ConfigEditor.Document
                 parent = next;
             }
 
-            string leaf = steps[steps.Length - 1];
+            return parent;
+        }
 
-            if (string.IsNullOrEmpty(value)) parent.Remove(leaf);
-            else parent[leaf] = value;
+        private static string Leaf(string path)
+        {
+            string[] steps = path.Split('.');
+            return steps[steps.Length - 1];
         }
 
         /// <summary>True when the section exists at all.</summary>

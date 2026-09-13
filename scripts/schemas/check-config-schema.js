@@ -91,7 +91,7 @@ const base = JSON.parse(fs.readFileSync(
 // --- variants the schema must reject -----------------------------------------------------
 const mustFail = {
     "metadata missing":                 (d) => drop(d, "metadata"),
-    "coreSource missing":               (d) => drop(d, "metadata.coreSource"),
+    "coreSource an empty string":       (d) => set(d, "metadata.coreSource", ""),
     "coreSource wrong case":            (d) => set(d, "metadata.coreSource", "Local"),
     "coreSource outside the set":       (d) => set(d, "metadata.coreSource", "github"),
     "version without the v":            (d) => set(d, "metadata.version", "2.0"),
@@ -213,7 +213,23 @@ const mustPass = {
         (d) => { const m = modern(d);
                  m.projectConfig.codingStyle.interfaceRules[0].id =
                      m.projectConfig.codingStyle.objectRules[0].id;
-                 return m; }
+                 return m; },
+
+    // No repository. Core cannot tell an absent key from a null one, so the schema must not
+    // either, or it would underline a file Core loads without a word.
+    "no repository: coreSource null":
+        (d) => set(d, "metadata.coreSource", null),
+    "no repository: coreSource absent":
+        (d) => drop(d, "metadata.coreSource"),
+    "no repository, and neither section present":
+        (d) => drop(drop(set(d, "metadata.coreSource", null), "coreLocalRepositoryConfig"), "coreRemoteRepositoryConfig"),
+
+    // A section nobody selected is kept and ignored, by Core and here alike. Validating it
+    // here only would report a half-written section Core never reads.
+    "no repository, with a half-written section":
+        (d) => drop(set(d, "metadata.coreSource", null), "coreLocalRepositoryConfig.folder"),
+    "local selected, the remote section half-written":
+        (d) => set(drop(set(d, "metadata.coreSource", "local"), "coreRemoteRepositoryConfig.owner"), "coreRemoteRepositoryConfig.branch", "")
 };
 
 console.log("\n--- must be rejected ---");

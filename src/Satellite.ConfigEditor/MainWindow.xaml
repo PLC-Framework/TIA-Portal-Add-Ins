@@ -191,7 +191,7 @@
 
                                 <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" TextWrapping="Wrap"
                                            Foreground="#7E8899"
-                                           Text="This decides which repository section the Add-In reads. The other one is kept but never validated." />
+                                           Text="Which repository section the Add-In reads. None means no repository - only actions that read a core need one - and is written as null. A section not in use is kept but never validated." />
 
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Version" Style="{StaticResource FieldLabel}" Margin="0,14,10,0" />
                                 <TextBox   Grid.Row="2" Grid.Column="1" x:Name="VersionBox" Margin="0,14,0,0"

@@ -20,10 +20,12 @@ Two kinds of check, kept apart because only one of them touches the disk:
 | Field | Required | Type | Description |
 | --- | --- | --- | --- |
 | `metadata` | **Yes** | object | Holds `coreSource`, which decides the rest of the file |
-| `metadata.coreSource` | **Yes** | string | Closed set:`local` \| `remote`. Selects which repository section is required |
+| `metadata.coreSource` | No | string or null | Closed set: `local` \| `remote` \| `null`. Selects which repository section is required; `null`, or no key at all, means **no repository**, and neither section is required or validated |
 | `metadata.version` | No | string | `v<n>.<n>` with two to four components of up to two digits — `v2.0`, `v1.12.3`, `v9.9.9.9` |
 | `metadata.author` | No | string | Informative. Not validated |
 | `metadata.description` | No | string | Informative. Not validated |
+
+**A repository is optional, and that was a correction** (2026-09-13). `coreSource` was required and `local` or `remote`, so every project had to name a core — and fill in a path nobody read — although only actions that read a core need one, and none exists yet. `null` is the answer for a project that uses none. **Absent and `null` mean the same**: the serializer hands both to `Core` as null, so `Core` cannot tell them apart, and a schema that demanded the key would disagree with a validator that could not. `Satellite.ConfigEditor` writes the explicit `null` anyway, so a reader sees a decision rather than an omission, and the template ships with it. An empty string is **not** null — it is a value outside the set, and reading it as "no repository" would turn a half-typed word into a decision.
 
 ### `coreRemoteRepositoryConfig` — required only when `coreSource = remote`
 
@@ -173,7 +175,7 @@ Three decisions worth keeping:
 
 `config.schema.json`, built 2026-09-11. **Three statements of one contract now exist** — the table above, `Core`'s validators, and this — and that is a deliberate cost with a specific payoff: the other two run before a save and after a load, while this one runs on every keystroke, in whatever editor opened the file. It is the first safety net the hand-edit path has ever had, and the only one that offers autocomplete over the closed sets.
 
-**It expresses the mechanical half.** Required fields, types, the five closed `type` sets, `coreSource` deciding which repository section is required (`if`/`then`), the recursive `Group` through a `$ref` to itself, the `version` pattern, an `apiUrl` that is absolute and `http`/`https`, and lists that may be empty but must exist.
+**It expresses the mechanical half.** Required fields, types, the five closed `type` sets, `coreSource` deciding which repository section is required (`if`/`then`) — and validated: a section nobody selected is kept and ignored here as it is in `Core`, since checking a half-written one only in the schema would underline a file `Core` loads without a word — the recursive `Group` through a `$ref` to itself, the `version` pattern, an `apiUrl` that is absolute and `http`/`https`, and lists that may be empty but must exist.
 
 **Six rules are beyond it, and they are the ones a typo breaks silently:**
 
@@ -219,7 +221,7 @@ node scripts\schemas\check-config-schema.js
 
 **`ajv` is resolved from outside the repo deliberately** — this is a .NET solution, and a `node_modules\` inside it would be the only one, kept alive by a single test. `Newtonsoft.Json.Schema` would have been the in-house choice, since `Newtonsoft.Json` is already here, and it is commercially licensed beyond 1000 validations an hour: a poor thing to bury in a test.
 
-It checks both real configurations, forty-two broken variants — every one rejected, at the right path — and eleven documents the schema must accept, **which must pass**: the test asserts the limits rather than trusting this prose. The wiring was then exercised end to end through the real `ConfigDocument`: the schema lands beside the file, `$schema` is first, `Core` still loads and validates a document carrying a key its model does not know, a second save neither duplicates nor moves it, a `$schema` aimed elsewhere survives untouched with no file written, and the file the editor wrote validates against the copy it wrote next to it.
+It checks both real configurations, forty-two broken variants — every one rejected, at the right path — and sixteen documents the schema must accept, **which must pass**: the test asserts the limits rather than trusting this prose. The wiring was then exercised end to end through the real `ConfigDocument`: the schema lands beside the file, `$schema` is first, `Core` still loads and validates a document carrying a key its model does not know, a second save neither duplicates nor moves it, a `$schema` aimed elsewhere survives untouched with no file written, and the file the editor wrote validates against the copy it wrote next to it.
 
 ### The environmental pass is separate, and that is the point
 
