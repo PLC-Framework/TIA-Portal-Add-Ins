@@ -101,7 +101,7 @@ namespace Core.Checks
                 rows.Add(new CheckRow(
                     RowScope.Object, CheckOutcome.NotConfigured,
                     subject.Plc, subject.Unit, subject.Name,
-                    subject.Type, subject.Name, subject.Path,
+                    subject.Type, null, subject.Name, subject.Path,
                     note: "No rule for this type under codingStyle." + KeyOf(subject.Family) + "."));
 
                 return rows;
@@ -117,7 +117,7 @@ namespace Core.Checks
                 trouble != null && !passed ? CheckOutcome.Skipped
                                            : passed ? CheckOutcome.Passed : CheckOutcome.Failed,
                 subject.Plc, subject.Unit, subject.Name,
-                subject.Type, subject.Name, subject.Path, matched, missed, trouble));
+                subject.Type, null, subject.Name, subject.Path, matched, missed, trouble));
 
             bool unreadable = subject.MembersUnreadable != null;
             if (subject.Members.Count == 0 && !unreadable) return rows;
@@ -130,7 +130,7 @@ namespace Core.Checks
                 rows.Add(new CheckRow(
                     RowScope.Member, CheckOutcome.Skipped,
                     subject.Plc, subject.Unit, subject.Name,
-                    string.Empty, string.Empty, subject.Path,
+                    string.Empty, null, string.Empty, subject.Path,
                     note: "Interface not checked: the object's own name matched no rule, so " +
                           "which interface applies is unknown."));
 
@@ -149,7 +149,7 @@ namespace Core.Checks
                     rows.Add(new CheckRow(
                         RowScope.Member, CheckOutcome.Skipped,
                         subject.Plc, subject.Unit, subject.Name,
-                        string.Empty, string.Empty, subject.Path,
+                        string.Empty, null, string.Empty, subject.Path,
                         note: "Interface not checked. " + subject.MembersUnreadable));
                 }
 
@@ -171,7 +171,7 @@ namespace Core.Checks
                     memberTrouble != null && !ok ? CheckOutcome.Skipped
                                                  : ok ? CheckOutcome.Passed : CheckOutcome.Failed,
                     subject.Plc, subject.Unit, subject.Name,
-                    member.Section, member.Name, subject.Path, hit, gone, memberTrouble));
+                    member.Section, member.Parent, member.Name, subject.Path, hit, gone, memberTrouble));
             }
 
             return rows;

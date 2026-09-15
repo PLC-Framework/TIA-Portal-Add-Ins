@@ -35,16 +35,17 @@ namespace Satellite.CodingStyleReport.Export
         /// <summary>The Report sheet's columns, in order. Named once, for the writer and the reader alike.</summary>
         public static readonly IReadOnlyList<string> ReportColumns = new[]
         {
-            "Result", "Level", "PLC", "Software unit", "Object", "Kind", "Name", "Path",
+            "Result", "Level", "PLC", "Software unit", "Object", "Kind", "Parent", "Name", "Path",
             "Matched", "Suggestions", "Note"
         };
 
         /// <summary>
         /// The columns a workbook must have to be read as a report at all.
         ///
-        /// **The three that report format 2 added are not among them**, so a workbook exported
-        /// by an earlier version still imports, with those cells empty. Refusing it would
-        /// throw away reports somebody kept, over columns the rows do not need to be read.
+        /// **The ones later formats added are not among them** - PLC, software unit and object
+        /// came with format 2, the parent of a member with format 3 - so a workbook exported by
+        /// an earlier version still imports, with those cells empty. Refusing it would throw
+        /// away reports somebody kept, over columns the rows do not need to be read.
         /// </summary>
         private static readonly IReadOnlyList<string> RequiredReportColumns = new[]
         {
@@ -224,6 +225,7 @@ namespace Satellite.CodingStyleReport.Export
                     Unit = Value(cells, columns, "Software unit"),
                     Owner = Value(cells, columns, "Object"),
                     Kind = Value(cells, columns, "Kind"),
+                    Parent = Value(cells, columns, "Parent"),
                     Name = Value(cells, columns, "Name"),
                     Path = Value(cells, columns, "Path"),
                     Matched = Ids(matched),
@@ -441,8 +443,8 @@ namespace Satellite.CodingStyleReport.Export
 
                 writer.WriteElement(new Columns(
                     ColumnWidth(1, 16), ColumnWidth(2, 10), ColumnWidth(3, 16), ColumnWidth(4, 16),
-                    ColumnWidth(5, 28), ColumnWidth(6, 16), ColumnWidth(7, 32), ColumnWidth(8, 40),
-                    ColumnWidth(9, 34), ColumnWidth(10, 40), ColumnWidth(11, 60)));
+                    ColumnWidth(5, 28), ColumnWidth(6, 16), ColumnWidth(7, 28), ColumnWidth(8, 32),
+                    ColumnWidth(9, 40), ColumnWidth(10, 34), ColumnWidth(11, 40), ColumnWidth(12, 60)));
 
                 writer.WriteStartElement(new SheetData());
 
@@ -474,14 +476,15 @@ namespace Satellite.CodingStyleReport.Export
                     WriteText(writer, "D", line, row.Unit, style);
                     WriteText(writer, "E", line, row.Owner, style);
                     WriteText(writer, "F", line, row.Kind, style);
-                    WriteText(writer, "G", line, row.Name, nameStyle);
-                    WriteText(writer, "H", line, row.Path, style);
-                    WriteText(writer, "I", line, string.Join(ListSeparator, row.Matched), style);
+                    WriteText(writer, "G", line, row.Parent, style);
+                    WriteText(writer, "H", line, row.Name, nameStyle);
+                    WriteText(writer, "I", line, row.Path, style);
+                    WriteText(writer, "J", line, string.Join(ListSeparator, row.Matched), style);
                     // Suggestions only where nothing matched, as the window shows them. The checker
                     // lists every rule a name missed, so a passed FB would otherwise carry ten
                     // "suggestions" for names it has no business being.
-                    WriteText(writer, "J", line, row.Matched.Count == 0 ? string.Join(ListSeparator, row.Suggestions) : null, style);
-                    WriteText(writer, "K", line, row.Note, style);
+                    WriteText(writer, "K", line, row.Matched.Count == 0 ? string.Join(ListSeparator, row.Suggestions) : null, style);
+                    WriteText(writer, "L", line, row.Note, style);
 
                     writer.WriteEndElement();
                     line++;

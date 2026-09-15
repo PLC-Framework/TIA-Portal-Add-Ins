@@ -196,7 +196,7 @@
                             <GridViewColumn Header="Software unit" Width="100" DisplayMemberBinding="{Binding Unit}" />
                             <!-- Which object a member belongs to. The row above says it too, until
                                  the table is sorted or a filter hides that row. -->
-                            <GridViewColumn Header="Object" Width="150">
+                            <GridViewColumn Header="Object" Width="140">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Owner}" Style="{StaticResource Cell}" ToolTip="{Binding OwnerTip}" />
@@ -204,14 +204,24 @@
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
                             <GridViewColumn Header="Kind" Width="100" DisplayMemberBinding="{Binding Kind}" />
-                            <GridViewColumn Header="Name" Width="180">
+                            <!-- Where a member sits inside the interface. The name beside it is
+                                 what a rule was held against; joining the two would produce a
+                                 string no naming rule could ever read. -->
+                            <GridViewColumn Header="Parent" Width="130">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Parent}" Style="{StaticResource Cell}" ToolTip="{Binding ParentTip}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Name" Width="170">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Name}" Style="{StaticResource Cell}" ToolTip="{Binding NameTip}" />
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
-                            <GridViewColumn Header="Path" Width="190">
+                            <GridViewColumn Header="Path" Width="170">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Path}" Style="{StaticResource Cell}" ToolTip="{Binding PathTip}" />
@@ -220,7 +230,7 @@
                             </GridViewColumn>
                             <!-- The rule's pattern and description on hover: what the id means is
                                  the first question a failing row raises. -->
-                            <GridViewColumn Header="Rules" Width="180">
+                            <GridViewColumn Header="Rules" Width="170">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Rules}" Style="{StaticResource Cell}" ToolTip="{Binding RulesTip}" />

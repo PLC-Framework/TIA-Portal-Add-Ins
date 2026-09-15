@@ -64,6 +64,7 @@ src/Core/
 │       └── EnvironmentValidator.cs   paths that exist, ${VAR} that resolve
 ├── Checks/                   the coding-style check, pure: handed names, returns rows
 │   ├── CodingStyleChecker.cs names against the rules, with a match timeout
+│   ├── SimaticMlInterface.cs an exported interface → members, each with its own name and its parents
 │   ├── CheckedObject.cs · CheckRow.cs · ObjectFamily.cs
 │   └── StyleReport.cs        the report document the Add-In sends and the satellite reads
 ├── Secrets/
@@ -179,7 +180,7 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
 
 | Layer | May depend on | Actual references |
 | --- | --- | --- |
-| `Core` | only what**every** consumer needs | `mscorlib`, `System`, `System.Core`, `System.Runtime.Serialization` |
+| `Core` | only what**every** consumer needs | `mscorlib`, `System`, `System.Core`, `System.Runtime.Serialization`, `System.Xml`, `System.Xml.Linq` |
 | `AddIn.Shared` | `Core` + host types that are **not** Siemens | `+ PLC-Framework.Core`, `System.Drawing` |
 | `UI.Shared` | `Core` + WPF | `mscorlib`, `System` — see below |
 | `S7PlcWebserverApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |

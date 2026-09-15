@@ -45,9 +45,11 @@ namespace Core.Checks
         /// <item><description>1 - the first report window.</description></item>
         /// <item><description>2 - a row names its PLC, its software unit and the object it
         /// belongs to, and its path drops the PLC and the unit it used to repeat.</description></item>
+        /// <item><description>3 - a member row names the members it is declared inside, so a
+        /// name inside a <c>Struct</c> is checked on its own and still says where it lives.</description></item>
         /// </list>
         /// </summary>
-        public const int CurrentFormat = 2;
+        public const int CurrentFormat = 3;
 
         [DataMember(Name = "format", Order = 0)]
         public int Format { get; set; }
@@ -256,19 +258,23 @@ namespace Core.Checks
         [DataMember(Name = "kind", Order = 5)]
         public string Kind { get; set; }
 
-        [DataMember(Name = "name", Order = 6)]
+        /// <summary>The members this one is declared inside, joined with dots; empty at the top of a section.</summary>
+        [DataMember(Name = "parent", Order = 6)]
+        public string Parent { get; set; }
+
+        [DataMember(Name = "name", Order = 7)]
         public string Name { get; set; }
 
-        [DataMember(Name = "path", Order = 7)]
+        [DataMember(Name = "path", Order = 8)]
         public string Path { get; set; }
 
-        [DataMember(Name = "matched", Order = 8)]
+        [DataMember(Name = "matched", Order = 9)]
         public List<string> Matched { get; set; }
 
-        [DataMember(Name = "suggestions", Order = 9)]
+        [DataMember(Name = "suggestions", Order = 10)]
         public List<string> Suggestions { get; set; }
 
-        [DataMember(Name = "note", Order = 10)]
+        [DataMember(Name = "note", Order = 11)]
         public string Note { get; set; }
 
         /// <summary>The outcome as the enum, or null when the text names none - a report from elsewhere.</summary>
@@ -285,6 +291,7 @@ namespace Core.Checks
             Unit = string.IsNullOrEmpty(row.Unit) ? GeneralProgram : row.Unit,
             Owner = row.Owner,
             Kind = row.Kind,
+            Parent = row.Parent,
             Name = row.Name,
             Path = row.Path,
             Matched = row.Matched.ToList(),

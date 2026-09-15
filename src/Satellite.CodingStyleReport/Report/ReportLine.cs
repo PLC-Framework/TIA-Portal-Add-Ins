@@ -17,7 +17,7 @@ namespace Satellite.CodingStyleReport.Report
         {
             Row = row;
             RulesTip = BuildRulesTip(row, rules);
-            SearchText = string.Join("\n", Row.Plc, Row.Unit, Row.Owner, Row.Kind, Row.Name, Row.Path, Rules, Row.Note);
+            SearchText = string.Join("\n", Row.Plc, Row.Unit, Row.Owner, Row.Kind, Row.Parent, Row.Name, Row.Path, Rules, Row.Note);
         }
 
         public ReportRow Row { get; }
@@ -43,6 +43,13 @@ namespace Satellite.CodingStyleReport.Report
         public string Owner => Row.Owner;
 
         public string Kind => Row.Kind;
+
+        /// <summary>
+        /// The members this one is declared inside, for a member that lives in a <c>Struct</c>.
+        /// The name beside it is the name that was checked; this says where it sits, which
+        /// joining the two into <c>motor.maxSpeed</c> would only look like.
+        /// </summary>
+        public string Parent => Row.Parent;
 
         /// <summary>A member is indented under the object it belongs to, which is the row above it.</summary>
         public string Name => Row.IsMember ? "    " + Row.Name : Row.Name;
@@ -72,6 +79,7 @@ namespace Satellite.CodingStyleReport.Report
         // opens a tooltip, as a small blank box over a row that has nothing to say.
         public string NameTip => Blank(Row.Name);
         public string OwnerTip => Blank(Row.Owner);
+        public string ParentTip => Blank(Row.Parent);
         public string PathTip => Blank(Row.Path);
         public string NoteTip => Blank(Row.Note);
 

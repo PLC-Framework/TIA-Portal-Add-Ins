@@ -46,6 +46,7 @@ namespace Core.Checks
             string unit,
             string owner,
             string kind,
+            string parent,
             string name,
             string path,
             IReadOnlyList<string> matched = null,
@@ -58,6 +59,7 @@ namespace Core.Checks
             Unit = unit ?? string.Empty;
             Owner = owner ?? string.Empty;
             Kind = kind;
+            Parent = parent ?? string.Empty;
             Name = name;
             Path = path ?? string.Empty;
             Matched = matched ?? new List<string>();
@@ -92,6 +94,14 @@ namespace Core.Checks
         /// reader both answer the same question about the line in front of them.
         /// </summary>
         public string Kind { get; }
+
+        /// <summary>
+        /// For a member row, the members it is declared inside, joined with dots - empty at
+        /// the top of a section and on an object's own row. A name is checked on its own, so
+        /// this is what says where it lives without joining the two into something no rule
+        /// could read.
+        /// </summary>
+        public string Parent { get; }
 
         public string Name { get; }
 
