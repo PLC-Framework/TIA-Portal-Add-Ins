@@ -17,7 +17,7 @@ namespace Satellite.CodingStyleReport.Report
         {
             Row = row;
             RulesTip = BuildRulesTip(row, rules);
-            SearchText = string.Join("\n", Row.Kind, Row.Name, Row.Path, Rules, Row.Note);
+            SearchText = string.Join("\n", Row.Plc, Row.Unit, Row.Owner, Row.Kind, Row.Name, Row.Path, Rules, Row.Note);
         }
 
         public ReportRow Row { get; }
@@ -29,6 +29,18 @@ namespace Satellite.CodingStyleReport.Report
         public string OutcomeName => Row.Outcome;
 
         public string Result => Outcomes.Label(Row);
+
+        public string Plc => Row.Plc;
+
+        /// <summary>The software unit, or the star the report writes for the general program.</summary>
+        public string Unit => Row.Unit;
+
+        /// <summary>
+        /// The object this row is part of - and, on an object's own row, itself. Which tag
+        /// table a constant belongs to is the first question a member row raises, and the
+        /// row above it only answers that while nothing is filtered or sorted.
+        /// </summary>
+        public string Owner => Row.Owner;
 
         public string Kind => Row.Kind;
 
@@ -59,6 +71,7 @@ namespace Satellite.CodingStyleReport.Report
         // Tooltips for cells that may be cut short. Null rather than empty: an empty string still
         // opens a tooltip, as a small blank box over a row that has nothing to say.
         public string NameTip => Blank(Row.Name);
+        public string OwnerTip => Blank(Row.Owner);
         public string PathTip => Blank(Row.Path);
         public string NoteTip => Blank(Row.Note);
 

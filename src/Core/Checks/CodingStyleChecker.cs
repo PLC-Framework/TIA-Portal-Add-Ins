@@ -100,6 +100,7 @@ namespace Core.Checks
             {
                 rows.Add(new CheckRow(
                     RowScope.Object, CheckOutcome.NotConfigured,
+                    subject.Plc, subject.Unit, subject.Name,
                     subject.Type, subject.Name, subject.Path,
                     note: "No rule for this type under codingStyle." + KeyOf(subject.Family) + "."));
 
@@ -115,14 +116,11 @@ namespace Core.Checks
                 RowScope.Object,
                 trouble != null && !passed ? CheckOutcome.Skipped
                                            : passed ? CheckOutcome.Passed : CheckOutcome.Failed,
+                subject.Plc, subject.Unit, subject.Name,
                 subject.Type, subject.Name, subject.Path, matched, missed, trouble));
 
             bool unreadable = subject.MembersUnreadable != null;
             if (subject.Members.Count == 0 && !unreadable) return rows;
-
-            string inside = string.IsNullOrEmpty(subject.Path)
-                ? subject.Name
-                : subject.Path + "/" + subject.Name;
 
             if (!passed)
             {
@@ -130,7 +128,9 @@ namespace Core.Checks
                 // rules the name failed would report members against an expectation nobody
                 // set, and bury the one finding that matters: the object's own name.
                 rows.Add(new CheckRow(
-                    RowScope.Member, CheckOutcome.Skipped, string.Empty, string.Empty, inside,
+                    RowScope.Member, CheckOutcome.Skipped,
+                    subject.Plc, subject.Unit, subject.Name,
+                    string.Empty, string.Empty, subject.Path,
                     note: "Interface not checked: the object's own name matched no rule, so " +
                           "which interface applies is unknown."));
 
@@ -147,7 +147,9 @@ namespace Core.Checks
                 if (expected.Count > 0)
                 {
                     rows.Add(new CheckRow(
-                        RowScope.Member, CheckOutcome.Skipped, string.Empty, string.Empty, inside,
+                        RowScope.Member, CheckOutcome.Skipped,
+                        subject.Plc, subject.Unit, subject.Name,
+                        string.Empty, string.Empty, subject.Path,
                         note: "Interface not checked. " + subject.MembersUnreadable));
                 }
 
@@ -168,7 +170,8 @@ namespace Core.Checks
                     RowScope.Member,
                     memberTrouble != null && !ok ? CheckOutcome.Skipped
                                                  : ok ? CheckOutcome.Passed : CheckOutcome.Failed,
-                    member.Section, member.Name, inside, hit, gone, memberTrouble));
+                    subject.Plc, subject.Unit, subject.Name,
+                    member.Section, member.Name, subject.Path, hit, gone, memberTrouble));
             }
 
             return rows;

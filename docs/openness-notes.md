@@ -278,13 +278,15 @@ Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are
 
 **The checker survives the tightest partial trust.** Run inside an `AppDomain` granted `Execution` alone, the validator, the checker and a pattern hitting its match timeout all behave as they do outside, with no `SecurityException` — the first time `Regex` with a timeout runs in TIA's process, checked before it gets there.
 
-**Every path starts with the PLC's name**, because a project holds several and the same folder exists in each. It is built downwards from a PLC or unit and upwards through `Parent` from a folder or an object, to the same shape; links in the chain it does not recognise are stepped over rather than ending the walk.
+**Where an object lives is three answers: its PLC, its software unit and the folders in between.** A project holds several PLCs and a PLC several units, each repeating the same folder names and often the same block names, so one joined path could be filtered on as a whole or not at all — the report gives each its own column, and the general program is written as `*`. The three are found together, downwards from a PLC or a unit and upwards through `Parent` from a folder or an object, to the same answer; links in the chain the walk does not recognise are stepped over rather than ending it.
+
+> Until 2026-09-15 the three were one string starting with the PLC's name. The columns came out of the same reading that found the defect below: a report cannot be acted on if it does not say which PLC, and a folder name repeated in ten units says nothing on its own.
 
 What the object model offers, and therefore what phase one can check without exporting anything:
 
 | Family | Walked through | Members |
 | --- | --- | --- |
-| Blocks | `BlockGroup` → `Blocks` / `Groups` | a `GlobalDB`'s top-level `Interface.Members`, as `Static`. `Member` exposes a `Name` and nothing else — no section, no nesting |
+| Blocks | `BlockGroup` → `Blocks` / `Groups` | a `GlobalDB`'s `Interface.Members`, as `Static`. `Member` exposes a `Name` and nothing else — no section, no type, no children |
 | Technology objects | `TechnologicalObjectGroup` → `TechnologicalObjects` / `Groups` | none |
 | Tag tables | `TagTableGroup` → `TagTables` / `Groups` | `Tags` as `Tag`, `UserConstants` as `UserConstant` |
 | Types | `TypeGroup` → `Types` / `Groups` | none: `PlcType` exposes no interface |
@@ -296,6 +298,7 @@ Decisions worth keeping:
 
 - **Only names an engineer chose.** `SystemBlockGroups`, `SystemTypeGroups`, system constants, system text lists and the default tag table are named by TIA. A rule could only fail them, and nobody reading the report could act on it.
 - **Only a global DB's members are its own.** An instance DB's are its FB's interface, which is where they get checked; a technology object's are defined by Siemens.
+- **A DB's members cannot be checked through the object model at all, and that was found on a real project** (2026-09-15). `Member` carries a `Name` and nothing else — verified again by reflection against V20 — so a member inside a `Struct` arrives as `variableA.variableB`, the name of its parent and its own joined by a dot, and nothing distinguishes it from a top-level member. Held against a naming rule that reads one name, every such member fails. There is no fix on this side: the tree the object model shows is flat. Phase two reads interfaces out of the exported SimaticML instead, where a nested member sits inside its parent and is checked by its own name.
 - **A `TechnologicalInstanceDB` is an `InstanceDB` to the type system**, so the type name is decided most specific first — the other way round reports every technology object as an instance DB.
 - **Reading the tree is not guarded; reading members is.** A folder that silently failed to read would drop out of the report and leave it looking complete. Members that cannot be read — a know-how protected block, or TIA refusing — travel as `MembersUnreadable`, and the checker turns that into a skipped row with the reason rather than an object that looks clean.
 - **The closed-set names come from `Core.Config.CodingStyleNames`**, the same constants the validator uses. A misspelt type on this side would not fail; it would read as "no rule for this type".

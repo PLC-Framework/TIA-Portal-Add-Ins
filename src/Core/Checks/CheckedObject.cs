@@ -16,6 +16,8 @@ namespace Core.Checks
             ObjectFamily family,
             string type,
             string name,
+            string plc = null,
+            string unit = null,
             string path = null,
             IReadOnlyList<CheckedMember> members = null,
             string membersUnreadable = null)
@@ -23,6 +25,8 @@ namespace Core.Checks
             Family = family;
             Type = type;
             Name = name;
+            Plc = plc ?? string.Empty;
+            Unit = unit ?? string.Empty;
             Path = path ?? string.Empty;
             Members = members ?? new List<CheckedMember>();
             MembersUnreadable = membersUnreadable;
@@ -39,7 +43,24 @@ namespace Core.Checks
 
         public string Name { get; }
 
-        /// <summary>Where it sits in the project tree, for a report a person has to act on.</summary>
+        /// <summary>
+        /// The PLC it belongs to. A project holds several, and the same folder and the same
+        /// block name exist in each, so without it a row cannot be acted on.
+        /// </summary>
+        public string Plc { get; }
+
+        /// <summary>
+        /// The software unit it belongs to, and **empty for the general program**. Empty
+        /// rather than a word, because "which unit" is a question the walk answers and
+        /// naming the general program is the report's way of putting it.
+        /// </summary>
+        public string Unit { get; }
+
+        /// <summary>
+        /// The folders it sits in, inside its PLC or its unit - <c>Program blocks/03-ALL</c>.
+        /// The PLC and the unit are not repeated here: they are their own columns, and a
+        /// path that carried them could not be filtered on as a folder.
+        /// </summary>
         public string Path { get; }
 
         /// <summary>

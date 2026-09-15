@@ -42,6 +42,9 @@ namespace Core.Checks
         public CheckRow(
             RowScope scope,
             CheckOutcome outcome,
+            string plc,
+            string unit,
+            string owner,
             string kind,
             string name,
             string path,
@@ -51,6 +54,9 @@ namespace Core.Checks
         {
             Scope = scope;
             Outcome = outcome;
+            Plc = plc ?? string.Empty;
+            Unit = unit ?? string.Empty;
+            Owner = owner ?? string.Empty;
             Kind = kind;
             Name = name;
             Path = path ?? string.Empty;
@@ -63,6 +69,23 @@ namespace Core.Checks
 
         public CheckOutcome Outcome { get; }
 
+        /// <summary>The PLC the row is about.</summary>
+        public string Plc { get; }
+
+        /// <summary>Its software unit, empty for the general program.</summary>
+        public string Unit { get; }
+
+        /// <summary>
+        /// The object this row belongs to: the tag table a constant is in, the block a member
+        /// is in - and, on an object's own row, itself.
+        ///
+        /// **Filled on both kinds of row on purpose.** A member row's owner is the only thing
+        /// that says what it is part of once the table is sorted or filtered, and repeating
+        /// the object's own name here is what makes "show me everything of this table" one
+        /// filter rather than two.
+        /// </summary>
+        public string Owner { get; }
+
         /// <summary>
         /// TIA's type for an object row - <c>FB</c>, <c>GlobalDB</c> - and the interface
         /// section for a member row: <c>Static</c>, <c>Tag</c>. One column, because to the
@@ -72,7 +95,11 @@ namespace Core.Checks
 
         public string Name { get; }
 
-        /// <summary>Where it lives, so a failing name can be found without searching for it.</summary>
+        /// <summary>
+        /// The folders it lives in, inside its PLC or unit, so a failing name can be found
+        /// without searching for it. A member row carries its object's folders: the object
+        /// itself is in <see cref="Owner"/>.
+        /// </summary>
         public string Path { get; }
 
         /// <summary>The rules the name satisfied. Any one of them is enough to pass.</summary>

@@ -40,8 +40,14 @@ namespace Core.Checks
         /// <summary>
         /// The shape of this document. Raised when a change would make an older reader
         /// misread a newer report, so the reader can say so rather than show half of it.
+        ///
+        /// <list type="bullet">
+        /// <item><description>1 - the first report window.</description></item>
+        /// <item><description>2 - a row names its PLC, its software unit and the object it
+        /// belongs to, and its path drops the PLC and the unit it used to repeat.</description></item>
+        /// </list>
         /// </summary>
-        public const int CurrentFormat = 1;
+        public const int CurrentFormat = 2;
 
         [DataMember(Name = "format", Order = 0)]
         public int Format { get; set; }
@@ -218,6 +224,9 @@ namespace Core.Checks
     [DataContract]
     public sealed class ReportRow
     {
+        /// <summary>What <see cref="Unit"/> says when the row belongs to the general program.</summary>
+        public const string GeneralProgram = "*";
+
         /// <summary><c>Object</c> or <c>Member</c>, the names of <see cref="RowScope"/>.</summary>
         [DataMember(Name = "scope", Order = 0)]
         public string Scope { get; set; }
@@ -226,22 +235,40 @@ namespace Core.Checks
         [DataMember(Name = "outcome", Order = 1)]
         public string Outcome { get; set; }
 
-        [DataMember(Name = "kind", Order = 2)]
+        [DataMember(Name = "plc", Order = 2)]
+        public string Plc { get; set; }
+
+        /// <summary>
+        /// The software unit, or <see cref="GeneralProgram"/> for the program itself.
+        ///
+        /// **The report writes the star, the checker does not.** Inside the check "no unit"
+        /// is simply an empty string; saying so in one character is how this document
+        /// presents it, and a reader that meets an empty cell knows it came from a report
+        /// written before this field existed rather than from the general program.
+        /// </summary>
+        [DataMember(Name = "unit", Order = 3)]
+        public string Unit { get; set; }
+
+        /// <summary>The object the row belongs to; on an object's own row, itself.</summary>
+        [DataMember(Name = "object", Order = 4)]
+        public string Owner { get; set; }
+
+        [DataMember(Name = "kind", Order = 5)]
         public string Kind { get; set; }
 
-        [DataMember(Name = "name", Order = 3)]
+        [DataMember(Name = "name", Order = 6)]
         public string Name { get; set; }
 
-        [DataMember(Name = "path", Order = 4)]
+        [DataMember(Name = "path", Order = 7)]
         public string Path { get; set; }
 
-        [DataMember(Name = "matched", Order = 5)]
+        [DataMember(Name = "matched", Order = 8)]
         public List<string> Matched { get; set; }
 
-        [DataMember(Name = "suggestions", Order = 6)]
+        [DataMember(Name = "suggestions", Order = 9)]
         public List<string> Suggestions { get; set; }
 
-        [DataMember(Name = "note", Order = 7)]
+        [DataMember(Name = "note", Order = 10)]
         public string Note { get; set; }
 
         /// <summary>The outcome as the enum, or null when the text names none - a report from elsewhere.</summary>
@@ -254,6 +281,9 @@ namespace Core.Checks
         {
             Scope = row.Scope.ToString(),
             Outcome = row.Outcome.ToString(),
+            Plc = row.Plc,
+            Unit = string.IsNullOrEmpty(row.Unit) ? GeneralProgram : row.Unit,
+            Owner = row.Owner,
             Kind = row.Kind,
             Name = row.Name,
             Path = row.Path,

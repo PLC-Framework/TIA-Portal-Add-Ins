@@ -40,10 +40,10 @@ namespace AddIn.Adapters
     /// is what may legitimately be absent: software on a device item that has none, software
     /// units on an S7-1200, and the members of a block that will not show them.
     ///
-    /// **Every path starts with the PLC's name**, because a project holds several and the
-    /// same folder exists in each. It is built downwards when the walk starts high and
-    /// upwards through Parent when it starts at a folder or an object, to the same shape,
-    /// so a block reports one path whichever menu entry reached it.
+    /// **Where an object lives is three answers, not one**: its PLC, its software unit and
+    /// the folders in between. They are found together, whether the walk starts high and
+    /// goes down or starts at an object and climbs through Parent, so an object reports the
+    /// same place whichever menu entry reached it.
     /// </summary>
     internal static class TiaCheckedObjects
     {
@@ -52,6 +52,41 @@ namespace AddIn.Adapters
         // Deep enough for any tree TIA lets an engineer build, and a guarantee that a Parent
         // chain which somehow loops cannot hold TIA's thread forever.
         private const int MaxParentSteps = 64;
+
+        /// <summary>
+        /// Where something sits: its PLC, its software unit - empty for the general program -
+        /// and the folders under one of those two.
+        ///
+        /// The three are kept apart rather than joined into a path because the report shows
+        /// them as their own columns: a project holds several PLCs and a PLC several units,
+        /// each repeating the same folder names, and a single string could be filtered on as
+        /// a whole or not at all.
+        /// </summary>
+        private struct Location
+        {
+            private Location(string plc, string unit, string folders)
+            {
+                Plc = plc;
+                Unit = unit;
+                Folders = folders;
+            }
+
+            public readonly string Plc;
+            public readonly string Unit;
+            public readonly string Folders;
+
+            public static Location In(PlcSoftware plc) =>
+                new Location(plc?.Name ?? string.Empty, string.Empty, string.Empty);
+
+            /// <summary>The same PLC, inside one of its units, back at the root of its folders.</summary>
+            public Location InUnit(string unit) => new Location(Plc, unit ?? string.Empty, string.Empty);
+
+            public Location InFolder(string name) =>
+                string.IsNullOrEmpty(name) ? this : new Location(Plc, Unit, Join(Folders, name));
+
+            public static Location Of(string plc, string unit, IEnumerable<string> folders) =>
+                new Location(plc ?? string.Empty, unit ?? string.Empty, string.Join(Separator, folders));
+        }
 
         // ---- Containers ---------------------------------------------------------------------
 
@@ -93,7 +128,7 @@ namespace AddIn.Adapters
 
             foreach (PlcUnitBase unit in units)
             {
-                if (unit != null) Unit(unit, PathOf(unit.Parent), found);
+                if (unit != null) Unit(unit, LocationOf(unit.Parent), found);
             }
 
             return found;
@@ -102,19 +137,19 @@ namespace AddIn.Adapters
         // ---- Folders: the system root and a user folder alike --------------------------------
 
         public static List<CheckedObject> FromBlockGroups(IEnumerable<PlcBlockGroup> groups) =>
-            Each(groups, (group, found) => Blocks(group, PathOf(group.Parent), found));
+            Each(groups, (group, found) => Blocks(group, LocationOf(group.Parent), found));
 
         public static List<CheckedObject> FromTechnologyObjectGroups(IEnumerable<TechnologicalInstanceDBGroup> groups) =>
-            Each(groups, (group, found) => TechnologyObjects(group, PathOf(group.Parent), found));
+            Each(groups, (group, found) => TechnologyObjects(group, LocationOf(group.Parent), found));
 
         public static List<CheckedObject> FromTagTableGroups(IEnumerable<PlcTagTableGroup> groups) =>
-            Each(groups, (group, found) => TagTables(group, PathOf(group.Parent), found));
+            Each(groups, (group, found) => TagTables(group, LocationOf(group.Parent), found));
 
         public static List<CheckedObject> FromTypeGroups(IEnumerable<PlcTypeGroup> groups) =>
-            Each(groups, (group, found) => Types(group, PathOf(group.Parent), found));
+            Each(groups, (group, found) => Types(group, LocationOf(group.Parent), found));
 
         public static List<CheckedObject> FromAlarmTextListGroups(IEnumerable<PlcAlarmTextlistGroup> groups) =>
-            Each(groups, (group, found) => AlarmTextLists(group, PathOf(group.Parent), found));
+            Each(groups, (group, found) => AlarmTextLists(group, LocationOf(group.Parent), found));
 
         // ---- Objects ------------------------------------------------------------------------
 
@@ -123,16 +158,16 @@ namespace AddIn.Adapters
         /// the type system, so the menu entry on blocks is the one TIA offers on it.
         /// </summary>
         public static List<CheckedObject> FromBlocks(IEnumerable<PlcBlock> blocks) =>
-            Each(blocks, (block, found) => Block(block, PathOf(block.Parent), found));
+            Each(blocks, (block, found) => Block(block, LocationOf(block.Parent), found));
 
         public static List<CheckedObject> FromTagTables(IEnumerable<PlcTagTable> tables) =>
-            Each(tables, (table, found) => TagTable(table, PathOf(table.Parent), found));
+            Each(tables, (table, found) => TagTable(table, LocationOf(table.Parent), found));
 
         public static List<CheckedObject> FromTypes(IEnumerable<PlcType> types) =>
-            Each(types, (type, found) => DataType(type, PathOf(type.Parent), found));
+            Each(types, (type, found) => DataType(type, LocationOf(type.Parent), found));
 
         public static List<CheckedObject> FromAlarmTextLists(IEnumerable<PlcAlarmTextlist> lists) =>
-            Each(lists, (list, found) => AlarmTextList(list, PathOf(list.Parent), found));
+            Each(lists, (list, found) => AlarmTextList(list, LocationOf(list.Parent), found));
 
         private static List<CheckedObject> Each<T>(IEnumerable<T> selection, Action<T, List<CheckedObject>> walk)
             where T : class
@@ -152,7 +187,7 @@ namespace AddIn.Adapters
 
         private static void Plc(PlcSoftware plc, List<CheckedObject> found)
         {
-            string here = plc.Name ?? string.Empty;
+            Location here = Location.In(plc);
 
             Blocks(plc.BlockGroup, here, found);
             TechnologyObjects(plc.TechnologicalObjectGroup, here, found);
@@ -165,14 +200,14 @@ namespace AddIn.Adapters
 
         /// <summary>
         /// A unit repeats four of the PLC's group roots with the same types; technology
-        /// objects stay at PLC level. Its name joins the path, so a folder called 03-ALL in
-        /// two units is still two places.
+        /// objects stay at PLC level. Its name is the row's unit rather than part of its
+        /// path, so a folder called 03-ALL in two units is still two places.
         /// </summary>
-        private static void Unit(PlcUnitBase unit, string parent, List<CheckedObject> found)
+        private static void Unit(PlcUnitBase unit, Location parent, List<CheckedObject> found)
         {
             if (unit == null) return;
 
-            string here = Join(parent, unit.Name);
+            Location here = parent.InUnit(unit.Name);
 
             Blocks(unit.BlockGroup, here, found);
             TagTables(unit.TagTableGroup, here, found);
@@ -180,11 +215,11 @@ namespace AddIn.Adapters
             AlarmTextLists(unit.PlcAlarmTextlistGroup, here, found);
         }
 
-        private static void Blocks(PlcBlockGroup group, string parent, List<CheckedObject> found)
+        private static void Blocks(PlcBlockGroup group, Location parent, List<CheckedObject> found)
         {
             if (group == null) return;
 
-            string here = Join(parent, group.Name);
+            Location here = parent.InFolder(group.Name);
 
             foreach (PlcBlock block in group.Blocks) Block(block, here, found);
             foreach (PlcBlockUserGroup child in group.Groups) Blocks(child, here, found);
@@ -192,14 +227,14 @@ namespace AddIn.Adapters
             // SystemBlockGroups is deliberately not walked: TIA fills and names it.
         }
 
-        private static void Block(PlcBlock block, string path, List<CheckedObject> found)
+        private static void Block(PlcBlock block, Location where, List<CheckedObject> found)
         {
             if (block == null) return;
 
             TechnologicalInstanceDB technologyObject = block as TechnologicalInstanceDB;
             if (technologyObject != null)
             {
-                TechnologyObject(technologyObject, path, found);
+                TechnologyObject(technologyObject, where, found);
                 return;
             }
 
@@ -209,7 +244,8 @@ namespace AddIn.Adapters
             GlobalDB db = block as GlobalDB;
             if (db == null)
             {
-                found.Add(new CheckedObject(ObjectFamily.Blocks, BlockType(block), block.Name, path));
+                found.Add(new CheckedObject(
+                    ObjectFamily.Blocks, BlockType(block), block.Name, where.Plc, where.Unit, where.Folders));
                 return;
             }
 
@@ -217,7 +253,8 @@ namespace AddIn.Adapters
             List<CheckedMember> members = StaticsOf(db, out unreadable);
 
             found.Add(new CheckedObject(
-                ObjectFamily.Blocks, CodingStyleNames.GlobalDB, db.Name, path, members, unreadable));
+                ObjectFamily.Blocks, CodingStyleNames.GlobalDB, db.Name,
+                where.Plc, where.Unit, where.Folders, members, unreadable));
         }
 
         /// <summary>
@@ -276,11 +313,11 @@ namespace AddIn.Adapters
             return block.GetType().Name;
         }
 
-        private static void TechnologyObjects(TechnologicalInstanceDBGroup group, string parent, List<CheckedObject> found)
+        private static void TechnologyObjects(TechnologicalInstanceDBGroup group, Location parent, List<CheckedObject> found)
         {
             if (group == null) return;
 
-            string here = Join(parent, group.Name);
+            Location here = parent.InFolder(group.Name);
 
             foreach (TechnologicalInstanceDB technologyObject in group.TechnologicalObjects)
                 TechnologyObject(technologyObject, here, found);
@@ -288,26 +325,26 @@ namespace AddIn.Adapters
             foreach (TechnologicalInstanceDBUserGroup child in group.Groups) TechnologyObjects(child, here, found);
         }
 
-        private static void TechnologyObject(TechnologicalInstanceDB technologyObject, string path, List<CheckedObject> found)
+        private static void TechnologyObject(TechnologicalInstanceDB technologyObject, Location where, List<CheckedObject> found)
         {
             if (technologyObject == null) return;
 
             found.Add(new CheckedObject(
                 ObjectFamily.TechnologyObjects, CodingStyleNames.TechnologicalInstanceDB,
-                technologyObject.Name, path));
+                technologyObject.Name, where.Plc, where.Unit, where.Folders));
         }
 
-        private static void TagTables(PlcTagTableGroup group, string parent, List<CheckedObject> found)
+        private static void TagTables(PlcTagTableGroup group, Location parent, List<CheckedObject> found)
         {
             if (group == null) return;
 
-            string here = Join(parent, group.Name);
+            Location here = parent.InFolder(group.Name);
 
             foreach (PlcTagTable table in group.TagTables) TagTable(table, here, found);
             foreach (PlcTagTableUserGroup child in group.Groups) TagTables(child, here, found);
         }
 
-        private static void TagTable(PlcTagTable table, string path, List<CheckedObject> found)
+        private static void TagTable(PlcTagTable table, Location where, List<CheckedObject> found)
         {
             // The default tag table cannot be renamed, so its name is not the engineer's.
             if (table == null || table.IsDefault) return;
@@ -326,14 +363,15 @@ namespace AddIn.Adapters
             }
 
             found.Add(new CheckedObject(
-                ObjectFamily.TagTables, CodingStyleNames.PlcTagTable, table.Name, path, members));
+                ObjectFamily.TagTables, CodingStyleNames.PlcTagTable, table.Name,
+                where.Plc, where.Unit, where.Folders, members));
         }
 
-        private static void Types(PlcTypeGroup group, string parent, List<CheckedObject> found)
+        private static void Types(PlcTypeGroup group, Location parent, List<CheckedObject> found)
         {
             if (group == null) return;
 
-            string here = Join(parent, group.Name);
+            Location here = parent.InFolder(group.Name);
 
             foreach (PlcType type in group.Types) DataType(type, here, found);
             foreach (PlcTypeUserGroup child in group.Groups) Types(child, here, found);
@@ -341,7 +379,7 @@ namespace AddIn.Adapters
             // SystemTypeGroups is deliberately not walked, for the same reason as system blocks.
         }
 
-        private static void DataType(PlcType type, string path, List<CheckedObject> found)
+        private static void DataType(PlcType type, Location where, List<CheckedObject> found)
         {
             if (type == null) return;
 
@@ -349,14 +387,14 @@ namespace AddIn.Adapters
             found.Add(new CheckedObject(
                 ObjectFamily.Types,
                 type is PlcStruct ? CodingStyleNames.PlcStruct : type.GetType().Name,
-                type.Name, path));
+                type.Name, where.Plc, where.Unit, where.Folders));
         }
 
         /// <summary>
         /// The group has no folders and no name of its own in the object model, so a list's
         /// path is the PLC or unit it belongs to.
         /// </summary>
-        private static void AlarmTextLists(PlcAlarmTextlistGroup group, string parent, List<CheckedObject> found)
+        private static void AlarmTextLists(PlcAlarmTextlistGroup group, Location parent, List<CheckedObject> found)
         {
             if (group == null) return;
 
@@ -364,12 +402,13 @@ namespace AddIn.Adapters
         }
 
         /// <summary>User text lists only: a system text list is named by TIA.</summary>
-        private static void AlarmTextList(PlcAlarmTextlist list, string path, List<CheckedObject> found)
+        private static void AlarmTextList(PlcAlarmTextlist list, Location where, List<CheckedObject> found)
         {
             if (!(list is PlcAlarmUserTextlist)) return;
 
             found.Add(new CheckedObject(
-                ObjectFamily.AlarmTextLists, CodingStyleNames.AlarmTexts, list.Name, path));
+                ObjectFamily.AlarmTextLists, CodingStyleNames.AlarmTexts, list.Name,
+                where.Plc, where.Unit, where.Folders));
         }
 
         // ---- Finding the software -----------------------------------------------------------
@@ -466,49 +505,58 @@ namespace AddIn.Adapters
             return units;
         }
 
-        // ---- Paths --------------------------------------------------------------------------
+        // ---- Where something sits -----------------------------------------------------------
 
         /// <summary>
-        /// The path of whatever sits under <paramref name="start"/>, built upwards: folder
-        /// names, the software unit when there is one, and the PLC. Links it does not know -
-        /// the unit folder between a unit and its PLC, say - are stepped over rather than
-        /// ending the walk, since which ones TIA puts in the chain is not something to bet on.
+        /// Where whatever sits under <paramref name="start"/> lives, built upwards: folder
+        /// names, then the software unit if there is one, then the PLC. Links it does not
+        /// know - the unit folder between a unit and its PLC, say - are stepped over rather
+        /// than ending the walk, since which ones TIA puts in the chain is not something to
+        /// bet on.
         /// </summary>
-        private static string PathOf(IEngineeringObject start)
+        private static Location LocationOf(IEngineeringObject start)
         {
-            List<string> names = new List<string>();
+            List<string> folders = new List<string>();
+            string unit = null;
+            string plc = null;
 
             IEngineeringObject current = start;
             for (int step = 0; current != null && step < MaxParentSteps; step++)
             {
-                PlcSoftware plc = current as PlcSoftware;
-                if (plc != null)
+                PlcSoftware software = current as PlcSoftware;
+                if (software != null)
                 {
-                    names.Add(plc.Name);
+                    plc = software.Name;
                     break;
                 }
 
                 // Hardware or the project: the software was left behind, so stop here.
                 if (current is HardwareObject || current is Project) break;
 
-                string name = NameOf(current);
-                if (name != null) names.Add(name);
+                // A unit ends the folders and starts the climb towards its PLC: everything
+                // above it belongs to the PLC, not to the folders of this object.
+                PlcUnitBase unitLink = current as PlcUnitBase;
+                if (unitLink != null) unit = unitLink.Name;
+                else
+                {
+                    string name = FolderName(current);
+                    if (name != null) folders.Add(name);
+                }
 
                 current = current.Parent;
             }
 
-            names.Reverse();
-            return string.Join(Separator, names);
+            folders.Reverse();
+            return Location.Of(plc, unit, folders);
         }
 
         /// <summary>The name a link contributes to a path, or null for one that contributes none.</summary>
-        private static string NameOf(IEngineeringObject link)
+        private static string FolderName(IEngineeringObject link)
         {
             if (link is PlcBlockGroup) return ((PlcBlockGroup)link).Name;
             if (link is PlcTagTableGroup) return ((PlcTagTableGroup)link).Name;
             if (link is PlcTypeGroup) return ((PlcTypeGroup)link).Name;
             if (link is TechnologicalInstanceDBGroup) return ((TechnologicalInstanceDBGroup)link).Name;
-            if (link is PlcUnitBase) return ((PlcUnitBase)link).Name;
 
             return null;
         }

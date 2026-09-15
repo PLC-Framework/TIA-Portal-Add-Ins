@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Coding style report"
         Icon="{StaticResource BrandLogo}"
-        Height="680" Width="1080"
+        Height="680" Width="1240"
         MinHeight="480" MinWidth="760"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource DarkThemeGradientBrush}"
@@ -137,14 +137,14 @@
                 </ToggleButton>
             </WrapPanel>
 
-            <ComboBox Grid.Column="1" x:Name="KindBox" Width="160" Margin="8,0,0,6" VerticalAlignment="Top"
+            <ComboBox Grid.Column="1" x:Name="KindBox" Width="160" Margin="8,0,0,0" VerticalAlignment="Top"
                       ToolTip="Show one kind of object or interface section"
-                      SelectionChanged="OnFilterChanged" />
+                      SelectionChanged="OnFilterChanged" Height="35" />
 
             <!-- A watermark rather than a label: the box explains itself until it is used. -->
             <Grid Grid.Column="2" Width="220" Margin="8,0,0,6" VerticalAlignment="Top">
                 <TextBox x:Name="SearchBox" TextChanged="OnFilterChanged" KeyDown="OnSearchKey"
-                         ToolTip="Searches names, paths, rules and notes. Ctrl+F to get here, Esc to clear." />
+                         ToolTip="Searches every column - PLC, unit, object, name, path, rules and notes. Ctrl+F to get here, Esc to clear." />
                 <TextBlock Text="Search" Margin="9,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
                            Foreground="{StaticResource InkDisabled}">
                     <TextBlock.Style>
@@ -188,16 +188,30 @@
 
                     <ListView.View>
                         <GridView>
-                            <GridViewColumn Header="Result" Width="110" DisplayMemberBinding="{Binding Result}" />
-                            <GridViewColumn Header="Kind" Width="110" DisplayMemberBinding="{Binding Kind}" />
-                            <GridViewColumn Header="Name" Width="210">
+                            <GridViewColumn Header="Result" Width="90" DisplayMemberBinding="{Binding Result}" />
+                            <!-- A project holds several PLCs and a PLC several units, each with the
+                                 same folders and often the same names, so where a row comes from is
+                                 three answers. The unit column shows * for the general program. -->
+                            <GridViewColumn Header="PLC" Width="90" DisplayMemberBinding="{Binding Plc}" />
+                            <GridViewColumn Header="Software unit" Width="100" DisplayMemberBinding="{Binding Unit}" />
+                            <!-- Which object a member belongs to. The row above says it too, until
+                                 the table is sorted or a filter hides that row. -->
+                            <GridViewColumn Header="Object" Width="150">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Owner}" Style="{StaticResource Cell}" ToolTip="{Binding OwnerTip}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Kind" Width="100" DisplayMemberBinding="{Binding Kind}" />
+                            <GridViewColumn Header="Name" Width="180">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Name}" Style="{StaticResource Cell}" ToolTip="{Binding NameTip}" />
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
-                            <GridViewColumn Header="Path" Width="240">
+                            <GridViewColumn Header="Path" Width="190">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Path}" Style="{StaticResource Cell}" ToolTip="{Binding PathTip}" />
@@ -206,14 +220,14 @@
                             </GridViewColumn>
                             <!-- The rule's pattern and description on hover: what the id means is
                                  the first question a failing row raises. -->
-                            <GridViewColumn Header="Rules" Width="220">
+                            <GridViewColumn Header="Rules" Width="180">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Rules}" Style="{StaticResource Cell}" ToolTip="{Binding RulesTip}" />
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
-                            <GridViewColumn Header="Note" Width="320">
+                            <GridViewColumn Header="Note" Width="260">
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding Note}" Style="{StaticResource Cell}" ToolTip="{Binding NoteTip}" />

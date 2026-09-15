@@ -32,8 +32,21 @@ namespace Satellite.CodingStyleReport.Export
         public const string RulesSheet = "Rules";
         public const string InfoSheet = "Info";
 
-        /// <summary>The Report sheet's columns, in order. Named once, for the reader that will come.</summary>
+        /// <summary>The Report sheet's columns, in order. Named once, for the writer and the reader alike.</summary>
         public static readonly IReadOnlyList<string> ReportColumns = new[]
+        {
+            "Result", "Level", "PLC", "Software unit", "Object", "Kind", "Name", "Path",
+            "Matched", "Suggestions", "Note"
+        };
+
+        /// <summary>
+        /// The columns a workbook must have to be read as a report at all.
+        ///
+        /// **The three that report format 2 added are not among them**, so a workbook exported
+        /// by an earlier version still imports, with those cells empty. Refusing it would
+        /// throw away reports somebody kept, over columns the rows do not need to be read.
+        /// </summary>
+        private static readonly IReadOnlyList<string> RequiredReportColumns = new[]
         {
             "Result", "Level", "Kind", "Name", "Path", "Matched", "Suggestions", "Note"
         };
@@ -189,7 +202,7 @@ namespace Satellite.CodingStyleReport.Export
         {
             problem = null;
 
-            Dictionary<string, int> columns = Header(sheet, ReportColumns, ReportSheet, out problem);
+            Dictionary<string, int> columns = Header(sheet, RequiredReportColumns, ReportSheet, out problem);
             if (columns == null) return null;
 
             List<ReportRow> rows = new List<ReportRow>();
@@ -198,21 +211,24 @@ namespace Satellite.CodingStyleReport.Export
             {
                 if (cells.All(string.IsNullOrWhiteSpace)) continue;
 
-                string matched = ValueAt(cells, columns["Matched"]);
-                string suggestions = ValueAt(cells, columns["Suggestions"]);
+                string matched = Value(cells, columns, "Matched");
+                string suggestions = Value(cells, columns, "Suggestions");
 
                 rows.Add(new ReportRow
                 {
-                    Outcome = Outcomes.Parse(ValueAt(cells, columns["Result"])),
-                    Scope = string.Equals(ValueAt(cells, columns["Level"]), "Member", StringComparison.OrdinalIgnoreCase)
+                    Outcome = Outcomes.Parse(Value(cells, columns, "Result")),
+                    Scope = string.Equals(Value(cells, columns, "Level"), "Member", StringComparison.OrdinalIgnoreCase)
                         ? RowScope.Member.ToString()
                         : RowScope.Object.ToString(),
-                    Kind = ValueAt(cells, columns["Kind"]),
-                    Name = ValueAt(cells, columns["Name"]),
-                    Path = ValueAt(cells, columns["Path"]),
+                    Plc = Value(cells, columns, "PLC"),
+                    Unit = Value(cells, columns, "Software unit"),
+                    Owner = Value(cells, columns, "Object"),
+                    Kind = Value(cells, columns, "Kind"),
+                    Name = Value(cells, columns, "Name"),
+                    Path = Value(cells, columns, "Path"),
                     Matched = Ids(matched),
                     Suggestions = Ids(suggestions),
-                    Note = NullIfEmpty(ValueAt(cells, columns["Note"]))
+                    Note = NullIfEmpty(Value(cells, columns, "Note"))
                 });
             }
 
@@ -234,16 +250,16 @@ namespace Satellite.CodingStyleReport.Export
 
             foreach (string[] cells in sheet.Skip(1))
             {
-                string id = ValueAt(cells, columns["Id"]);
+                string id = Value(cells, columns, "Id");
                 if (string.IsNullOrWhiteSpace(id)) continue;
 
-                string description = ValueAt(cells, columns["Description"]);
+                string description = Value(cells, columns, "Description");
 
                 rules.Add(new ReportRule
                 {
                     Id = id,
-                    Catalogue = ValueAt(cells, columns["Catalogue"]),
-                    Regex = ValueAt(cells, columns["Pattern"]),
+                    Catalogue = Value(cells, columns, "Catalogue"),
+                    Regex = Value(cells, columns, "Pattern"),
                     Descriptions = string.IsNullOrEmpty(description)
                         ? new List<string>()
                         : description.Split('\n').ToList()
@@ -369,6 +385,13 @@ namespace Satellite.CodingStyleReport.Export
         private static string ValueAt(string[] cells, int index) =>
             index >= 0 && index < cells.Length ? cells[index] ?? string.Empty : string.Empty;
 
+        /// <summary>
+        /// One cell by its column's header, and empty when the sheet has no such column - which
+        /// is how a workbook written before a column existed still reads.
+        /// </summary>
+        private static string Value(string[] cells, Dictionary<string, int> columns, string column) =>
+            columns.TryGetValue(column, out int index) ? ValueAt(cells, index) : string.Empty;
+
         private static List<string> Ids(string cell) =>
             (cell ?? string.Empty)
                 .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
@@ -417,8 +440,9 @@ namespace Satellite.CodingStyleReport.Export
                     { WorkbookViewId = 0U }));
 
                 writer.WriteElement(new Columns(
-                    ColumnWidth(1, 16), ColumnWidth(2, 10), ColumnWidth(3, 16), ColumnWidth(4, 32),
-                    ColumnWidth(5, 44), ColumnWidth(6, 34), ColumnWidth(7, 40), ColumnWidth(8, 60)));
+                    ColumnWidth(1, 16), ColumnWidth(2, 10), ColumnWidth(3, 16), ColumnWidth(4, 16),
+                    ColumnWidth(5, 28), ColumnWidth(6, 16), ColumnWidth(7, 32), ColumnWidth(8, 40),
+                    ColumnWidth(9, 34), ColumnWidth(10, 40), ColumnWidth(11, 60)));
 
                 writer.WriteStartElement(new SheetData());
 
@@ -431,23 +455,33 @@ namespace Satellite.CodingStyleReport.Export
                     // Coloured as the window colours it, so a printed or shared sheet reads the
                     // same; members indented under their object instead of by padded names, so a
                     // cell holds the name exactly and a filter on it still matches.
-                    uint style = row.IsMember
-                        ? Outcomes.IsFailure(row) ? StyleMemberFailure : Outcomes.IsUnjudged(row) ? StyleMemberUnjudged : StyleMemberPlain
-                        : Outcomes.IsFailure(row) ? StyleFailure : Outcomes.IsUnjudged(row) ? StyleUnjudged : StylePlain;
+                    //
+                    // **Only the name is indented**, not the whole row: the columns that say where
+                    // the row comes from line up down the sheet, and a member is shown under its
+                    // object by the one cell that is about the object's contents.
+                    uint style = Outcomes.IsFailure(row) ? StyleFailure
+                               : Outcomes.IsUnjudged(row) ? StyleUnjudged : StylePlain;
+
+                    uint nameStyle = !row.IsMember ? style
+                                   : Outcomes.IsFailure(row) ? StyleMemberFailure
+                                   : Outcomes.IsUnjudged(row) ? StyleMemberUnjudged : StyleMemberPlain;
 
                     writer.WriteStartElement(new Row { RowIndex = line });
 
                     WriteText(writer, "A", line, Outcomes.Label(row), style);
                     WriteText(writer, "B", line, row.IsMember ? "Member" : "Object", style);
-                    WriteText(writer, "C", line, row.Kind, style);
-                    WriteText(writer, "D", line, row.Name, style);
-                    WriteText(writer, "E", line, row.Path, style);
-                    WriteText(writer, "F", line, string.Join(ListSeparator, row.Matched), style);
+                    WriteText(writer, "C", line, row.Plc, style);
+                    WriteText(writer, "D", line, row.Unit, style);
+                    WriteText(writer, "E", line, row.Owner, style);
+                    WriteText(writer, "F", line, row.Kind, style);
+                    WriteText(writer, "G", line, row.Name, nameStyle);
+                    WriteText(writer, "H", line, row.Path, style);
+                    WriteText(writer, "I", line, string.Join(ListSeparator, row.Matched), style);
                     // Suggestions only where nothing matched, as the window shows them. The checker
                     // lists every rule a name missed, so a passed FB would otherwise carry ten
                     // "suggestions" for names it has no business being.
-                    WriteText(writer, "G", line, row.Matched.Count == 0 ? string.Join(ListSeparator, row.Suggestions) : null, style);
-                    WriteText(writer, "H", line, row.Note, style);
+                    WriteText(writer, "J", line, row.Matched.Count == 0 ? string.Join(ListSeparator, row.Suggestions) : null, style);
+                    WriteText(writer, "K", line, row.Note, style);
 
                     writer.WriteEndElement();
                     line++;

@@ -155,8 +155,10 @@ namespace AddIn.Shared.Actions
 
         /// <summary>
         /// The same object reached twice - a folder selected together with a folder inside
-        /// it - is reported once. Family, type, path and name identify an object within a
-        /// project, since TIA refuses two blocks or two tag tables of one name in one PLC.
+        /// it - is reported once. Family, type, name and where it lives identify an object
+        /// within a project, since TIA refuses two blocks or two tag tables of one name in
+        /// one PLC. **The PLC and the unit are part of the key**: a folder of one name, and
+        /// a block of one name inside it, exist in every PLC and in every software unit.
         /// </summary>
         private static List<CheckedObject> Distinct(IEnumerable<CheckedObject> found)
         {
@@ -169,7 +171,8 @@ namespace AddIn.Shared.Actions
             {
                 if (subject == null) continue;
 
-                string key = subject.Family + " " + subject.Type + " " + subject.Path + " " + subject.Name;
+                string key = subject.Family + " " + subject.Type + " " + subject.Plc + " " +
+                             subject.Unit + " " + subject.Path + " " + subject.Name;
                 if (seen.Add(key)) subjects.Add(subject);
             }
 
