@@ -52,5 +52,15 @@ namespace AddIn.Shared.Adapters
         /// checked, and what was selected.
         /// </param>
         string Start(string fileName, string arguments, Func<string> payload);
+
+        /// <summary>
+        /// Shows a folder in the file browser. Returns null on success, or the reason.
+        ///
+        /// **The intent is a port, the executable is not.** Which program shows a folder is
+        /// the host's business, and it is the adapter that already holds the one wrapper
+        /// `ProcessStartPermission` authorises - so an action asks for a folder to be shown
+        /// and never learns the name of a Windows program.
+        /// </summary>
+        string Browse(string folder);
     }
 }

@@ -51,6 +51,15 @@ namespace AddIn
                 menuSelectionProvider => ConfigEditorAction.Execute(
                     _notifier, _launcher, ProjectDirectory(), ProjectName()));
 
+            // Beside the editor, and for the same reason: the folder belongs to the project
+            // rather than to anything selected inside it.
+            AddAction<Project>(
+                menuAddInRoot,
+                OpenProjectFolderAction.Title,
+                OpenProjectFolderAction.IconPath,
+                menuSelectionProvider => OpenProjectFolderAction.Execute(
+                    _notifier, _launcher, ProjectDirectory()));
+
             // The coding-style check on the project root checks every PLC in it. The same
             // entry on narrower nodes is registered below, after the actions that belong
             // to those nodes.

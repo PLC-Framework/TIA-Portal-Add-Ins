@@ -15,6 +15,7 @@ Right-click the project, or a PLC, or a selection of blocks, and:
 | **Config. Editor** | edits `.plc-framework\config.json` — the folder hierarchy to create and the naming rules to enforce — with validation while you type, so a broken reference is caught before the Add-In ever reads it |
 | **Create project hierarchy** | creates that folder tree inside the PLC: program blocks, technology objects, tag tables, PLC data types, and inside every software unit |
 | **Data block snapshot** | reads every variable of the selected data blocks over the CPU's own web server and writes one `.xlsx` per block — for capturing settings, not live process values |
+| **Open project folder** | opens the folder the project lives in, where `.plc-framework\` and its exports and reports are |
 
 The configuration lives **inside the TIA project**, in `.plc-framework\`, so it travels with the project and belongs to it rather than to whoever last ran the tool.
 

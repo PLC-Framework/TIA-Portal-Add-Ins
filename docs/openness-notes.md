@@ -189,7 +189,16 @@ The filter is purely by extension — the very same PE file renamed to `.dll` ge
 
 Launching an external executable is the sanctioned path, and Siemens equips it: `Siemens.Engineering.AddIn.Utilities` ships a full mirror of `System.Diagnostics.Process` — `Start(fileName, arguments)`, a 20-property `ProcessStartInfo`, `RedirectStandardInput/Output/Error`, `OutputDataReceived`, `Exited`, `WaitForExit`, even `Start(fileName, userName, password, domain)` — and `ProcessStartPermission` exists in the closed permission list for exactly this.
 
-That redirection is worth remembering: it is a ready-made IPC channel between the Add-In and a satellite, simpler than named pipes. **`StandardInput` is a plain `StreamWriter` in both versions**, so the channel does not have to be written all at once: the coding-style check starts its window, works for minutes, and writes the report into the same pipe afterwards.
+That redirection is worth remembering: it is a ready-made IPC channel between the Add-In and a satellite, simpler than named pipes.
+
+**A quoted path on a command line must not end in a backslash**, which is exactly the shape a folder has. Measured with a program that prints the arguments it was handed:
+
+```
+"E:\proyectos\TestSlave\" second      ->   [E:\proyectos\TestSlave" second]
+"E:\proyectos\TestSlave"  second      ->   [E:\proyectos\TestSlave]  [second]
+```
+
+The backslash escapes the closing quote, so the path swallows whatever follows it and the program is handed one argument nobody meant. `ProcessLauncher.Browse` trims the separator before quoting — and leaves a drive root alone, since `E:` on its own means something else. **`StandardInput` is a plain `StreamWriter` in both versions**, so the channel does not have to be written all at once: the coding-style check starts its window, works for minutes, and writes the report into the same pipe afterwards.
 
 ### Saying "busy", and letting the operator stop
 

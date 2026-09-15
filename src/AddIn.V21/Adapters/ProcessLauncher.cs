@@ -115,6 +115,50 @@ namespace AddIn.Adapters
             }
         }
 
+        /// <summary>
+        /// Opens the folder in Explorer.
+        ///
+        /// **Not `UseShellExecute = true`**, which is how a satellite does it: that hands the
+        /// path to the shell's verb machinery, and an Add-In runs in a sandbox where what the
+        /// shell may do is neither obvious nor ours to reason about. Naming the program and
+        /// passing it a path is the plain version of the same thing, and it is what
+        /// `ProcessStartPermission` authorises.
+        /// </summary>
+        public string Browse(string folder)
+        {
+            try
+            {
+                using (SiemensProcess process = new SiemensProcess())
+                {
+                    process.StartInfo = new SiemensProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = "\"" + Trimmed(folder) + "\"",
+                        UseShellExecute = false
+                    };
+
+                    return process.Start() ? null : "No new process was started.";
+                }
+            }
+            catch (Exception exception)
+            {
+                return exception.Message;
+            }
+        }
+
+        /// <summary>
+        /// The folder without a trailing separator, because a command line ends it with a
+        /// quote: <c>"E:\project\"</c> escapes that quote instead of closing it, and Explorer
+        /// is handed a path that runs into whatever follows. A drive root keeps its slash -
+        /// <c>E:</c> alone means something else entirely.
+        /// </summary>
+        private static string Trimmed(string folder)
+        {
+            folder = folder ?? string.Empty;
+
+            return folder.Length > 3 ? folder.TrimEnd('\\', '/') : folder;
+        }
+
         private static void Hand(SiemensProcess process, string standardInput)
         {
             try

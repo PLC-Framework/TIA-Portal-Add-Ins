@@ -78,7 +78,8 @@ src/AddIn.Shared/
 ├── AddIn.Shared.csproj       SDK-style net48, AnyCPU, references Core, embeds assets\
 ├── Assets.cs                 embedded assets → Stream, no image type
 ├── Actions/                  use cases: AboutAction, ConfigEditorAction,
-│                             DataBlockSnapshotAction, CreateProjectHierarchyAction, and
+│                             DataBlockSnapshotAction, CreateProjectHierarchyAction,
+│                             CheckCodingStyleAction, OpenProjectFolderAction, and
 │                             HelloWorldAction, kept but no longer wired into the menu
 │                             Handoff.cs holds the payload types — public and top level,
 │                             because partial trust refuses to serialize anything else
