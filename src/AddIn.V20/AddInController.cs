@@ -29,12 +29,14 @@ namespace AddIn
         private readonly TiaPortal _tiaPortal;
         private readonly ITiaNotifier _notifier;
         private readonly IProcessLauncher _launcher;
+        private readonly ITiaBusy _busy;
 
         public AddInController(TiaPortal tiaPortal) : base(Product.Title)
         {
             _tiaPortal = tiaPortal;
             _notifier = new TiaNotifier(_tiaPortal);
             _launcher = new ProcessLauncher();
+            _busy = new TiaBusy(_tiaPortal);
         }
 
         protected override void BuildContextMenuItems(ContextMenuAddInRoot menuAddInRoot)
@@ -144,6 +146,7 @@ namespace AddIn
                     CheckCodingStyleAction.Execute(
                         _notifier,
                         _launcher,
+                        _busy,
                         ProjectDirectory(),
                         ProjectName(),
                         CheckCodingStyleAction.Scope(selected.Count, one, many),

@@ -82,10 +82,10 @@ src/AddIn.Shared/
 │                             HelloWorldAction, kept but no longer wired into the menu
 │                             Handoff.cs holds the payload types — public and top level,
 │                             because partial trust refuses to serialize anything else
-└── Adapters/                 ports: ITiaNotifier, IGroupNode, IProcessLauncher,
-                              HierarchyTargets, PlcSelection, ExportScratch (one run's tmp\
-                              folder, given back when the run ends), plus Icons (assets →
-                              System.Drawing.Icon)
+└── Adapters/                 ports: ITiaNotifier, IGroupNode, IProcessLauncher, ITiaBusy
+                              (TIA's own busy state, with cancellation), HierarchyTargets,
+                              PlcSelection, ExportScratch (one run's tmp\ folder, given back
+                              when the run ends), plus Icons (assets → System.Drawing.Icon)
 ```
 
 ```
@@ -150,6 +150,7 @@ src/AddIn.VXX/
 ├── Adapters/
 │   ├── TiaNotifier.cs        ITiaNotifier against this version's message box
 │   ├── TiaGroupNode.cs       IGroupNode over this version's group compositions
+│   ├── TiaBusy.cs            ITiaBusy over ExclusiveAccess: text, and a Cancel that is obeyed
 │   └── ProcessLauncher.cs    IProcessLauncher over Siemens' Process wrapper
 └── Config.xml                PackageConfiguration for the Publisher
 ```

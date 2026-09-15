@@ -127,6 +127,11 @@ The adapter wraps Siemens' `Process` — what `ProcessStartPermission` authorise
 - **Four endings, four sentences**: the report arrives and fills the table; a report arrives that cannot be read; **the input closes with nothing in it**, which is the check having broken off — TIA was stopped, or it ran into something — and says so instead of waiting forever; and nothing selected, which is an *empty report* rather than a closed pipe, because "no rows" and "it never finished" are different facts.
 - **It waits only when the Add-In said it would.** Both the notice and redirected input are required: a window started any other way shows the empty state as before, and so does one launched by an Add-In older than this window, which sends no notice and is served by the path that reads the handoff at startup.
 
+**And TIA itself says it is busy**, through its own exclusive access: the caption names the check and the project, the text says "Checking 26 of 65 — DB_FILLER_20", and the dialog's Cancel stops it between one object and the next. Without it the satellite would be the only thing moving while TIA sat there ignoring clicks with nothing to say for itself.
+
+- **Cancelling produces no report.** The window is already open, so closing its input with nothing is what tells it the check did not finish — and TIA says so too. A report of whatever had been reached by then would be one with a silent hole in it.
+- **A busy state TIA will not give is not a reason to refuse the check**, which then runs without one.
+
 > **An Add-In may not hold a Siemens engineering object in a field**, which is how the first version of this was written and how the Publisher stopped it: it refuses to package an Add-In whose member holds one, because from V20 an Add-In is not reloaded between executions. `IProcessLauncher` therefore takes the work as a delegate — `Start(fileName, arguments, Func<string> payload)` — so the process stays a local variable while the check runs inside it.
 
 Verified here with the payload the action really produced: handed over on standard input the way `ProcessLauncher` does it and through the fallback path argument, twelve rows with their header and counts, a second window opening beside the first, and both empty states.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -37,6 +38,13 @@ namespace AddIn.Shared.Actions
         /// <summary>How many validation problems a notification names before it only counts the rest.</summary>
         private const int ListedProblems = 10;
 
+        /// <summary>
+        /// How many objects pass between two updates of the text TIA shows. Cancellation is
+        /// asked about on every one of them - that is a property read - while the text is a
+        /// call into the host, and a name replaced thirty times a second is not read by anyone.
+        /// </summary>
+        private const int ProgressEvery = 25;
+
         /// <param name="scope">What was selected, in words for the report's header: "PLC", "2 blocks".</param>
         /// <param name="walk">
         /// Reads the selection out of the project, given somewhere to export a block whose
@@ -48,6 +56,7 @@ namespace AddIn.Shared.Actions
         public static void Execute(
             ITiaNotifier notifier,
             IProcessLauncher launcher,
+            ITiaBusy busy,
             string projectDirectory,
             string project,
             string scope,
@@ -107,10 +116,16 @@ namespace AddIn.Shared.Actions
             // - the Publisher refuses to package one that does.
             DateTime startedUtc = DateTime.UtcNow;
 
-            string error = launcher.Start(
-                path,
-                CheckingNotice.Arguments(project, scope),
-                () => Report(notifier, style, projectDirectory, project, scope, startedUtc, walk));
+            // And TIA says it is busy while it works, with what it is on and a way to stop.
+            // Without it the window is the only thing moving, while TIA itself sits there
+            // ignoring clicks with nothing to say for itself.
+            Func<string> report = () => busy == null
+                ? Report(notifier, style, projectDirectory, project, scope, startedUtc, walk, null)
+                : busy.While(
+                    Title + ": " + (string.IsNullOrWhiteSpace(project) ? "the project" : project),
+                    progress => Report(notifier, style, projectDirectory, project, scope, startedUtc, walk, progress));
+
+            string error = launcher.Start(path, CheckingNotice.Arguments(project, scope), report);
 
             if (error != null)
                 notifier.Error(Title, $"\n\n{ExecutableName} could not be started.\n\n{error}");
@@ -130,7 +145,8 @@ namespace AddIn.Shared.Actions
             string project,
             string scope,
             DateTime startedUtc,
-            Func<ExportScratch, IEnumerable<CheckedObject>> walk)
+            Func<ExportScratch, IEnumerable<CheckedObject>> walk,
+            Progress progress)
         {
             // One folder for this run, and it goes away below whatever happens: a block is
             // exported into it to read its interface, and a project's code must not be left
@@ -142,6 +158,10 @@ namespace AddIn.Shared.Actions
                 List<CheckedObject> subjects;
                 try
                 {
+                    // The walk is one call into TIA and cannot be interrupted part-way, so it
+                    // says what it is doing before rather than during.
+                    Stop(progress, "Reading the selection...");
+
                     subjects = Distinct(walk(scratch));
                 }
                 catch (Exception e)
@@ -170,11 +190,30 @@ namespace AddIn.Shared.Actions
 
                 CodingStyleChecker checker = new CodingStyleChecker(style);
                 List<CheckRow> rows = new List<CheckRow>();
+                int done = 0;
 
                 // Interfaces are read here rather than during the walk: the checker asks an
                 // object for its members only when the rules its name matched expect some, so
                 // a block nobody configured an interface for is never exported at all.
-                foreach (CheckedObject subject in subjects) rows.AddRange(checker.Check(subject));
+                foreach (CheckedObject subject in subjects)
+                {
+                    // Asked on every object, said on every twenty-fifth: the question is a
+                    // property read, the answer is a call into TIA and a name nobody can read
+                    // at thirty a second.
+                    bool speak = done % ProgressEvery == 0;
+
+                    if (Stop(progress, speak ? Doing(subject, done, subjects.Count) : null))
+                    {
+                        // Nothing is sent. A report of the objects reached before the operator
+                        // pressed Cancel would be a report with a silent hole in it, and the
+                        // window says the check did not finish instead.
+                        notifier.Info(Title, "\n\nThe check was cancelled. No report was produced.");
+                        return null;
+                    }
+
+                    rows.AddRange(checker.Check(subject));
+                    done++;
+                }
 
                 return StyleReport.Build(style, rows, project, projectDirectory, scope, startedUtc).ToJson();
             }
@@ -191,6 +230,16 @@ namespace AddIn.Shared.Actions
                 scratch.Discard();
             }
         }
+
+        /// <summary>
+        /// Says where the check is and asks whether to stop. True means stop; a progress that
+        /// is not there - no busy state, or a caller without one - never says so.
+        /// </summary>
+        private static bool Stop(Progress progress, string text) => progress != null && progress(text);
+
+        /// <summary>What TIA shows while it works: how far along, and on what.</summary>
+        private static string Doing(CheckedObject subject, int done, int total) =>
+            string.Format(CultureInfo.CurrentCulture, "Checking {0} of {1} - {2}", done + 1, total, subject.Name);
 
         /// <summary>
         /// What was selected, in words for the report's header: "PLC", "3 blocks". Kept here so

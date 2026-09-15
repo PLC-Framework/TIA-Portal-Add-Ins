@@ -191,6 +191,24 @@ Launching an external executable is the sanctioned path, and Siemens equips it: 
 
 That redirection is worth remembering: it is a ready-made IPC channel between the Add-In and a satellite, simpler than named pipes. **`StandardInput` is a plain `StreamWriter` in both versions**, so the channel does not have to be written all at once: the coding-style check starts its window, works for minutes, and writes the report into the same pipe afterwards.
 
+### Saying "busy", and letting the operator stop
+
+A check of a whole PLC runs on TIA's own thread, so TIA is unresponsive for as long as it takes. What is available to say so, read off both versions on 2026-09-15:
+
+|  | V20 | V21 |
+| --- | --- | --- |
+| `ExclusiveAccess` | `Siemens.Engineering.ExclusiveAccess`, from `tiaPortal.ExclusiveAccess(text)` | identical, same members |
+| What it offers | `Text { get; set; }`, `IsCancellationRequested`, `Dispose()` | the same |
+| An Add-In's own progress | `Siemens.Engineering.AddIn.ProgressContext`, from `TiaPortal.GetProgressContext(WorkflowContext)` | **`ProgressProvider`**, an `IEngineeringService` like `MessageBoxProvider` |
+
+**`ExclusiveAccess` is the one a context-menu Add-In can use**, and the only one whose surface is the same in both versions — so one port, `ITiaBusy`, and two byte-identical adapters. **The progress types are not usable here**: V20's needs a `WorkflowContext`, which is what a *workflow* Add-In is handed and a menu entry never sees, and V21 does not even have the same type. A port over those two would be a divergence carried for something `ExclusiveAccess` already does.
+
+Three things the adapter does with it, each because the alternative is worse:
+
+- **A busy state that cannot be opened does not stop the check.** TIA may already hold exclusive access, or refuse it in a session with no user interface; the work then runs with a progress that says nothing, which beats refusing what the operator asked for.
+- **Cancellation is asked on every object, the text set every twenty-fifth.** `IsCancellationRequested` is a property read; `Text` is a call into the host, and a name replaced thirty times a second is not read by anybody.
+- **Cancelling sends no report at all.** The window is already open and waiting, and closing its input with nothing is what tells it the check did not finish. A report of the objects reached before Cancel was pressed would be a report with a silent hole in it.
+
 ### The Publisher inspects the assembly, and refuses a member holding an engineering object
 
 Found on 2026-09-15, giving the report window a handle the Add-In could write into later. The code compiled; the build then failed at the Publisher:
@@ -207,7 +225,8 @@ Three things to take from it:
 
 - **The rule is real and it is Siemens': an Add-In is not reloaded between executions**, so a member still points at the previous run's object. The Publisher checks for it rather than leaving it to be discovered in the field.
 - **It fails at packaging, not at compilation**, so the message names a type and a member instead of a file and a line — and it fails the whole build of that project, `.addin` included.
-- **The way round it is to pass the work inwards.** `IProcessLauncher.Start(fileName, arguments, Func<string> payload)` hands the adapter a delegate, so the process is a local variable for the whole of a check that takes minutes, and nothing is stored anywhere.
+- **The way round it is to pass the work inwards.** `IProcessLauncher.Start(fileName, arguments, Func<string> payload)` hands the adapter a delegate, so the process is a local variable for the whole of a check that takes minutes, and nothing is stored anywhere. `ITiaBusy.While` is shaped the same way around its `ExclusiveAccess`.
+- **A lambda capturing one is accepted**, which is worth knowing before contorting a design around the rule: the check looks at the fields a type declares, not at the display class the compiler generates for a closure. Measured — `TiaBusy` captures its `ExclusiveAccess` in the delegate it hands out, and the Publisher packages it.
 
 ### Partial trust, and what it forbids
 
