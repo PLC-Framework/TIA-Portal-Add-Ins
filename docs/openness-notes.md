@@ -261,7 +261,7 @@ Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are
 
 ### Walking a PLC for the coding-style check
 
-`Adapters/TiaCheckedObjects.cs` turns whatever was selected into the `CheckedObject`s that `Core.Checks.CodingStyleChecker` reads, and `CheckCodingStyleAction` runs the check. Read off both assemblies by reflection, **the surface it touches is identical in V20 and V21**, so the two files are byte-identical and duplicated only for the assembly identity. **Compiled against both and exercised with doubles; not yet run inside TIA.**
+`Adapters/TiaCheckedObjects.cs` turns whatever was selected into the `CheckedObject`s that `Core.Checks.CodingStyleChecker` reads, and `CheckCodingStyleAction` runs the check. Read off both assemblies by reflection, **the surface it touches is identical in V20 and V21**, so the two files are byte-identical and duplicated only for the assembly identity. **Run inside TIA Portal on the VM (2026-09-15)**, which is what settles the three things no test here could: that `Export` writes the interface the reader expects, that partial trust really does let the Add-In create a folder inside the project and write to it, and that the whole chain — menu entry, walk, export, report window — holds together.
 
 "Check coding style" is registered on eleven kinds of node, one `AddActionItemWithIcon<T>` each, and only the one matching the selection shows:
 
