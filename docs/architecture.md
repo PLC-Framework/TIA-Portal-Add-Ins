@@ -67,6 +67,8 @@ src/Core/
 │   ├── SimaticMlInterface.cs an exported interface → members, each with its own name and its parents
 │   ├── CheckedObject.cs · CheckedMembers.cs · CheckRow.cs · ObjectFamily.cs
 │   └── StyleReport.cs        the report document the Add-In sends and the satellite reads
+├── Exports/
+│   └── ExportTree.cs         where an exported object goes: exports\ shaped like the project
 ├── Secrets/
 │   ├── DotEnv.cs             the per-user .env: read, and written back surgically
 │   └── Variables.cs          ${NAME} references — pure, given a lookup
@@ -348,7 +350,7 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `config.json` | the user by hand, and `Satellite.ConfigEditor` | **yes** |
 | `config.schema.json` | `Satellite.ConfigEditor` | **yes** — `config.json` points at it relatively |
 | `.gitignore` | `Satellite.ConfigEditor`, only when absent | **yes** |
-| `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx` | no |
+| `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx`, and the Add-In's export → a tree shaped like the project's, `<PLC>\Program blocks\03-ALL\_oc_seq2.xml` | no |
 | `logs\` | what a run recorded about itself | no |
 | `tmp\` | the coding-style check, while it reads an interface → `coding-style-<timestamp>\`, deleted when the run ends | no |
 | `reports\` | `Satellite.CodingStyleReport`, on export → `<project>-coding-style-<timestamp>.xlsx` | no |
