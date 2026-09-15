@@ -189,7 +189,25 @@ The filter is purely by extension — the very same PE file renamed to `.dll` ge
 
 Launching an external executable is the sanctioned path, and Siemens equips it: `Siemens.Engineering.AddIn.Utilities` ships a full mirror of `System.Diagnostics.Process` — `Start(fileName, arguments)`, a 20-property `ProcessStartInfo`, `RedirectStandardInput/Output/Error`, `OutputDataReceived`, `Exited`, `WaitForExit`, even `Start(fileName, userName, password, domain)` — and `ProcessStartPermission` exists in the closed permission list for exactly this.
 
-That redirection is worth remembering: it is a ready-made IPC channel between the Add-In and a satellite, simpler than named pipes.
+That redirection is worth remembering: it is a ready-made IPC channel between the Add-In and a satellite, simpler than named pipes. **`StandardInput` is a plain `StreamWriter` in both versions**, so the channel does not have to be written all at once: the coding-style check starts its window, works for minutes, and writes the report into the same pipe afterwards.
+
+### The Publisher inspects the assembly, and refuses a member holding an engineering object
+
+Found on 2026-09-15, giving the report window a handle the Add-In could write into later. The code compiled; the build then failed at the Publisher:
+
+```
+error : Engineering object '_process' of type 'Siemens.Engineering.AddIn.Utilities.Process' in
+'AddIn.Adapters.ProcessLauncher+Launched' should not be defined as a field, property or as a
+static member. TIA Portal V20 onwards Add-Ins do not reload after each execution and member
+variables are not reinitialized automatically. Keep the variable in local scope to avoid issues
+due to missing initialization.
+```
+
+Three things to take from it:
+
+- **The rule is real and it is Siemens': an Add-In is not reloaded between executions**, so a member still points at the previous run's object. The Publisher checks for it rather than leaving it to be discovered in the field.
+- **It fails at packaging, not at compilation**, so the message names a type and a member instead of a file and a line — and it fails the whole build of that project, `.addin` included.
+- **The way round it is to pass the work inwards.** `IProcessLauncher.Start(fileName, arguments, Func<string> payload)` hands the adapter a delegate, so the process is a local variable for the whole of a check that takes minutes, and nothing is stored anywhere.
 
 ### Partial trust, and what it forbids
 

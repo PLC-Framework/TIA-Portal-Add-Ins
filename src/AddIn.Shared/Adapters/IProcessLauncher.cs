@@ -1,3 +1,5 @@
+using System;
+
 namespace AddIn.Shared.Adapters
 {
     /// <summary>
@@ -27,5 +29,28 @@ namespace AddIn.Shared.Adapters
         /// and no stale handoff left behind by a run that crashed.
         /// </summary>
         string Start(string fileName, string standardInput);
+
+        /// <summary>
+        /// Starts the executable, **keeps its input open while <paramref name="payload"/>
+        /// does the work**, and writes what that returns.
+        ///
+        /// This is the long-running shape of the one above: a check of a whole PLC takes
+        /// seconds to minutes, and a window that only appears once it is finished is
+        /// indistinguishable from one that never appeared. Started first, the window says
+        /// what is being worked on and fills itself in when the report lands.
+        ///
+        /// **The work is a delegate rather than the caller keeping a handle, and that is not
+        /// a style choice**: an Add-In may not hold a Siemens engineering object in a field,
+        /// and the Publisher refuses to package one that does - see the note in CLAUDE.md.
+        /// Passing the work inwards keeps the process a local variable of the adapter.
+        ///
+        /// A payload of null closes the input with nothing in it, which tells the child the
+        /// run produced no report rather than leaving it waiting for one.
+        /// </summary>
+        /// <param name="arguments">
+        /// What the child is told before there is anything to send - which project is being
+        /// checked, and what was selected.
+        /// </param>
+        string Start(string fileName, string arguments, Func<string> payload);
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Windows;
 
 using Core.Checks;
@@ -40,8 +41,52 @@ namespace Satellite.CodingStyleReport
                 return;
             }
 
+            // Launched by TIA Portal, the window goes up **before** the check runs and says
+            // what is being worked on; the report arrives on standard input minutes later, on
+            // a thread of its own so this one paints. Nothing on screen for the length of a
+            // project-wide check is what made operators think the Add-In had died.
+            //
+            // **Both halves of the condition are needed.** The notice is the Add-In stating
+            // that a report is coming, so a window started any other way never sits waiting
+            // for one - including from a script whose own input happens to be redirected, and
+            // including an Add-In older than this window, which sends no notice and is served
+            // by the path below exactly as it was. The redirection is what makes the promise
+            // keepable: without a pipe there is nothing to wait on.
+            CheckingNotice notice = CheckingNotice.From(e.Args);
+
+            if (notice != null && HandoffReader.Expected())
+            {
+                MainWindow waiting = new MainWindow(notice);
+                waiting.Show();
+
+                Wait(waiting);
+                return;
+            }
+
             StyleReport report = HandoffReader.Read(e.Args, out bool handedOver, out string problem);
             new MainWindow(report, handedOver, problem).Show();
+        }
+
+        /// <summary>
+        /// Reads the handoff off the UI thread and shows it when it lands.
+        ///
+        /// A plain background thread rather than a task: this one blocks on a pipe for as
+        /// long as TIA takes, and there is nothing to await it.
+        /// </summary>
+        private static void Wait(MainWindow window)
+        {
+            Thread reader = new Thread(() =>
+            {
+                StyleReport report = HandoffReader.Await(out bool arrived, out string problem);
+
+                window.Dispatcher.Invoke(new Action(() => window.Arrived(report, arrived, problem)));
+            })
+            {
+                IsBackground = true,
+                Name = "handoff"
+            };
+
+            reader.Start();
         }
     }
 }

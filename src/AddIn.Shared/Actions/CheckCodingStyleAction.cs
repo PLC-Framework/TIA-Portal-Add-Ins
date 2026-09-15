@@ -96,13 +96,47 @@ namespace AddIn.Shared.Actions
                 return;
             }
 
+            // **The window goes up before any of the work**, and is told what is being
+            // checked. A project-wide check is seconds to minutes, all of it on TIA's own
+            // thread, and a window that only appears at the end is indistinguishable from one
+            // that never appeared: the operator sees TIA busy, nothing on screen, and
+            // concludes the Add-In failed.
+            //
+            // The work is handed to the launcher rather than the launcher handing back a
+            // process, because an Add-In may not keep a Siemens engineering object in a field
+            // - the Publisher refuses to package one that does.
+            DateTime startedUtc = DateTime.UtcNow;
+
+            string error = launcher.Start(
+                path,
+                CheckingNotice.Arguments(project, scope),
+                () => Report(notifier, style, projectDirectory, project, scope, startedUtc, walk));
+
+            if (error != null)
+                notifier.Error(Title, $"\n\n{ExecutableName} could not be started.\n\n{error}");
+        }
+
+        /// <summary>
+        /// The whole check, with the window already open and waiting for what it returns.
+        ///
+        /// **Null means "no report", not "nothing happened"**: the launcher closes the input
+        /// with nothing in it and the window says the check did not finish, which is the truth
+        /// whenever this returns after a notification about why.
+        /// </summary>
+        private static string Report(
+            ITiaNotifier notifier,
+            CodingStyle style,
+            string projectDirectory,
+            string project,
+            string scope,
+            DateTime startedUtc,
+            Func<ExportScratch, IEnumerable<CheckedObject>> walk)
+        {
             // One folder for this run, and it goes away below whatever happens: a block is
             // exported into it to read its interface, and a project's code must not be left
             // lying in a temporary folder afterwards.
-            DateTime startedUtc = DateTime.UtcNow;
             ExportScratch scratch = ExportScratch.In(projectDirectory, startedUtc);
 
-            string payload;
             try
             {
                 List<CheckedObject> subjects;
@@ -116,7 +150,7 @@ namespace AddIn.Shared.Actions
                     // could not be read fails here, by name, instead of being left out of a
                     // report that would then look complete.
                     notifier.Error(Title, "\n\nThe selection could not be read from the project.\n\n" + e.Message);
-                    return;
+                    return null;
                 }
 
                 if (subjects.Count == 0)
@@ -126,7 +160,12 @@ namespace AddIn.Shared.Actions
                         "Select the project, a PLC, a software unit, a folder, or blocks, tag tables, " +
                         "PLC data types or text lists. Objects TIA names itself - system blocks, the " +
                         "default tag table - are not checked.");
-                    return;
+
+                    // A window is already open and waiting. An empty report is what says so
+                    // there; closing its input with nothing would claim the check broke off.
+                    return StyleReport
+                        .Build(style, new List<CheckRow>(), project, projectDirectory, scope, startedUtc)
+                        .ToJson();
                 }
 
                 CodingStyleChecker checker = new CodingStyleChecker(style);
@@ -137,30 +176,20 @@ namespace AddIn.Shared.Actions
                 // a block nobody configured an interface for is never exported at all.
                 foreach (CheckedObject subject in subjects) rows.AddRange(checker.Check(subject));
 
-                try
-                {
-                    payload = StyleReport
-                        .Build(style, rows, project, projectDirectory, scope, startedUtc)
-                        .ToJson();
-                }
-                catch (Exception e)
-                {
-                    // Should not happen - the contract is public and was serialized inside a
-                    // restricted AppDomain - but a sandbox refusal is exactly the kind of thing
-                    // that only shows up inside TIA, and it deserves its own sentence.
-                    notifier.Error(Title, "\n\nThe report could not be prepared.\n\n" + e.Message);
-                    return;
-                }
+                return StyleReport.Build(style, rows, project, projectDirectory, scope, startedUtc).ToJson();
+            }
+            catch (Exception e)
+            {
+                // Should not happen - the contract is public and was serialized inside a
+                // restricted AppDomain - but a sandbox refusal is exactly the kind of thing
+                // that only shows up inside TIA, and it deserves its own sentence.
+                notifier.Error(Title, "\n\nThe report could not be prepared.\n\n" + e.Message);
+                return null;
             }
             finally
             {
                 scratch.Discard();
             }
-
-            string error = launcher.Start(path, payload);
-
-            if (error != null)
-                notifier.Error(Title, $"\n\n{ExecutableName} could not be started.\n\n{error}");
         }
 
         /// <summary>

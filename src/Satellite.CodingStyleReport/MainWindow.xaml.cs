@@ -10,6 +10,8 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 
 using Core;
 using Core.Checks;
@@ -23,6 +25,9 @@ namespace Satellite.CodingStyleReport
     public partial class MainWindow : Window
     {
         private const string AllKinds = "All kinds";
+
+        /// <summary>The waiting bar's track, in device-independent pixels: it is what the pulse slides along.</summary>
+        private const double WaitingBarWidth = 320;
 
         private readonly List<ReportLine> _lines = new List<ReportLine>();
         private ICollectionView _view;
@@ -57,6 +62,46 @@ namespace Satellite.CodingStyleReport
 
             ShowReport(report);
             ShowCount();
+        }
+
+        /// <summary>
+        /// The window TIA Portal opened before it started checking. It says what is being
+        /// worked on until the report arrives on standard input, which is minutes away on a
+        /// whole PLC - and a window that only appeared at the end was being read as a failure.
+        /// </summary>
+        public MainWindow(CheckingNotice notice)
+        {
+            InitializeComponent();
+
+            Title = "Coding style report " + Product.Version;
+
+            // Launched by TIA, so it is that run's window: importing another report over it
+            // would contradict the header it is about to get.
+            ImportButton.Visibility = Visibility.Collapsed;
+
+            ShowWaiting(notice);
+        }
+
+        /// <summary>
+        /// The end of the wait, on the UI thread: the report, a report that could not be read,
+        /// or nothing at all - which is the Add-In saying the check did not finish.
+        /// </summary>
+        public void Arrived(StyleReport report, bool arrived, string problem)
+        {
+            StopWaiting();
+
+            if (report != null)
+            {
+                ShowReport(report);
+                ShowCount();
+                return;
+            }
+
+            ShowEmpty(
+                arrived
+                    ? "The report handed over by TIA Portal could not be read."
+                    : "The check did not finish. TIA Portal closed without sending a report - it was stopped, or it ran into something it could not read.",
+                problem);
         }
 
         /// <summary>Puts a report on screen, replacing whatever was there - the filters start over with it.</summary>
@@ -118,24 +163,75 @@ namespace Satellite.CodingStyleReport
             ExportBar.Visibility = Visibility.Visible;
             SummaryLine.Visibility = Visibility.Visible;
             EmptyNote.Visibility = Visibility.Collapsed;
+            WaitingPanel.Visibility = Visibility.Collapsed;
         }
 
-        private void ShowEmpty(bool handedOver, string problem)
+        /// <summary>
+        /// Two situations, two sentences: nothing was sent, or something was and it could not
+        /// be read. Saying the first when the second happened sends the operator back to TIA
+        /// Portal to repeat what already failed.
+        /// </summary>
+        private void ShowEmpty(bool handedOver, string problem) =>
+            ShowEmpty(
+                handedOver
+                    ? "The report handed over by TIA Portal could not be read."
+                    : "No report yet. In TIA Portal, right-click the project, a PLC, a folder or some objects and choose Check coding style - or import a report exported earlier.",
+                problem);
+
+        private void ShowEmpty(string note, string problem)
         {
             RowList.Visibility = Visibility.Collapsed;
             FilterBar.Visibility = Visibility.Collapsed;
             ExportBar.Visibility = Visibility.Collapsed;
             SummaryLine.Visibility = Visibility.Collapsed;
+            WaitingPanel.Visibility = Visibility.Collapsed;
             EmptyNote.Visibility = Visibility.Visible;
 
-            // Two situations, two sentences: nothing was sent, or something was and it could
-            // not be read. Saying the first when the second happened sends the operator back
-            // to TIA Portal to repeat what already failed.
-            EmptyNote.Text = handedOver
-                ? "The report handed over by TIA Portal could not be read."
-                : "No report yet. In TIA Portal, right-click the project, a PLC, a folder or some objects and choose Check coding style - or import a report exported earlier.";
-
+            EmptyNote.Text = note;
             StatusLine.Text = problem ?? string.Empty;
+        }
+
+        // ------------------------------------------------------------------ waiting
+
+        private void ShowWaiting(CheckingNotice notice)
+        {
+            RowList.Visibility = Visibility.Collapsed;
+            FilterBar.Visibility = Visibility.Collapsed;
+            ExportBar.Visibility = Visibility.Collapsed;
+            SummaryLine.Visibility = Visibility.Collapsed;
+            EmptyNote.Visibility = Visibility.Collapsed;
+            WaitingPanel.Visibility = Visibility.Visible;
+
+            WaitingLine.Text = notice == null
+                ? "Checking the coding style of the TIA Portal project..."
+                : notice.Describe();
+
+            // The header says the same, so the window is recognisable among several before
+            // any of them has a report.
+            ProjectLine.Text = notice == null ? string.Empty : Describe(notice);
+            StatusLine.Text = "Waiting for TIA Portal.";
+
+            DoubleAnimation slide = new DoubleAnimation
+            {
+                From = 0,
+                To = WaitingBarWidth - WaitingPulse.Width,
+                Duration = new Duration(TimeSpan.FromSeconds(1.1)),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever,
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
+            };
+
+            WaitingSlide.BeginAnimation(TranslateTransform.XProperty, slide);
+        }
+
+        /// <summary>
+        /// Stops the animation before the report replaces it. Left running it would keep a
+        /// timer alive behind a panel nobody can see.
+        /// </summary>
+        private void StopWaiting()
+        {
+            WaitingSlide.BeginAnimation(TranslateTransform.XProperty, null);
+            WaitingPanel.Visibility = Visibility.Collapsed;
         }
 
         // ------------------------------------------------------------------ import
@@ -355,6 +451,18 @@ namespace Satellite.CodingStyleReport
 
         private string Chip(string label, CheckOutcome outcome) =>
             string.Format(CultureInfo.CurrentCulture, "{0}  {1}", label, _lines.Count(line => line.Outcome == outcome));
+
+        /// <summary>The header while there is no report: the same facts, in the same order.</summary>
+        private static string Describe(CheckingNotice notice)
+        {
+            List<string> parts = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(notice.Project)) parts.Add(notice.Project);
+            if (!string.IsNullOrWhiteSpace(notice.Scope)) parts.Add(notice.Scope);
+            parts.Add("checking...");
+
+            return string.Join("  -  ", parts);
+        }
 
         /// <param name="importedFrom">The workbook it was read from, named in the header so an imported report is never taken for a fresh run.</param>
         private static string Describe(StyleReport report, string importedFrom)

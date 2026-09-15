@@ -117,6 +117,18 @@ The adapter wraps Siemens' `Process` — what `ProcessStartPermission` authorise
 - **No instance guard.** Each run is a report of its own selection at its own moment; a single window would refuse the second or throw the first away, and two side by side is how a before-and-after gets compared.
 - **Two empty states, two sentences.** Started by hand, it says how to get a report — from TIA Portal, or by importing one; handed something it cannot read, it says that, with the reason in the status line — sending the operator back to repeat what already failed would be the wrong advice.
 
+### The window opens before the check, not after
+
+**Because an operator restarted his machine over it.** A check of a whole PLC takes long enough that TIA sits busy with nothing on screen, and the only reasonable reading of that is that the Add-In died. The Add-In now starts the window *first*, works, and writes the report into the process it already started.
+
+- **It says what is being checked while it waits**: "Checking the coding style of TestSlave — 2 block folders…", the same facts the header will carry afterwards, so one window among several is recognisable before any of them has a report. They travel as a `CheckingNotice` on the command line — the handoff itself stays one JSON document read to the end of input, rather than growing a header and a second parser.
+- **A moving bar, not a percentage.** The check knows how many objects it has, not how long each will take, and a bar that guesses is worse than one that only says work is happening.
+- **The handoff is read on a thread of its own**, so the window paints and can be moved while TIA works.
+- **Four endings, four sentences**: the report arrives and fills the table; a report arrives that cannot be read; **the input closes with nothing in it**, which is the check having broken off — TIA was stopped, or it ran into something — and says so instead of waiting forever; and nothing selected, which is an *empty report* rather than a closed pipe, because "no rows" and "it never finished" are different facts.
+- **It waits only when the Add-In said it would.** Both the notice and redirected input are required: a window started any other way shows the empty state as before, and so does one launched by an Add-In older than this window, which sends no notice and is served by the path that reads the handoff at startup.
+
+> **An Add-In may not hold a Siemens engineering object in a field**, which is how the first version of this was written and how the Publisher stopped it: it refuses to package an Add-In whose member holds one, because from V20 an Add-In is not reloaded between executions. `IProcessLauncher` therefore takes the work as a delegate — `Start(fileName, arguments, Func<string> payload)` — so the process stays a local variable while the check runs inside it.
+
 Verified here with the payload the action really produced: handed over on standard input the way `ProcessLauncher` does it and through the fallback path argument, twelve rows with their header and counts, a second window opening beside the first, and both empty states.
 
 ### Reading the table

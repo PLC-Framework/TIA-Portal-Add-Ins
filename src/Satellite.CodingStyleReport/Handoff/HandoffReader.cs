@@ -36,6 +36,46 @@ namespace Satellite.CodingStyleReport.Handoff
             return StyleReport.FromJson(json, out problem);
         }
 
+        /// <summary>
+        /// Whether a report is still on its way.
+        ///
+        /// **The Add-In opens the window before it starts working**, so the input is
+        /// redirected and empty for as long as the check runs. Redirection is the whole
+        /// signal: a copy started from Explorer has none, and must show the empty state
+        /// rather than wait for something nobody is going to send.
+        /// </summary>
+        public static bool Expected()
+        {
+            try
+            {
+                return Console.IsInputRedirected;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Waits for the report on standard input. **Called on a thread of its own**: this
+        /// blocks for as long as the check takes, and the window has to be on screen and
+        /// painting while it does.
+        /// </summary>
+        /// <param name="arrived">
+        /// Whether anything came at all. Input closed with nothing in it is the Add-In saying
+        /// the check did not finish - it failed, or TIA went down - and that is a different
+        /// sentence from a report that could not be read.
+        /// </param>
+        public static StyleReport Await(out bool arrived, out string problem)
+        {
+            problem = null;
+
+            string json = FromStandardInput();
+            arrived = !string.IsNullOrWhiteSpace(json);
+
+            return arrived ? StyleReport.FromJson(json, out problem) : null;
+        }
+
         private static string FromArguments(string[] arguments)
         {
             if (arguments == null) return null;

@@ -253,6 +253,31 @@
                            HorizontalAlignment="Center" VerticalAlignment="Center"
                            TextAlignment="Center" TextWrapping="Wrap" MaxWidth="520"
                            Foreground="{StaticResource InkMuted}" />
+
+                <!-- TIA Portal is still checking. The window opens here rather than when the
+                     report is ready: a project-wide check takes minutes, and nothing on screen
+                     reads as an Add-In that died. -->
+                <StackPanel x:Name="WaitingPanel" Visibility="Collapsed" Margin="24"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560">
+                    <TextBlock x:Name="WaitingLine" FontSize="14" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{StaticResource Ink}" />
+                    <TextBlock Margin="0,10,0,0" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{StaticResource InkMuted}"
+                               Text="The report appears here when TIA Portal finishes. TIA is busy while it works, and a whole PLC takes a while." />
+
+                    <!-- Movement rather than a percentage: the check knows how many objects it
+                         has, not how long each will take, and a bar that guesses is worse than
+                         one that only says work is happening. -->
+                    <Border Width="320" Height="4" Margin="0,20,0,0" CornerRadius="2"
+                            Background="{StaticResource Field}" ClipToBounds="True">
+                        <Border x:Name="WaitingPulse" Width="96" Height="4" CornerRadius="2"
+                                HorizontalAlignment="Left" Background="{StaticResource BrandBrushTop}">
+                            <Border.RenderTransform>
+                                <TranslateTransform x:Name="WaitingSlide" />
+                            </Border.RenderTransform>
+                        </Border>
+                    </Border>
+                </StackPanel>
             </Grid>
         </Border>
 
