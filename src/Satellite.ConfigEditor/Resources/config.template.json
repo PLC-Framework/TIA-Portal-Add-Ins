@@ -147,6 +147,34 @@
             "4. The identifier ends with either three more digits (000-999), the step the transition enters, or the literal nop when it enters none.",
             "5. Nothing else is allowed: the whole name is the prefix, two segments and the separators between them."
           ]
+        },
+        {
+          "id" : "interruption_parameter",
+          "regex" : "^(Initial_Call|Remanence)$",
+          "descriptions" :
+          [
+            "Interruption Parameter Naming Rules",
+            "TIA Portal writes these into an OB's Input itself and nobody can rename them, so no naming convention of yours applies to them: Initial_Call, true on the first call after a restart, and Remanence, true when retentive data was kept.",
+            "Every name inside a block is checked, TIA's own included, so this rule is what lets them pass. It belongs to the Input of interruption and nowhere else: an OB's Temp and Constant are the engineer's, and answer to variable and constant.",
+            "1. The name must be one of the list, spelled exactly as TIA spells it.",
+            "2. The pattern is closed at both ends, so it accepts those two names and nothing that merely starts with one of them.",
+            "3. When an OB type brings a parameter this does not name yet - a hardware interrupt's LADDR and USI, a time error's Fault_ID - add it to the list rather than loosening the pattern. The report names the member that failed, which is where you will see it first."
+          ]
+        },
+        {
+          "id" : "graph_parameter",
+          "regex" : "^(INIT_SQ|ACK_EF|S_NO|S_MORE|S_ACTIVE|RT_DATA)$",
+          "descriptions" :
+          [
+            "Graph Parameter Naming Rules",
+            "TIA Portal writes these into a GRAPH block's interface itself and nobody can rename them: INIT_SQ and ACK_EF in Input, S_NO, S_MORE and S_ACTIVE in Output, and RT_DATA in Static.",
+            "Every name inside a block is checked, TIA's own included, so this rule is what lets them pass. It belongs to the Input, Output and Static of object_container_for_sequences, which is where a sequence written in GRAPH lands.",
+            "1. The name must be one of the list, spelled exactly as TIA spells it.",
+            "2. The pattern is closed at both ends, so RT_DATABASE and S_NOTHING are not accepted by it.",
+            "3. Enabling another GRAPH option adds more of them - OFF_SQ, HALT_SQ, S_PREV, S_NEXT and the rest - and each is added to this list the first time a report names it.",
+            "4. The steps and the transitions are deliberately not in it: TIA writes those members, but the engineer names them in the GRAPH editor, so they answer to sequence_variable and transition_variable like the rules they are.",
+            "5. A GRAPH block's Base section, and what lives inside RT_DATA, are the interface of a Siemens type rather than of the block, and are never checked at all."
+          ]
         }
       ],
       "objectRules" :
@@ -155,6 +183,7 @@
           "id" : "interruption",
           "regex" : "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$",
           "interface" : [
+            {"type": "Input", "implements" : ["interruption_parameter"]},
             {"type": "Temp", "implements" : ["variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
@@ -518,11 +547,11 @@
           "id" : "object_container_for_sequences",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "graph_parameter"]},
+            {"type": "Output", "implements" : ["variable", "graph_parameter"]},
             {"type": "InOut", "implements" : ["variable"]},
             {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable", "sequence_variable", "transition_variable"]},
+            {"type": "Static", "implements" : ["variable", "sequence_variable", "transition_variable", "graph_parameter"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "regex" : "^_oc_seq[0-9]{1,3}_[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",

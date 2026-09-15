@@ -306,7 +306,7 @@ A different kind of divergence, and easier to miss because the source is identic
 
 **The class shapes barely moved.** Seven of the eight spine types are identical across versions, base class included; only `ProjectBase` differs, having **lost `Graphics`, `PlantViews` and the two block-compilation flags** and gained `TextCategories`. Those are removals, not relocations — `MultiLingualGraphic` and `PlantView` exist nowhere in V21. Any migrated V20 code touching them stops compiling.
 
-**`docs/reference/` holds what was read off something real rather than reasoned about**: the two Openness object-model pages, one per TIA version, reflected out of the assemblies with `GetExportedTypes()`, and `S7-1x00-Webserver-API.md`, measured against two real CPUs. That is the rule for what belongs there — the vendor's surface as it actually is, not our design. Consult the Openness pages before asserting anything about the API, and regenerate them rather than hand-edit. They carry type names and counts only, no Siemens code, which is why they can be committed when the DLLs cannot.
+**`docs/reference/` holds what was read off something real rather than reasoned about**: the two Openness object-model pages, one per TIA version, reflected out of the assemblies with `GetExportedTypes()`, `S7-1x00-Webserver-API.md`, measured against two real CPUs, and `S7-exports.md`, read off the exports in `.example\vci\` and `.example\vci-v20\` — the SimaticML a block, a UDT or a tag table becomes on the way out, which is where phase two of the coding-style check reads interfaces from. That is the rule for what belongs there — the vendor's surface as it actually is, not our design. Consult the Openness pages before asserting anything about the API, and regenerate them rather than hand-edit. They carry type names and counts only, no Siemens code, which is why they can be committed when the DLLs cannot.
 
 ### `config.json` pipeline — contract settled 2026-09-08, validators built 2026-09-09
 
@@ -319,6 +319,7 @@ The shape of it, worth carrying in your head:
 - **Two internal references** are what a typo breaks silently, so both are checked: `implements` must name an existing `rules[].id`, and `rules[].id` is unique file-wide.
 - **`Group.name` is unique among siblings only** — the same name in another branch is fine, because they are different folders.
 - **A `regex` that does not compile is a structural error**, not an environmental one: it is a broken file, not a broken machine.
+- **No Siemens vocabulary in the code: every name is checked and the configuration decides** (2026-09-15). TIA writes names into a block's interface that nobody can rename — an OB's `Initial_Call`, a GRAPH block's `INIT_SQ` and `RT_DATA` — and the obvious answer, skipping them, was proposed twice and rejected by the maintainer both times. Two signals looked usable and neither is: `Informative="true"` on a `<Member>` marks only *some* of them, and the `Informative` on a member's `<Comment>` also marks the GRAPH steps and transitions, whose names the engineer types and whose rules the reference configuration already carries (`sequence_variable`, `transition_variable`). Either would have put Siemens' vocabulary, versioned by GRAPH release, inside a binary. The template carries two interface rules instead — `interruption_parameter` for an OB's `Initial_Call` and `Remanence`, `graph_parameter` for a GRAPH block's six — assigned to the sections where TIA writes; **a rule is edited by whoever meets the problem, a binary is not**. Both **name the parameters outright and anchor at both ends**: a pattern by shape was tried first and it swallowed the engineer's own names, passing a step called `S001_Init` that `sequence_variable` would have failed. The structural exception stays: a member typed by a UDT, a library FB or GRAPH's own `GRAPH_BASE` is not descended into, because those names belong to that type and are checked there — that is about where a name is declared, not about who chose it.
 
 `config.json` has **two producers** (`Satellite.ConfigEditor`, and the user editing by hand) and **one consumer** (the Add-In). Decisions taken:
 
@@ -350,5 +351,6 @@ The shape of it, worth carrying in your head:
 @docs/configuration.md
 @docs/satellites.md
 @docs/reference/S7-1x00-Webserver-API.md
+@docs/reference/S7-exports.md
 @docs/development.md
 @docs/getting-started.md

@@ -55,6 +55,7 @@ Everything else — the configuration model and its validators, the web server c
 | [Architecture](docs/architecture.md) | the layering, the naming convention, where everything installs |
 | [Openness notes](docs/openness-notes.md) | the Add-In API as the assemblies declare it, V20/V21 differences, the Publisher, partial trust |
 | [S7-1x00 Webserver API](docs/reference/S7-1x00-Webserver-API.md) | JSON-RPC findings measured against two real CPUs — useful on its own |
+| [S7 export files](docs/reference/S7-exports.md) | what a block, a PLC data type or a tag table becomes on the way out of TIA, read off real exports |
 | [Development](docs/development.md) | building, testing, and how releases are cut |
 
 ## How this was built
