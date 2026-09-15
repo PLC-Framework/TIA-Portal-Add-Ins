@@ -119,8 +119,11 @@ namespace Core.Checks
                 subject.Plc, subject.Unit, subject.Name,
                 subject.Type, null, subject.Name, subject.Path, matched, missed, trouble));
 
-            bool unreadable = subject.MembersUnreadable != null;
-            if (subject.Members.Count == 0 && !unreadable) return rows;
+            bool anythingInside = subject.Members.Count > 0 ||
+                                  subject.MembersUnreadable != null ||
+                                  subject.MemberSource != null;
+
+            if (!anythingInside) return rows;
 
             if (!passed)
             {
@@ -139,24 +142,36 @@ namespace Core.Checks
 
             Dictionary<string, List<string>> expected = ExpectedSections(matched);
 
-            if (unreadable)
+            // Nothing is expected inside, so nothing is read. This is the line that decides
+            // what a project-wide check costs: an interface the Add-In would have to export
+            // the block to see is never asked for unless a rule that matched wants it.
+            if (expected.Count == 0) return rows;
+
+            IReadOnlyList<CheckedMember> members = subject.Members;
+            string unreadable = subject.MembersUnreadable;
+
+            if (subject.MemberSource != null)
             {
-                // Only worth a row when the matched rules expected something inside. An
-                // object whose interface nobody configured has nothing to miss, and a row
-                // saying otherwise would be noise the reader learns to skip.
-                if (expected.Count > 0)
-                {
-                    rows.Add(new CheckRow(
-                        RowScope.Member, CheckOutcome.Skipped,
-                        subject.Plc, subject.Unit, subject.Name,
-                        string.Empty, null, string.Empty, subject.Path,
-                        note: "Interface not checked. " + subject.MembersUnreadable));
-                }
+                CheckedMembers found = Ask(subject);
+
+                members = found.Members;
+                unreadable = found.Problem;
+            }
+
+            if (unreadable != null)
+            {
+                // Worth a row precisely because something was expected here: an object whose
+                // interface nobody configured has nothing to miss, and was returned above.
+                rows.Add(new CheckRow(
+                    RowScope.Member, CheckOutcome.Skipped,
+                    subject.Plc, subject.Unit, subject.Name,
+                    string.Empty, null, string.Empty, subject.Path,
+                    note: "Interface not checked. " + unreadable));
 
                 return rows;
             }
 
-            foreach (CheckedMember member in subject.Members)
+            foreach (CheckedMember member in members)
             {
                 if (member == null || !expected.TryGetValue(member.Section ?? string.Empty, out List<string> ids))
                     continue;   // no rule covers this section, so there is nothing to report
@@ -175,6 +190,25 @@ namespace Core.Checks
             }
 
             return rows;
+        }
+
+        /// <summary>
+        /// Asks an object for its interface, and turns anything that goes wrong into a reason.
+        ///
+        /// The source reads a file and parses it, inside TIA Portal's own process: an
+        /// exception escaping here would take down a check of several thousand objects over
+        /// one block. The object it happened on says so in its own row instead.
+        /// </summary>
+        private static CheckedMembers Ask(CheckedObject subject)
+        {
+            try
+            {
+                return subject.MemberSource() ?? CheckedMembers.Unreadable("Nothing answered for the interface.");
+            }
+            catch (Exception exception)
+            {
+                return CheckedMembers.Unreadable("The interface could not be read: " + exception.Message);
+            }
         }
 
         /// <summary>

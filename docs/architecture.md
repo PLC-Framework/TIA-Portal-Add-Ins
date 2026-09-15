@@ -65,7 +65,7 @@ src/Core/
 ├── Checks/                   the coding-style check, pure: handed names, returns rows
 │   ├── CodingStyleChecker.cs names against the rules, with a match timeout
 │   ├── SimaticMlInterface.cs an exported interface → members, each with its own name and its parents
-│   ├── CheckedObject.cs · CheckRow.cs · ObjectFamily.cs
+│   ├── CheckedObject.cs · CheckedMembers.cs · CheckRow.cs · ObjectFamily.cs
 │   └── StyleReport.cs        the report document the Add-In sends and the satellite reads
 ├── Secrets/
 │   ├── DotEnv.cs             the per-user .env: read, and written back surgically
@@ -83,7 +83,9 @@ src/AddIn.Shared/
 │                             Handoff.cs holds the payload types — public and top level,
 │                             because partial trust refuses to serialize anything else
 └── Adapters/                 ports: ITiaNotifier, IGroupNode, IProcessLauncher,
-                              HierarchyTargets, PlcSelection, plus Icons (assets → System.Drawing.Icon)
+                              HierarchyTargets, PlcSelection, ExportScratch (one run's tmp\
+                              folder, given back when the run ends), plus Icons (assets →
+                              System.Drawing.Icon)
 ```
 
 ```
@@ -346,10 +348,10 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `.gitignore` | `Satellite.ConfigEditor`, only when absent | **yes** |
 | `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx` | no |
 | `logs\` | what a run recorded about itself | no |
-| `tmp\` | scratch space for one action | no |
+| `tmp\` | the coding-style check, while it reads an interface → `coding-style-<timestamp>\`, deleted when the run ends | no |
 | `reports\` | `Satellite.CodingStyleReport`, on export → `<project>-coding-style-<timestamp>.xlsx` | no |
 
-The four folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and `ConfigPaths.FolderFor(projectDirectory, name)` resolves one. **Three of them have no writer yet, which is exactly when two components drift apart on a string** — the same reason the other literals are there. Nothing creates them: whoever writes the first file creates it then, so a project that never ran an action does not collect four empty folders, and git would not record them anyway.
+The four folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and `ConfigPaths.FolderFor(projectDirectory, name)` resolves one. **Two of them have no writer yet, which is exactly when two components drift apart on a string** — the same reason the other literals are there. Nothing creates them: whoever writes the first file creates it then, so a project that never ran an action does not collect four empty folders, and git would not record them anyway.
 
 **Not one secret lives here, and that is deliberate**: this folder is under version control, with `.version-control\` sitting right beside it. It is why the PLC credentials live under `%LOCALAPPDATA%` and why `config.json` carries the literal `${GITHUB_TOKEN}` rather than the token.
 

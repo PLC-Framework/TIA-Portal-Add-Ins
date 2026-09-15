@@ -39,9 +39,10 @@ namespace AddIn.Shared.Actions
 
         /// <param name="scope">What was selected, in words for the report's header: "PLC", "2 blocks".</param>
         /// <param name="walk">
-        /// Reads the selection out of the project. A delegate rather than a list, so that it
-        /// runs only once everything that can refuse has had its say: walking a PLC of several
-        /// thousand objects, on TIA's own thread, only to report a missing window or a broken
+        /// Reads the selection out of the project, given somewhere to export a block whose
+        /// interface is wanted. A delegate rather than a list, so that it runs only once
+        /// everything that can refuse has had its say: walking a PLC of several thousand
+        /// objects, on TIA's own thread, only to report a missing window or a broken
         /// config.json would waste the engineer's time.
         /// </param>
         public static void Execute(
@@ -50,7 +51,7 @@ namespace AddIn.Shared.Actions
             string projectDirectory,
             string project,
             string scope,
-            Func<IEnumerable<CheckedObject>> walk)
+            Func<ExportScratch, IEnumerable<CheckedObject>> walk)
         {
             if (notifier == null || launcher == null || walk == null) return;
 
@@ -95,49 +96,65 @@ namespace AddIn.Shared.Actions
                 return;
             }
 
-            List<CheckedObject> subjects;
-            try
-            {
-                subjects = Distinct(walk());
-            }
-            catch (Exception e)
-            {
-                // The walk is deliberately unguarded, so that a part of the project which
-                // could not be read fails here, by name, instead of being left out of a
-                // report that would then look complete.
-                notifier.Error(Title, "\n\nThe selection could not be read from the project.\n\n" + e.Message);
-                return;
-            }
-
-            if (subjects.Count == 0)
-            {
-                notifier.Info(Title,
-                    "\n\nNothing to check in the selection.\n\n" +
-                    "Select the project, a PLC, a software unit, a folder, or blocks, tag tables, " +
-                    "PLC data types or text lists. Objects TIA names itself - system blocks, the " +
-                    "default tag table - are not checked.");
-                return;
-            }
-
-            CodingStyleChecker checker = new CodingStyleChecker(style);
-            List<CheckRow> rows = new List<CheckRow>();
-
-            foreach (CheckedObject subject in subjects) rows.AddRange(checker.Check(subject));
+            // One folder for this run, and it goes away below whatever happens: a block is
+            // exported into it to read its interface, and a project's code must not be left
+            // lying in a temporary folder afterwards.
+            DateTime startedUtc = DateTime.UtcNow;
+            ExportScratch scratch = ExportScratch.In(projectDirectory, startedUtc);
 
             string payload;
             try
             {
-                payload = StyleReport
-                    .Build(style, rows, project, projectDirectory, scope, DateTime.UtcNow)
-                    .ToJson();
+                List<CheckedObject> subjects;
+                try
+                {
+                    subjects = Distinct(walk(scratch));
+                }
+                catch (Exception e)
+                {
+                    // The walk is deliberately unguarded, so that a part of the project which
+                    // could not be read fails here, by name, instead of being left out of a
+                    // report that would then look complete.
+                    notifier.Error(Title, "\n\nThe selection could not be read from the project.\n\n" + e.Message);
+                    return;
+                }
+
+                if (subjects.Count == 0)
+                {
+                    notifier.Info(Title,
+                        "\n\nNothing to check in the selection.\n\n" +
+                        "Select the project, a PLC, a software unit, a folder, or blocks, tag tables, " +
+                        "PLC data types or text lists. Objects TIA names itself - system blocks, the " +
+                        "default tag table - are not checked.");
+                    return;
+                }
+
+                CodingStyleChecker checker = new CodingStyleChecker(style);
+                List<CheckRow> rows = new List<CheckRow>();
+
+                // Interfaces are read here rather than during the walk: the checker asks an
+                // object for its members only when the rules its name matched expect some, so
+                // a block nobody configured an interface for is never exported at all.
+                foreach (CheckedObject subject in subjects) rows.AddRange(checker.Check(subject));
+
+                try
+                {
+                    payload = StyleReport
+                        .Build(style, rows, project, projectDirectory, scope, startedUtc)
+                        .ToJson();
+                }
+                catch (Exception e)
+                {
+                    // Should not happen - the contract is public and was serialized inside a
+                    // restricted AppDomain - but a sandbox refusal is exactly the kind of thing
+                    // that only shows up inside TIA, and it deserves its own sentence.
+                    notifier.Error(Title, "\n\nThe report could not be prepared.\n\n" + e.Message);
+                    return;
+                }
             }
-            catch (Exception e)
+            finally
             {
-                // Should not happen - the contract is public and was serialized inside a
-                // restricted AppDomain - but a sandbox refusal is exactly the kind of thing
-                // that only shows up inside TIA, and it deserves its own sentence.
-                notifier.Error(Title, "\n\nThe report could not be prepared.\n\n" + e.Message);
-                return;
+                scratch.Discard();
             }
 
             string error = launcher.Start(path, payload);

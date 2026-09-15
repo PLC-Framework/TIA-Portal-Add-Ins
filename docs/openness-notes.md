@@ -285,23 +285,29 @@ Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are
 
 What the object model offers, and therefore what phase one can check without exporting anything:
 
-| Family | Walked through | Members |
+| Family | Walked through | Interface |
 | --- | --- | --- |
-| Blocks | `BlockGroup` → `Blocks` / `Groups` | a `GlobalDB`'s `Interface.Members`, as `Static`. `Member` exposes a `Name` and nothing else — no section, no type, no children |
-| Technology objects | `TechnologicalObjectGroup` → `TechnologicalObjects` / `Groups` | none |
-| Tag tables | `TagTableGroup` → `TagTables` / `Groups` | `Tags` as `Tag`, `UserConstants` as `UserConstant` |
-| Types | `TypeGroup` → `Types` / `Groups` | none: `PlcType` exposes no interface |
+| Blocks | `BlockGroup` → `Blocks` / `Groups` | an OB's, an FC's, an FB's and a global DB's, **from the export**. An instance DB's belongs to its FB and an array DB has none |
+| Technology objects | `TechnologicalObjectGroup` → `TechnologicalObjects` / `Groups` | none: Siemens names every member |
+| Tag tables | `TagTableGroup` → `TagTables` / `Groups` | `Tags` as `Tag`, `UserConstants` as `UserConstant`, **straight from the object model** — names with nothing nested inside them |
+| Types | `TypeGroup` → `Types` / `Groups` | a UDT's elements, from the export; `PlcType` exposes no interface at all |
 | Alarm text lists | `PlcAlarmTextlistGroup` → `PlcAlarmUserTextlists` | none. The group has **no folders and no `Name`** |
+
+**An interface is read by exporting the object, and the export is what costs.** `PlcBlock.Export` and `PlcType.Export` write SimaticML into `<TIA project>\.plc-framework\tmp\coding-style-<timestamp>\`, `Core.Checks.SimaticMlInterface` reads it, and the file is deleted immediately; the run's folder goes when the run ends, whatever happened, because what is in it is somebody's source code. `Config.xml` already declares `FileIOPermission`, which is what makes any of this possible inside the sandbox.
+
+**Nothing is exported during the walk.** An object hands over a *delegate*, and the checker calls it only for the objects whose own name matched a rule that expects something inside — so a project where no rule names an interface writes no file at all, and one that names a few exports a few. Measured against doubles: of five objects, only the three whose rules wanted an interface were asked.
+
+**Nothing is compiled to make an export work.** TIA refuses to export a block that is not consistent, and compiling it would change the project behind an operator who asked for a naming check. That refusal, a know-how protected object, and a `tmp\` folder that could not be created all come back as a reason, which the checker turns into one skipped row naming the object — the check itself carries on.
 
 Software units — `PlcUnit` and `PlcSafetyUnit` — repeat four of those roots and are walked the same way, with the unit's name after the PLC's in the path; technology objects exist only at PLC level. On an S7-1200 `GetService<PlcUnitProvider>()` answers nothing, which is expected.
 
 Decisions worth keeping:
 
 - **Only names an engineer chose.** `SystemBlockGroups`, `SystemTypeGroups`, system constants, system text lists and the default tag table are named by TIA. A rule could only fail them, and nobody reading the report could act on it.
-- **Only a global DB's members are its own.** An instance DB's are its FB's interface, which is where they get checked; a technology object's are defined by Siemens.
+- **An interface belongs to whoever declares it.** An instance DB's members are its FB's, and are checked on the FB; an array DB holds elements of one type rather than named members; a technology object's are Siemens'. Inside an export the same rule applies again, one level down: a member typed by a UDT, a library FB or a GRAPH type carries that type's interface, and it is checked where that type is defined.
 - **A DB's members cannot be checked through the object model at all, and that was found on a real project** (2026-09-15). `Member` carries a `Name` and nothing else — verified again by reflection against V20 — so a member inside a `Struct` arrives as `variableA.variableB`, the name of its parent and its own joined by a dot, and nothing distinguishes it from a top-level member. Held against a naming rule that reads one name, every such member fails. There is no fix on this side: the tree the object model shows is flat. Phase two reads interfaces out of the exported SimaticML instead, where a nested member sits inside its parent and is checked by its own name — see [`reference/S7-exports.md`](reference/S7-exports.md) for that format, measured off real exports. `Core.Checks.SimaticMlInterface` is the reader; **what exports the block, and when, is still this adapter's to build.**
 - **A `TechnologicalInstanceDB` is an `InstanceDB` to the type system**, so the type name is decided most specific first — the other way round reports every technology object as an instance DB.
-- **Reading the tree is not guarded; reading members is.** A folder that silently failed to read would drop out of the report and leave it looking complete. Members that cannot be read — a know-how protected block, or TIA refusing — travel as `MembersUnreadable`, and the checker turns that into a skipped row with the reason rather than an object that looks clean.
+- **Reading the tree is not guarded; reading an interface is.** A folder that silently failed to read would drop out of the report and leave it looking complete. An interface that cannot be read — a know-how protected block, a block TIA will not export, nowhere to export it to — travels as a reason, and the checker turns that into a skipped row naming the object rather than one that looks clean. A source that throws is caught in `Core` as well: one block must not end a check of several thousand.
 - **The closed-set names come from `Core.Config.CodingStyleNames`**, the same constants the validator uses. A misspelt type on this side would not fail; it would read as "no rule for this type".
 
 ## The Add-In API

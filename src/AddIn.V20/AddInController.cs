@@ -131,7 +131,7 @@ namespace AddIn
             ContextMenuAddInRoot root,
             string one,
             string many,
-            Func<IEnumerable<T>, List<CheckedObject>> walk) where T : IEngineeringObject
+            Func<IEnumerable<T>, ExportScratch, List<CheckedObject>> walk) where T : IEngineeringObject
         {
             AddAction<T>(
                 root,
@@ -147,7 +147,7 @@ namespace AddIn
                         ProjectDirectory(),
                         ProjectName(),
                         CheckCodingStyleAction.Scope(selected.Count, one, many),
-                        () => walk(selected));
+                        scratch => walk(selected, scratch));
                 });
         }
 

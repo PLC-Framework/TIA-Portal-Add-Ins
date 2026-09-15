@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Core.Checks
@@ -20,8 +21,10 @@ namespace Core.Checks
             string unit = null,
             string path = null,
             IReadOnlyList<CheckedMember> members = null,
-            string membersUnreadable = null)
+            string membersUnreadable = null,
+            Func<CheckedMembers> memberSource = null)
         {
+            MemberSource = memberSource;
             Family = family;
             Type = type;
             Name = name;
@@ -79,6 +82,18 @@ namespace Core.Checks
         /// is a clean result.
         /// </summary>
         public string MembersUnreadable { get; }
+
+        /// <summary>
+        /// Where the members come from when reading them is expensive - an interface the
+        /// Add-In has to export the block to disk to see. Null when they are already here, as
+        /// a tag table's are.
+        ///
+        /// **It is asked at most once, and only when the object's own name matched a rule
+        /// that expects something inside it.** A project-wide check reads thousands of
+        /// objects; exporting every one of them to find that no rule cares about its
+        /// interface would spend minutes on TIA's own thread for nothing.
+        /// </summary>
+        public Func<CheckedMembers> MemberSource { get; }
     }
 
     /// <summary>One member of an object's interface, or one tag or constant of a table.</summary>
