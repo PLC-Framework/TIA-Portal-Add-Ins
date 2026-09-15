@@ -5,7 +5,6 @@ using System.Threading;
 
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
-using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Alarm.TextLists;
 using Siemens.Engineering.SW.Blocks;
@@ -18,6 +17,8 @@ using AddIn.Shared.Adapters;
 
 using Core.Checks;
 using Core.Config;
+
+using Location = AddIn.Adapters.TiaProjectPlaces.Location;
 
 namespace AddIn.Adapters
 {
@@ -35,7 +36,9 @@ namespace AddIn.Adapters
     ///
     /// **Only names an engineer chose are collected.** System blocks, system types, system
     /// constants, system text lists and the default tag table are all named by TIA, so a
-    /// rule could only ever fail them, and nobody reading the report could act on it.
+    /// rule could only ever fail them, and nobody reading the report could act on it. The
+    /// export walk beside this one keeps more, because a backup of the project's code is a
+    /// different question from a naming report.
     ///
     /// **Reading the tree is not guarded.** A folder that could not be read would otherwise
     /// drop out of the report and leave it looking complete, which is the worst result a
@@ -43,10 +46,8 @@ namespace AddIn.Adapters
     /// is what may legitimately be absent: software on a device item that has none, software
     /// units on an S7-1200, and the interface of a block that will not show one.
     ///
-    /// **Where an object lives is three answers, not one**: its PLC, its software unit and
-    /// the folders in between. They are found together, whether the walk starts high and
-    /// goes down or starts at an object and climbs through Parent, so an object reports the
-    /// same place whichever menu entry reached it.
+    /// **Where an object lives comes from <see cref="TiaProjectPlaces"/>**, which the export
+    /// walk uses too: the report's columns and the exported folders must agree.
     ///
     /// **An interface is read by exporting the object, and never during the walk.** What an
     /// object carries here is a delegate; the checker calls it only for the objects whose
@@ -55,49 +56,8 @@ namespace AddIn.Adapters
     /// </summary>
     internal static class TiaCheckedObjects
     {
-        private const string Separator = "/";
-
-        // Deep enough for any tree TIA lets an engineer build, and a guarantee that a Parent
-        // chain which somehow loops cannot hold TIA's thread forever.
-        private const int MaxParentSteps = 64;
-
         /// <summary>Numbers the exported files, so no two share a name inside one run's folder.</summary>
         private static int _exports;
-
-        /// <summary>
-        /// Where something sits: its PLC, its software unit - empty for the general program -
-        /// and the folders under one of those two.
-        ///
-        /// The three are kept apart rather than joined into a path because the report shows
-        /// them as their own columns: a project holds several PLCs and a PLC several units,
-        /// each repeating the same folder names, and a single string could be filtered on as
-        /// a whole or not at all.
-        /// </summary>
-        private struct Location
-        {
-            private Location(string plc, string unit, string folders)
-            {
-                Plc = plc;
-                Unit = unit;
-                Folders = folders;
-            }
-
-            public readonly string Plc;
-            public readonly string Unit;
-            public readonly string Folders;
-
-            public static Location In(PlcSoftware plc) =>
-                new Location(plc?.Name ?? string.Empty, string.Empty, string.Empty);
-
-            /// <summary>The same PLC, inside one of its units, back at the root of its folders.</summary>
-            public Location InUnit(string unit) => new Location(Plc, unit ?? string.Empty, string.Empty);
-
-            public Location InFolder(string name) =>
-                string.IsNullOrEmpty(name) ? this : new Location(Plc, Unit, Join(Folders, name));
-
-            public static Location Of(string plc, string unit, IEnumerable<string> folders) =>
-                new Location(plc ?? string.Empty, unit ?? string.Empty, string.Join(Separator, folders));
-        }
 
         // ---- Containers ---------------------------------------------------------------------
 
@@ -111,7 +71,7 @@ namespace AddIn.Adapters
             {
                 if (project == null) continue;
 
-                foreach (PlcSoftware plc in PlcsOf(project)) Plc(plc, scratch, found);
+                foreach (PlcSoftware plc in TiaProjectPlaces.PlcsOf(project)) Plc(plc, scratch, found);
             }
 
             return found;
@@ -125,7 +85,7 @@ namespace AddIn.Adapters
 
             foreach (DeviceItem item in deviceItems)
             {
-                PlcSoftware plc = SoftwareOf(item);
+                PlcSoftware plc = TiaProjectPlaces.SoftwareOf(item);
                 if (plc != null) Plc(plc, scratch, found);
             }
 
@@ -139,7 +99,7 @@ namespace AddIn.Adapters
 
             foreach (PlcUnitBase unit in units)
             {
-                if (unit != null) Unit(unit, LocationOf(unit.Parent), scratch, found);
+                if (unit != null) Unit(unit, TiaProjectPlaces.LocationOf(unit.Parent), scratch, found);
             }
 
             return found;
@@ -148,19 +108,19 @@ namespace AddIn.Adapters
         // ---- Folders: the system root and a user folder alike --------------------------------
 
         public static List<CheckedObject> FromBlockGroups(IEnumerable<PlcBlockGroup> groups, ExportScratch scratch) =>
-            Each(groups, (group, found) => Blocks(group, LocationOf(group.Parent), scratch, found));
+            Each(groups, (group, found) => Blocks(group, TiaProjectPlaces.LocationOf(group.Parent), scratch, found));
 
         public static List<CheckedObject> FromTechnologyObjectGroups(IEnumerable<TechnologicalInstanceDBGroup> groups, ExportScratch scratch) =>
-            Each(groups, (group, found) => TechnologyObjects(group, LocationOf(group.Parent), found));
+            Each(groups, (group, found) => TechnologyObjects(group, TiaProjectPlaces.LocationOf(group.Parent), found));
 
         public static List<CheckedObject> FromTagTableGroups(IEnumerable<PlcTagTableGroup> groups, ExportScratch scratch) =>
-            Each(groups, (group, found) => TagTables(group, LocationOf(group.Parent), found));
+            Each(groups, (group, found) => TagTables(group, TiaProjectPlaces.LocationOf(group.Parent), found));
 
         public static List<CheckedObject> FromTypeGroups(IEnumerable<PlcTypeGroup> groups, ExportScratch scratch) =>
-            Each(groups, (group, found) => Types(group, LocationOf(group.Parent), scratch, found));
+            Each(groups, (group, found) => Types(group, TiaProjectPlaces.LocationOf(group.Parent), scratch, found));
 
         public static List<CheckedObject> FromAlarmTextListGroups(IEnumerable<PlcAlarmTextlistGroup> groups, ExportScratch scratch) =>
-            Each(groups, (group, found) => AlarmTextLists(group, LocationOf(group.Parent), found));
+            Each(groups, (group, found) => AlarmTextLists(group, TiaProjectPlaces.LocationOf(group.Parent), found));
 
         // ---- Objects ------------------------------------------------------------------------
 
@@ -169,16 +129,16 @@ namespace AddIn.Adapters
         /// the type system, so the menu entry on blocks is the one TIA offers on it.
         /// </summary>
         public static List<CheckedObject> FromBlocks(IEnumerable<PlcBlock> blocks, ExportScratch scratch) =>
-            Each(blocks, (block, found) => Block(block, LocationOf(block.Parent), scratch, found));
+            Each(blocks, (block, found) => Block(block, TiaProjectPlaces.LocationOf(block.Parent), scratch, found));
 
         public static List<CheckedObject> FromTagTables(IEnumerable<PlcTagTable> tables, ExportScratch scratch) =>
-            Each(tables, (table, found) => TagTable(table, LocationOf(table.Parent), found));
+            Each(tables, (table, found) => TagTable(table, TiaProjectPlaces.LocationOf(table.Parent), found));
 
         public static List<CheckedObject> FromTypes(IEnumerable<PlcType> types, ExportScratch scratch) =>
-            Each(types, (type, found) => DataType(type, LocationOf(type.Parent), scratch, found));
+            Each(types, (type, found) => DataType(type, TiaProjectPlaces.LocationOf(type.Parent), scratch, found));
 
         public static List<CheckedObject> FromAlarmTextLists(IEnumerable<PlcAlarmTextlist> lists, ExportScratch scratch) =>
-            Each(lists, (list, found) => AlarmTextList(list, LocationOf(list.Parent), found));
+            Each(lists, (list, found) => AlarmTextList(list, TiaProjectPlaces.LocationOf(list.Parent), found));
 
         private static List<CheckedObject> Each<T>(IEnumerable<T> selection, Action<T, List<CheckedObject>> walk)
             where T : class
@@ -206,7 +166,7 @@ namespace AddIn.Adapters
             Types(plc.TypeGroup, here, scratch, found);
             AlarmTextLists(plc.PlcAlarmTextlistGroup, here, found);
 
-            foreach (PlcUnitBase unit in UnitsOf(plc)) Unit(unit, here, scratch, found);
+            foreach (PlcUnitBase unit in TiaProjectPlaces.UnitsOf(plc)) Unit(unit, here, scratch, found);
         }
 
         /// <summary>
@@ -472,164 +432,6 @@ namespace AddIn.Adapters
                     // is momentarily locked is not worth failing a report over.
                 }
             }
-        }
-
-        // ---- Finding the software -----------------------------------------------------------
-
-        /// <summary>
-        /// A project's PLCs, from the top-level devices and from every device folder. A set,
-        /// because a device reachable two ways must still be checked once.
-        /// </summary>
-        private static IEnumerable<PlcSoftware> PlcsOf(Project project)
-        {
-            List<PlcSoftware> plcs = new List<PlcSoftware>();
-            HashSet<PlcSoftware> seen = new HashSet<PlcSoftware>();
-
-            Devices(project.Devices, plcs, seen);
-            Devices(project.UngroupedDevicesGroup?.Devices, plcs, seen);
-
-            foreach (DeviceUserGroup group in project.DeviceGroups) DeviceGroup(group, plcs, seen);
-
-            return plcs;
-        }
-
-        private static void DeviceGroup(DeviceUserGroup group, List<PlcSoftware> plcs, HashSet<PlcSoftware> seen)
-        {
-            if (group == null) return;
-
-            Devices(group.Devices, plcs, seen);
-            foreach (DeviceUserGroup child in group.Groups) DeviceGroup(child, plcs, seen);
-        }
-
-        private static void Devices(DeviceComposition devices, List<PlcSoftware> plcs, HashSet<PlcSoftware> seen)
-        {
-            if (devices == null) return;
-
-            foreach (Device device in devices)
-            {
-                if (device == null) continue;
-                foreach (DeviceItem item in device.DeviceItems) DeviceItems(item, plcs, seen);
-            }
-        }
-
-        private static void DeviceItems(DeviceItem item, List<PlcSoftware> plcs, HashSet<PlcSoftware> seen)
-        {
-            if (item == null) return;
-
-            PlcSoftware plc = SoftwareOf(item);
-            if (plc != null && seen.Add(plc)) plcs.Add(plc);
-
-            foreach (DeviceItem child in item.DeviceItems) DeviceItems(child, plcs, seen);
-        }
-
-        /// <summary>
-        /// The PLC a device item carries, or null. Asked of every module in a device, and
-        /// most of them are not a CPU - a refusal there is an answer, not a failure.
-        /// </summary>
-        private static PlcSoftware SoftwareOf(DeviceItem item)
-        {
-            if (item == null) return null;
-
-            try
-            {
-                return item.GetService<SoftwareContainer>()?.Software as PlcSoftware;
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Units and safety units alike: both hold names an engineer chose.
-        ///
-        /// Only the S7-1500 family has software units. On an S7-1200 the provider service is
-        /// not there, which is a normal answer and not a failure - the one place a missing
-        /// piece of the tree is expected rather than suspicious.
-        /// </summary>
-        private static IEnumerable<PlcUnitBase> UnitsOf(PlcSoftware plc)
-        {
-            PlcUnitSystemGroup unitGroup;
-            try
-            {
-                unitGroup = plc.GetService<PlcUnitProvider>()?.UnitGroup;
-            }
-            catch (Exception)
-            {
-                unitGroup = null;
-            }
-
-            List<PlcUnitBase> units = new List<PlcUnitBase>();
-            if (unitGroup == null) return units;
-
-            foreach (PlcUnit unit in unitGroup.Units) units.Add(unit);
-            foreach (PlcSafetyUnit unit in unitGroup.SafetyUnits) units.Add(unit);
-
-            return units;
-        }
-
-        // ---- Where something sits -----------------------------------------------------------
-
-        /// <summary>
-        /// Where whatever sits under <paramref name="start"/> lives, built upwards: folder
-        /// names, then the software unit if there is one, then the PLC. Links it does not
-        /// know - the unit folder between a unit and its PLC, say - are stepped over rather
-        /// than ending the walk, since which ones TIA puts in the chain is not something to
-        /// bet on.
-        /// </summary>
-        private static Location LocationOf(IEngineeringObject start)
-        {
-            List<string> folders = new List<string>();
-            string unit = null;
-            string plc = null;
-
-            IEngineeringObject current = start;
-            for (int step = 0; current != null && step < MaxParentSteps; step++)
-            {
-                PlcSoftware software = current as PlcSoftware;
-                if (software != null)
-                {
-                    plc = software.Name;
-                    break;
-                }
-
-                // Hardware or the project: the software was left behind, so stop here.
-                if (current is HardwareObject || current is Project) break;
-
-                // A unit ends the folders and starts the climb towards its PLC: everything
-                // above it belongs to the PLC, not to the folders of this object.
-                PlcUnitBase unitLink = current as PlcUnitBase;
-                if (unitLink != null) unit = unitLink.Name;
-                else
-                {
-                    string name = FolderName(current);
-                    if (name != null) folders.Add(name);
-                }
-
-                current = current.Parent;
-            }
-
-            folders.Reverse();
-            return Location.Of(plc, unit, folders);
-        }
-
-        /// <summary>The name a link contributes to a path, or null for one that contributes none.</summary>
-        private static string FolderName(IEngineeringObject link)
-        {
-            if (link is PlcBlockGroup) return ((PlcBlockGroup)link).Name;
-            if (link is PlcTagTableGroup) return ((PlcTagTableGroup)link).Name;
-            if (link is PlcTypeGroup) return ((PlcTypeGroup)link).Name;
-            if (link is TechnologicalInstanceDBGroup) return ((TechnologicalInstanceDBGroup)link).Name;
-
-            return null;
-        }
-
-        private static string Join(string parent, string name)
-        {
-            if (string.IsNullOrEmpty(parent)) return name ?? string.Empty;
-            if (string.IsNullOrEmpty(name)) return parent;
-
-            return parent + Separator + name;
         }
     }
 }

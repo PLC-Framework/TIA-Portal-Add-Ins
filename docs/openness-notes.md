@@ -200,6 +200,21 @@ That redirection is worth remembering: it is a ready-made IPC channel between th
 
 The backslash escapes the closing quote, so the path swallows whatever follows it and the program is handed one argument nobody meant. `ProcessLauncher.Browse` trims the separator before quoting — and leaves a drive root alone, since `E:` on its own means something else. **`StandardInput` is a plain `StreamWriter` in both versions**, so the channel does not have to be written all at once: the coding-style check starts its window, works for minutes, and writes the report into the same pipe afterwards.
 
+### Exporting a project's objects
+
+The menu's *Export objects* writes the selection into `.plc-framework\exports\`, and what the API allows decides its shape:
+
+| Family | How | |
+| --- | --- | --- |
+| Blocks, technology objects | `PlcBlock.Export(FileInfo, ExportOptions)` | a technology object is a `PlcBlock`, so it needs no separate call |
+| PLC data types | `PlcType.Export(...)` | |
+| Tag tables | `PlcTagTable.Export(...)` | |
+| **Alarm text lists** | **no export at all** | `PlcAlarmTextlist` has no `Export`. The only way out is `PlcSoftware.GetService<PlcAlarmTextListProvider>().ExportToXlsx(file)`, which writes **every list of a PLC into one workbook** and can be narrowed by list and by language |
+
+- **`ExportOptions.WithDefaults` for all three**, which is where this differs from the export the coding-style check makes: that one reads names out of a file it deletes a second later and takes `None`, while this is the copy somebody restores from, and a copy should not depend on what a future TIA considers a default.
+- **More is kept here than the coding-style walk keeps.** There, an object TIA named itself is dropped because a rule could only fail it; here the question is what the project contains, so **instance DBs, array DBs and technology objects are all exported**. Out stay only the system block and type folders and the default tag table, which TIA rebuilds.
+- **Nothing is compiled.** TIA refuses to export a block that is not consistent; the refusal is reported with the block's name, and compiling it would change the project behind an operator who asked for a copy.
+
 ### Saying "busy", and letting the operator stop
 
 A check of a whole PLC runs on TIA's own thread, so TIA is unresponsive for as long as it takes. What is available to say so, read off both versions on 2026-09-15:

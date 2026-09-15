@@ -241,12 +241,7 @@ namespace AddIn.Shared.Actions
         private static string Doing(CheckedObject subject, int done, int total) =>
             string.Format(CultureInfo.CurrentCulture, "Checking {0} of {1} - {2}", done + 1, total, subject.Name);
 
-        /// <summary>
-        /// What was selected, in words for the report's header: "PLC", "3 blocks". Kept here so
-        /// both Add-Ins word it the same way.
-        /// </summary>
-        public static string Scope(int count, string one, string many) =>
-            count == 1 ? one : count + " " + many;
+
 
         /// <summary>
         /// The same object reached twice - a folder selected together with a folder inside

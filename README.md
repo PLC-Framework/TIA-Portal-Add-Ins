@@ -16,6 +16,7 @@ Right-click the project, or a PLC, or a selection of blocks, and:
 | **Create project hierarchy** | creates that folder tree inside the PLC: program blocks, technology objects, tag tables, PLC data types, and inside every software unit |
 | **Data block snapshot** | reads every variable of the selected data blocks over the CPU's own web server and writes one `.xlsx` per block — for capturing settings, not live process values |
 | **Open project folder** | opens the folder the project lives in, where `.plc-framework\` and its exports and reports are |
+| **Export objects** | writes the selected blocks, technology objects, tag tables and PLC data types to `.plc-framework\exports\`, in a tree shaped like the project's — so two exports can be compared |
 
 The configuration lives **inside the TIA project**, in `.plc-framework\`, so it travels with the project and belongs to it rather than to whoever last ran the tool.
 

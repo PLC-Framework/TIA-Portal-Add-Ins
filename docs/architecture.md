@@ -81,14 +81,16 @@ src/AddIn.Shared/
 ├── Assets.cs                 embedded assets → Stream, no image type
 ├── Actions/                  use cases: AboutAction, ConfigEditorAction,
 │                             DataBlockSnapshotAction, CreateProjectHierarchyAction,
-│                             CheckCodingStyleAction, OpenProjectFolderAction, and
-│                             HelloWorldAction, kept but no longer wired into the menu
+│                             CheckCodingStyleAction, OpenProjectFolderAction,
+│                             ExportObjectsAction, Selection (how a selection is worded),
+│                             and HelloWorldAction, kept but no longer wired into the menu
 │                             Handoff.cs holds the payload types — public and top level,
 │                             because partial trust refuses to serialize anything else
 └── Adapters/                 ports: ITiaNotifier, IGroupNode, IProcessLauncher, ITiaBusy
                               (TIA's own busy state, with cancellation), HierarchyTargets,
                               PlcSelection, ExportScratch (one run's tmp\ folder, given back
-                              when the run ends), plus Icons (assets → System.Drawing.Icon)
+                              when the run ends), ExportItem (an object that can write itself
+                              out), plus Icons (assets → System.Drawing.Icon)
 ```
 
 ```
@@ -154,7 +156,10 @@ src/AddIn.VXX/
 │   ├── TiaNotifier.cs        ITiaNotifier against this version's message box
 │   ├── TiaGroupNode.cs       IGroupNode over this version's group compositions
 │   ├── TiaBusy.cs            ITiaBusy over ExclusiveAccess: text, and a Cancel that is obeyed
-│   └── ProcessLauncher.cs    IProcessLauncher over Siemens' Process wrapper
+│   ├── ProcessLauncher.cs    IProcessLauncher over Siemens' Process wrapper
+│   ├── TiaProjectPlaces.cs   where a PLC is, and where an object sits inside one
+│   ├── TiaCheckedObjects.cs  the walk the coding-style check reads
+│   └── TiaExportObjects.cs   the walk the export writes
 └── Config.xml                PackageConfiguration for the Publisher
 ```
 

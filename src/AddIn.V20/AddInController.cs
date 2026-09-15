@@ -131,6 +131,48 @@ namespace AddIn
             AddCheck<PlcTagTable>(menuAddInRoot, "tag table", "tag tables", TiaCheckedObjects.FromTagTables);
             AddCheck<PlcType>(menuAddInRoot, "PLC data type", "PLC data types", TiaCheckedObjects.FromTypes);
             AddCheck<PlcAlarmTextlist>(menuAddInRoot, "text list", "text lists", TiaCheckedObjects.FromAlarmTextLists);
+
+            // The export, on the same nodes as the check: exporting one folder is the same
+            // gesture as checking it. Alarm text lists are not here - Openness exports every
+            // list of a PLC at once or not at all, which is an entry of its own.
+            AddExport<Project>(menuAddInRoot, "project", "projects", TiaExportObjects.FromProjects);
+            AddExport<DeviceItem>(menuAddInRoot, "PLC", "PLCs", TiaExportObjects.FromPlcs);
+            AddExport<PlcUnitBase>(menuAddInRoot, "software unit", "software units", TiaExportObjects.FromUnits);
+            AddExport<PlcBlockGroup>(menuAddInRoot, "block folder", "block folders", TiaExportObjects.FromBlockGroups);
+            AddExport<TechnologicalInstanceDBGroup>(menuAddInRoot, "technology object folder", "technology object folders", TiaExportObjects.FromTechnologyObjectGroups);
+            AddExport<PlcTagTableGroup>(menuAddInRoot, "tag table folder", "tag table folders", TiaExportObjects.FromTagTableGroups);
+            AddExport<PlcTypeGroup>(menuAddInRoot, "PLC data type folder", "PLC data type folders", TiaExportObjects.FromTypeGroups);
+            AddExport<PlcBlock>(menuAddInRoot, "block", "blocks", TiaExportObjects.FromBlocks);
+            AddExport<PlcTagTable>(menuAddInRoot, "tag table", "tag tables", TiaExportObjects.FromTagTables);
+            AddExport<PlcType>(menuAddInRoot, "PLC data type", "PLC data types", TiaExportObjects.FromTypes);
+        }
+
+        /// <summary>
+        /// One export entry for one kind of node, shaped exactly like the check above: the
+        /// selection is taken once, so the words describing it and the walk over it cannot
+        /// disagree.
+        /// </summary>
+        private void AddExport<T>(
+            ContextMenuAddInRoot root,
+            string one,
+            string many,
+            Func<IEnumerable<T>, List<ExportItem>> walk) where T : IEngineeringObject
+        {
+            AddAction<T>(
+                root,
+                ExportObjectsAction.Title,
+                ExportObjectsAction.IconPath,
+                menuSelectionProvider =>
+                {
+                    List<T> selected = menuSelectionProvider?.GetSelection<T>().ToList() ?? new List<T>();
+
+                    ExportObjectsAction.Execute(
+                        _notifier,
+                        _busy,
+                        ProjectDirectory(),
+                        Selection.Scope(selected.Count, one, many),
+                        () => walk(selected));
+                });
         }
 
         /// <summary>
@@ -158,7 +200,7 @@ namespace AddIn
                         _busy,
                         ProjectDirectory(),
                         ProjectName(),
-                        CheckCodingStyleAction.Scope(selected.Count, one, many),
+                        Selection.Scope(selected.Count, one, many),
                         scratch => walk(selected, scratch));
                 });
         }
