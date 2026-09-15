@@ -110,6 +110,31 @@ namespace AddIn.Adapters
             return Location.Of(plc, unit, folders);
         }
 
+        /// <summary>
+        /// The PLC something belongs to, climbing through Parent, or null when the chain
+        /// leaves the software behind.
+        ///
+        /// A software unit's objects answer with the PLC, not the unit: a unit is part of one
+        /// PLC's software, and the services that act on a whole PLC - exporting its alarm text
+        /// lists, for one - hang off that.
+        /// </summary>
+        public static PlcSoftware SoftwareFor(IEngineeringObject start)
+        {
+            IEngineeringObject current = start;
+
+            for (int step = 0; current != null && step < MaxParentSteps; step++)
+            {
+                PlcSoftware software = current as PlcSoftware;
+                if (software != null) return software;
+
+                if (current is HardwareObject || current is Project) break;
+
+                current = current.Parent;
+            }
+
+            return null;
+        }
+
         /// <summary>The name a link contributes to a path, or null for one that contributes none.</summary>
         public static string FolderName(IEngineeringObject link)
         {

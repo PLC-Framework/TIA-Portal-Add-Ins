@@ -15,12 +15,14 @@ namespace AddIn.Shared.Adapters
     {
         private readonly Func<string, string> _exportTo;
 
-        public ExportItem(string plc, string unit, string folders, string name, Func<string, string> exportTo)
+        public ExportItem(
+            string plc, string unit, string folders, string name, Func<string, string> exportTo, string extension = null)
         {
             Plc = plc ?? string.Empty;
             Unit = unit ?? string.Empty;
             Folders = folders ?? string.Empty;
             Name = name ?? string.Empty;
+            Extension = extension;
             _exportTo = exportTo;
         }
 
@@ -33,6 +35,13 @@ namespace AddIn.Shared.Adapters
         public string Folders { get; }
 
         public string Name { get; }
+
+        /// <summary>
+        /// What it is written as, or null for the SimaticML every family but one uses. The
+        /// alarm text lists are the exception, and it is Openness that makes them one: they
+        /// leave a PLC as a workbook or not at all.
+        /// </summary>
+        public string Extension { get; }
 
         /// <summary>
         /// Writes it to that path. Returns null when it was written, or the reason it was not

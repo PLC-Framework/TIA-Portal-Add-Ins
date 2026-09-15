@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
 using Siemens.Engineering.SW;
+using Siemens.Engineering.SW.Alarm;
+using Siemens.Engineering.SW.Alarm.TextLists;
 using Siemens.Engineering.SW.Blocks;
 using Siemens.Engineering.SW.Tags;
 using Siemens.Engineering.SW.TechnologicalObjects;
@@ -32,11 +34,20 @@ namespace AddIn.Adapters
     /// stays out is only what TIA generates and nobody edits - the system block and type
     /// folders, and the default tag table.
     ///
-    /// **Alarm text lists are not here**: Openness has no per-list export at all, only a
-    /// service that writes every list of a PLC into one workbook. That is its own entry.
+    /// **The alarm text lists are one item per PLC, not one per list**, because that is all
+    /// Openness offers: `PlcAlarmTextlist` has no `Export`, and the only way out is a service
+    /// that writes a PLC's lists into a workbook. Selecting one list therefore exports the
+    /// PLC's lists - the file always means the same thing, which a file whose contents
+    /// depended on the selection would not.
     /// </summary>
     internal static class TiaExportObjects
     {
+        /// <summary>
+        /// What a PLC's alarm text lists are written as. Ours and fixed: the group they live
+        /// in has no name of its own in the object model, so there is nothing to mirror.
+        /// </summary>
+        private const string AlarmTextsFile = "Alarm texts";
+
         // ---- Containers ---------------------------------------------------------------------
 
         public static List<ExportItem> FromProjects(IEnumerable<Project> projects)
@@ -106,6 +117,34 @@ namespace AddIn.Adapters
         public static List<ExportItem> FromTypes(IEnumerable<PlcType> types) =>
             Each(types, (type, found) => DataType(type, TiaProjectPlaces.LocationOf(type.Parent), found));
 
+        /// <summary>
+        /// The alarm text lists of whatever PLC each selection belongs to, once per PLC: two
+        /// lists of one PLC are one workbook, not two.
+        /// </summary>
+        public static List<ExportItem> FromAlarmTextListGroups(IEnumerable<PlcAlarmTextlistGroup> groups) =>
+            AlarmTextsOf(groups);
+
+        public static List<ExportItem> FromAlarmTextLists(IEnumerable<PlcAlarmTextlist> lists) =>
+            AlarmTextsOf(lists);
+
+        private static List<ExportItem> AlarmTextsOf<T>(IEnumerable<T> selection) where T : IEngineeringObject
+        {
+            List<ExportItem> found = new List<ExportItem>();
+            if (selection == null) return found;
+
+            HashSet<PlcSoftware> seen = new HashSet<PlcSoftware>();
+
+            foreach (T item in selection)
+            {
+                if (item == null) continue;
+
+                PlcSoftware plc = TiaProjectPlaces.SoftwareFor(item);
+                if (plc != null && seen.Add(plc)) AlarmTexts(plc, found);
+            }
+
+            return found;
+        }
+
         private static List<ExportItem> Each<T>(IEnumerable<T> selection, Action<T, List<ExportItem>> walk)
             where T : class
         {
@@ -130,7 +169,10 @@ namespace AddIn.Adapters
             TechnologyObjects(plc.TechnologicalObjectGroup, here, found);
             TagTables(plc.TagTableGroup, here, found);
             Types(plc.TypeGroup, here, found);
+            AlarmTexts(plc, found);
 
+            // A unit's alarm text lists are the PLC's as far as Openness is concerned, so the
+            // workbook above already holds them.
             foreach (PlcUnitBase unit in TiaProjectPlaces.UnitsOf(plc)) Unit(unit, here, found);
         }
 
@@ -222,6 +264,44 @@ namespace AddIn.Adapters
             found.Add(new ExportItem(
                 where.Plc, where.Unit, where.Folders, type.Name,
                 path => Write(type.Name, () => type.IsKnowHowProtected, path, file => type.Export(file, ExportOptions.WithDefaults))));
+        }
+
+        /// <summary>
+        /// One workbook holding every alarm text list of this PLC.
+        ///
+        /// **Not one file per list, because Openness has no per-list export**: the only way
+        /// out is `PlcAlarmTextListProvider`, whose filtered overload narrows by *name* - and
+        /// a unit's list and the PLC's list can share one. Writing the PLC's lists whole means
+        /// the file says the same thing however the export was started.
+        ///
+        /// It sits beside the PLC's folders rather than inside one: the group these live in
+        /// has no name of its own in the object model, so there is no folder to mirror.
+        /// </summary>
+        private static void AlarmTexts(PlcSoftware plc, List<ExportItem> found)
+        {
+            if (plc == null) return;
+
+            found.Add(new ExportItem(
+                plc.Name, null, null, AlarmTextsFile,
+                path =>
+                {
+                    try
+                    {
+                        PlcAlarmTextListProvider provider = plc.GetService<PlcAlarmTextListProvider>();
+
+                        // Documented to answer null when the service is not there, as
+                        // MessageBoxProvider does: a PLC without alarm texts is not a failure.
+                        if (provider == null) return "this PLC does not offer alarm text lists";
+
+                        provider.ExportToXlsx(new System.IO.FileInfo(path));
+                        return null;
+                    }
+                    catch (Exception exception)
+                    {
+                        return exception.Message;
+                    }
+                },
+                Core.Exports.ExportTree.Workbook));
         }
 
         /// <summary>

@@ -32,8 +32,15 @@ namespace Core.Exports
     /// </summary>
     public static class ExportTree
     {
-        /// <summary>What the four families that Openness exports one by one are written as.</summary>
+        /// <summary>What the families Openness exports one by one are written as.</summary>
         public const string SimaticMl = ".xml";
+
+        /// <summary>
+        /// What the alarm text lists are written as, because Openness offers nothing else for
+        /// them: one workbook holding every list of a PLC. It is also the framework's own
+        /// export format everywhere else, which is a coincidence worth having.
+        /// </summary>
+        public const string Workbook = ".xlsx";
 
         /// <summary>
         /// The level a software unit's objects sit under, mirroring the node TIA shows. **Ours

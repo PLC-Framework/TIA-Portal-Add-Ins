@@ -130,7 +130,7 @@ namespace AddIn
 
             // The export, on the same nodes as the check: exporting one folder is the same
             // gesture as checking it. Alarm text lists are not here - Openness exports every
-            // list of a PLC at once or not at all, which is an entry of its own.
+            // list of a PLC at once, so its entries hand back one workbook per PLC.
             AddExport<Project>(menuAddInRoot, "project", "projects", TiaExportObjects.FromProjects);
             AddExport<DeviceItem>(menuAddInRoot, "PLC", "PLCs", TiaExportObjects.FromPlcs);
             AddExport<PlcUnitBase>(menuAddInRoot, "software unit", "software units", TiaExportObjects.FromUnits);
@@ -141,6 +141,8 @@ namespace AddIn
             AddExport<PlcBlock>(menuAddInRoot, "block", "blocks", TiaExportObjects.FromBlocks);
             AddExport<PlcTagTable>(menuAddInRoot, "tag table", "tag tables", TiaExportObjects.FromTagTables);
             AddExport<PlcType>(menuAddInRoot, "PLC data type", "PLC data types", TiaExportObjects.FromTypes);
+            AddExport<PlcAlarmTextlistGroup>(menuAddInRoot, "PLC alarm text lists", "PLC alarm text list groups", TiaExportObjects.FromAlarmTextListGroups);
+            AddExport<PlcAlarmTextlist>(menuAddInRoot, "text list", "text lists", TiaExportObjects.FromAlarmTextLists);
         }
 
         /// <summary>

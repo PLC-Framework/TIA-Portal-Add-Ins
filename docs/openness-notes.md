@@ -209,7 +209,11 @@ The menu's *Export objects* writes the selection into `.plc-framework\exports\`,
 | Blocks, technology objects | `PlcBlock.Export(FileInfo, ExportOptions)` | a technology object is a `PlcBlock`, so it needs no separate call |
 | PLC data types | `PlcType.Export(...)` | |
 | Tag tables | `PlcTagTable.Export(...)` | |
-| **Alarm text lists** | **no export at all** | `PlcAlarmTextlist` has no `Export`. The only way out is `PlcSoftware.GetService<PlcAlarmTextListProvider>().ExportToXlsx(file)`, which writes **every list of a PLC into one workbook** and can be narrowed by list and by language |
+| **Alarm text lists** | **no export at all** | `PlcAlarmTextlist` has no `Export`. The only way out is `PlcSoftware.GetService<PlcAlarmTextListProvider>().ExportToXlsx(file)`, which writes **every list of a PLC into one workbook** |
+
+**So the text lists are one file per PLC**, `exports\<PLC>\Alarm texts.xlsx`, and selecting a single list exports the PLC's lists. The filtered overload was measured and deliberately not used: it is `ExportToXlsx(FileInfo, IEnumerable<string> textLists, IEnumerable<Language> languages)` — it narrows **by name**, and a software unit's list and the PLC's own can carry the same one, so a file built that way would hold something different depending on where the export was started from. The languages it wants are `Siemens.Engineering.Language`, from `project.LanguageSettings.ActiveLanguages`, should that ever be needed.
+
+The provider is an `IEngineeringService` and **answers null when a PLC has none**, exactly as `MessageBoxProvider` does — which is a sentence in the report, not a failure.
 
 - **`ExportOptions.WithDefaults` for all three**, which is where this differs from the export the coding-style check makes: that one reads names out of a file it deletes a second later and takes `None`, while this is the copy somebody restores from, and a copy should not depend on what a future TIA considers a default.
 - **More is kept here than the coding-style walk keeps.** There, an object TIA named itself is dropped because a rule could only fail it; here the question is what the project contains, so **instance DBs, array DBs and technology objects are all exported**. Out stay only the system block and type folders and the default tag table, which TIA rebuilds.
@@ -324,7 +328,7 @@ Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are
 
 `Adapters/TiaCheckedObjects.cs` turns whatever was selected into the `CheckedObject`s that `Core.Checks.CodingStyleChecker` reads, and `CheckCodingStyleAction` runs the check. Read off both assemblies by reflection, **the surface it touches is identical in V20 and V21**, so the two files are byte-identical and duplicated only for the assembly identity. **Run inside TIA Portal V20 and V21 on the VM (2026-09-15)**, which is what settles the three things no test here could: that `Export` writes the interface the reader expects, that partial trust really does let the Add-In create a folder inside the project and write to it, and that the whole chain — menu entry, walk, export, report window — holds together.
 
-"Check coding style" is registered on eleven kinds of node, one `AddActionItemWithIcon<T>` each, and only the one matching the selection shows:
+"Check coding style" is registered on twelve kinds of node, one `AddActionItemWithIcon<T>` each, and only the one matching the selection shows — "Export objects" on the same twelve:
 
 | Registered on | Checks |
 | --- | --- |

@@ -105,9 +105,9 @@ namespace AddIn.Shared.Actions
             {
                 notifier.Info(Title,
                     "\n\nNothing to export in the selection.\n\n" +
-                    "Select the project, a PLC, a software unit, a folder, or blocks, tag tables or " +
-                    "PLC data types. Objects TIA names itself - system blocks, the default tag table - " +
-                    "are not exported.");
+                    "Select the project, a PLC, a software unit, a folder, or blocks, tag tables, " +
+                    "PLC data types or text lists. Objects TIA names itself - system blocks, the " +
+                    "default tag table - are not exported.");
                 return;
             }
 
@@ -146,7 +146,8 @@ namespace AddIn.Shared.Actions
         /// </summary>
         private static string Write(ExportItem item, string projectDirectory, HashSet<string> taken)
         {
-            string path = ExportTree.FileFor(projectDirectory, item.Plc, item.Unit, item.Folders, item.Name);
+            string path = ExportTree.FileFor(
+                projectDirectory, item.Plc, item.Unit, item.Folders, item.Name, item.Extension ?? ExportTree.SimaticMl);
 
             if (path == null) return "There is nowhere to export to.";
 
