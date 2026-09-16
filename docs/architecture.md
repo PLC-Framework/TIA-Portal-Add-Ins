@@ -80,7 +80,11 @@ src/Core/
 │   ├── RepoCopy.cs           mirrors a core into the project, removing what it no longer has
 │   ├── CoreCatalog.cs        a core that has been read: the graph, plus lookup by id and base
 │   ├── CoreCatalogLoader.cs  core.json → CoreCatalog, and why it could not be read
-│   └── CoreValidator.cs      what is wrong with one that loaded — as ValidationIssues
+│   ├── CoreValidator.cs      what is wrong with one that loaded — as ValidationIssues
+│   ├── BlockMetadata.cs      the JSON a core block carries on its TITLE line
+│   ├── ProjectMap.cs         what the TIA project holds — repo\project.json
+│   └── ProjectMapFile.cs     that map, written indented and read back
+├── Places.cs                 "*" for the general program, spelled once for every reader
 ├── Secrets/
 │   ├── DotEnv.cs             the per-user .env: read, and written back surgically
 │   └── Variables.cs          ${NAME} references — pure, given a lookup
@@ -110,6 +114,8 @@ src/AddIn.Shared/
 src/UI.Shared/
 ├── UI.Shared.csproj          SDK-style net48, UseWPF, references Core
 ├── SingleInstance.cs         named Mutex + bring the running window to the front
+├── Controls/
+│   └── BrandHeader.xaml      logo, title, subtitle and an optional badge — one shape for all
 └── Resources/
     ├── BrandLogo.xaml        favicon.svg converted to a vector DrawingImage
     ├── Theme.xaml            brand colours, dark surfaces and ink — every brush named

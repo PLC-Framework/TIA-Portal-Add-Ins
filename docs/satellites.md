@@ -2,6 +2,8 @@
 
 A satellite is a WPF application the Add-In launches from the TIA menu. This page covers what each one does and the decisions behind it.
 
+**Every satellite with a form wears the same header**: the logo at 38 pixels, the window's name at 18 SemiBold in the brand ink, and a line under it at 11 in the muted one saying what it is working on. It comes from `UI.Shared/Controls/BrandHeader.xaml`, so it cannot drift again — which it had, into three sizes and two spellings of the same grey, before the four of them were pulled onto one control. `Satellite.About` is the exception and stays one: it has no form, and the logo *is* its content.
+
 ## Capturing a data block
 
 `Satellite.DataBlockSnapshot` writes one workbook per block, `<ip>-<DB>-snapshot-<timestamp>.xlsx`, into `<TIA project>\.plc-framework\exports\` by default. The rules it follows are all about the file being trustworthy later:
@@ -191,6 +193,10 @@ The scroll bars were light grey in every satellite until this window, whose tabl
 - **It attaches to the TIA Portal that opened it**, worked out from its own parent process. With only one running there is nothing to choose between; with several and no parent it **refuses rather than guesses**, because guessing would attach to somebody else's project and then offer to change it.
 - **Either way it lists what was running.** "No TIA Portal is open" and "two are, and neither is the one that started this" look identical from the window and want opposite answers.
 - **A project that was never saved is attached and still unusable**, and the window says so: the core is copied into the project's own folder, and there is no folder yet.
+- **It maps the PLC you picked, all of it.** The Add-In sends the PLC that was right-clicked and `*` for the general program; the window offers that PLC's software units so the star is a starting point rather than a decision. *Map project* walks blocks, PLC data types, tag tables and every folder, reads what each says about itself, and writes `repo\project.json`.
+- **Everything, not only what looks like the core.** A block downloaded into the wrong folder, and a folder built by hand that holds core blocks, are two of the three discrepancies this exists to find — and neither is visible from a list of core blocks alone.
+- **What a block says about itself travels with it**: the `TITLE` line carries the core's metadata, and its `family` names the folder the block belongs in. Held against where it actually sits, a misplaced block shows up **without the repository being reachable at all**.
+- **A map with holes says where they are.** A folder that would not read is a line of its own, not a silent omission: the one thing a comparison must never be handed is a map that looks complete.
 - **It disposes nothing, and that is not an oversight.** `TiaPortal.Dispose` is how an Openness client shuts a portal **down**, and attaching to one does not change what the method means — a `using` around an attached portal closed the engineer's TIA Portal, with their project open, the moment the window said "Ready". The handles it holds instead are released when the window closes and the process ends.
 
 > **Three projects for one window.** `Satellite.CoreUpdater` is a library with the window and a port; `…V20.exe` and `…V21.exe` are thin shells around it. Openness is `Siemens.Engineering` in V17–V20 and `Siemens.Engineering.Base` in V21 — different assemblies with different public key tokens — so one binary cannot serve both, the same reason the Add-In exists twice. The library references no Siemens assembly at all, which is checkable from its metadata rather than promised in prose.

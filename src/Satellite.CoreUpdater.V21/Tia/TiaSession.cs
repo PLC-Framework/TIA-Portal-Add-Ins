@@ -3,21 +3,48 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 
+using Core;
+using Core.Config;
+using Core.Repo;
+
 using Siemens.Engineering;
+using Siemens.Engineering.HW;
+using Siemens.Engineering.HW.Features;
+using Siemens.Engineering.SW;
+using Siemens.Engineering.SW.Blocks;
+using Siemens.Engineering.SW.Tags;
+using Siemens.Engineering.SW.TechnologicalObjects;
+using Siemens.Engineering.SW.Types;
+using Siemens.Engineering.SW.Units;
 
 namespace Satellite.CoreUpdater.Tia
 {
     /// <summary>
-    /// Attaches to a running TIA Portal through Openness.
+    /// Attaches to a running TIA Portal through Openness, and reads a PLC out of it.
     ///
     /// Identical in the V20 and V21 executables, and duplicated for the reason the Add-In
-    /// adapters already are: `TiaPortal.GetProcesses`, `TiaPortalProcess.Attach` and
-    /// `Project.Path` are the same surface in both - read off both assemblies - but they live
-    /// in `Siemens.Engineering` (token `d29ec89bac048f84`) and `Siemens.Engineering.Base`
-    /// (token `29bfe5fdf4ba5d3b`), so one binary cannot serve both.
+    /// adapters already are: the surface it touches is the same in both - read off both
+    /// assemblies - but it lives in `Siemens.Engineering` (token `d29ec89bac048f84`) and
+    /// `Siemens.Engineering.Base` (token `29bfe5fdf4ba5d3b`), so one binary cannot serve both.
+    ///
+    /// > **This walk is the satellite's own, not `TiaProjectPlaces` a fourth time.** The
+    /// > Add-In's version answers "where is this object", climbing upwards from something the
+    /// > menu selected; this one answers "what is in this PLC", descending from a name. If it
+    /// > ever grows into the same walk, **link the source file rather than keep a fourth
+    /// > copy** - which the decision record already names as the mechanism for identical code
+    /// > with Siemens dependencies.
     /// </summary>
     internal sealed class TiaSession : ITiaSession
     {
+        /// <summary>
+        /// Deep enough for any folder tree an engineer builds by hand, and a guarantee that a
+        /// tree which somehow loops cannot hold the worker thread forever.
+        /// </summary>
+        private const int MaxDepth = 32;
+
+        private TiaPortal _portal;
+        private Project _project;
+
         public TiaAttachment Attach(int? preferredProcessId)
         {
             IList<TiaPortalProcess> running;
@@ -51,32 +78,26 @@ namespace Satellite.CoreUpdater.Tia
         }
 
         /// <summary>
-        /// Attaches and reads what identifies the project.
+        /// Attaches and reads what identifies the project, **keeping the attachment** - every
+        /// call after this one needs it, and it belongs to the thread that obtained it.
         ///
         /// **Nothing is disposed, and that is the whole of the lesson.** The first version
-        /// wrapped the portal in a `using` and wrapped the process handles in a `finally`,
-        /// on the reasoning that disposing an *attached* portal detaches the client rather
-        /// than closing the application. **It closes TIA Portal** - confirmed on the VM, where
-        /// the V20 instance shut down the moment this window said "Ready". `TiaPortal.Dispose`
-        /// is how an Openness client *shuts a portal down*, and attaching does not change what
-        /// the method means.
-        ///
-        /// Which of the two disposals did it was not established and does not need to be:
-        /// neither is needed. What is held here is a handful of handles in a process that ends
-        /// when its window closes, and the operating system releases them then. Set against
-        /// closing an engineer's TIA Portal with their project open, that is not a trade worth
-        /// thinking about twice.
+        /// wrapped the portal in a `using`, on the reasoning that disposing an *attached*
+        /// portal detaches the client rather than closing the application. **It closes TIA
+        /// Portal** - confirmed on the VM, where the V20 instance shut down with the project
+        /// open the moment this window said "Ready". `TiaPortal.Dispose` is how an Openness
+        /// client shuts a portal down, and attaching does not change what the method means.
         /// </summary>
-        private static TiaAttachment Read(TiaPortalProcess process, List<string> considered)
+        private TiaAttachment Read(TiaPortalProcess process, List<string> considered)
         {
             int id = process.Id;
 
             try
             {
-                TiaPortal portal = process.Attach();
-                Project project = portal.Projects.FirstOrDefault();
+                _portal = process.Attach();
+                _project = _portal.Projects.FirstOrDefault();
 
-                return TiaAttachment.To(id, project?.Name, project?.Path?.DirectoryName, considered);
+                return TiaAttachment.To(id, _project?.Name, _project?.Path?.DirectoryName, considered);
             }
             catch (Exception exception)
             {
@@ -85,6 +106,428 @@ namespace Satellite.CoreUpdater.Tia
                         "TIA Portal process {0} refused the connection.\n\n{1}", id, exception.Message),
                     considered);
             }
+        }
+
+        public IReadOnlyList<string> Plcs()
+        {
+            List<string> names = new List<string>();
+
+            foreach (PlcSoftware plc in Software()) names.Add(plc.Name);
+
+            return names;
+        }
+
+        /// <summary>
+        /// One PLC's software units, or none.
+        ///
+        /// **Empty covers three different truths and that is fine here**: the PLC is an
+        /// S7-1200, which has no units; the project uses none; or this is running against a
+        /// TIA old enough that the type does not exist - V17 has no `PlcUnitBase` at all, and
+        /// asking for it there throws while the method is being compiled rather than when it
+        /// is called. None of the three is a failure, and the window still offers the general
+        /// program. Anything genuinely wrong surfaces where the map is walked, which does not
+        /// swallow it.
+        /// </summary>
+        public IReadOnlyList<string> Units(string plc)
+        {
+            List<string> names = new List<string>();
+
+            try
+            {
+                PlcSoftware software = Find(plc);
+                if (software == null) return names;
+
+                foreach (PlcUnitBase unit in UnitsOf(software)) names.Add(unit.Name);
+            }
+            catch (Exception)
+            {
+                return new List<string>();
+            }
+
+            return names;
+        }
+
+        public ProjectMap Map(string plc, string unit)
+        {
+            ProjectMap map = ProjectMap.Of(
+                _project?.Name, plc, unit,
+                DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture));
+
+            PlcSoftware software = Find(plc);
+
+            if (software == null)
+            {
+                map.Problems.Add("This project holds no PLC called '" + plc + "'.");
+                return map;
+            }
+
+            string wanted = Places.UnitOrNull(unit);
+
+            if (wanted == null)
+            {
+                // The PLC's own program. Technology objects live only here - a software unit
+                // exposes blocks, tag tables and types and nothing else.
+                Blocks(software.BlockGroup, null, map);
+                TechnologyObjects(software.TechnologicalObjectGroup, null, map);
+                TagTables(software.TagTableGroup, null, map);
+                Types(software.TypeGroup, null, map);
+
+                return map;
+            }
+
+            PlcUnitBase found = UnitsOf(software)
+                .FirstOrDefault(one => string.Equals(one.Name, wanted, StringComparison.OrdinalIgnoreCase));
+
+            if (found == null)
+            {
+                map.Problems.Add("'" + plc + "' has no software unit called '" + wanted + "'.");
+                return map;
+            }
+
+            Blocks(found.BlockGroup, null, map);
+            TagTables(found.TagTableGroup, null, map);
+            Types(found.TypeGroup, null, map);
+
+            return map;
+        }
+
+        // ---- The walk -----------------------------------------------------------------------
+
+        private void Blocks(PlcBlockGroup group, string parent, ProjectMap map, int depth = 0)
+        {
+            if (group == null || Deep(depth, parent, map)) return;
+
+            string here = Join(parent, group.Name);
+
+            Each(map, here, () =>
+            {
+                foreach (PlcBlock block in group.Blocks) map.Objects.Add(Of(block, here, map));
+            });
+
+            foreach (PlcBlockUserGroup child in Children(group.Groups, here, map)) Blocks(child, here, map, depth + 1);
+
+            // SystemBlockGroups is deliberately not walked: TIA fills and names it, and no
+            // core block is ever in it.
+        }
+
+        private void TechnologyObjects(TechnologicalInstanceDBGroup group, string parent, ProjectMap map, int depth = 0)
+        {
+            if (group == null || Deep(depth, parent, map)) return;
+
+            string here = Join(parent, group.Name);
+
+            Each(map, here, () =>
+            {
+                foreach (TechnologicalInstanceDB found in group.TechnologicalObjects)
+                    map.Objects.Add(Of(found, here, map));
+            });
+
+            foreach (TechnologicalInstanceDBUserGroup child in Children(group.Groups, here, map))
+                TechnologyObjects(child, here, map, depth + 1);
+        }
+
+        private void TagTables(PlcTagTableGroup group, string parent, ProjectMap map, int depth = 0)
+        {
+            if (group == null || Deep(depth, parent, map)) return;
+
+            string here = Join(parent, group.Name);
+
+            Each(map, here, () =>
+            {
+                foreach (PlcTagTable table in group.TagTables) map.Objects.Add(Of(table, here, map));
+            });
+
+            foreach (PlcTagTableUserGroup child in Children(group.Groups, here, map)) TagTables(child, here, map, depth + 1);
+        }
+
+        private void Types(PlcTypeGroup group, string parent, ProjectMap map, int depth = 0)
+        {
+            if (group == null || Deep(depth, parent, map)) return;
+
+            string here = Join(parent, group.Name);
+
+            Each(map, here, () =>
+            {
+                foreach (PlcType type in group.Types) map.Objects.Add(Of(type, here, map));
+            });
+
+            foreach (PlcTypeUserGroup child in Children(group.Groups, here, map)) Types(child, here, map, depth + 1);
+        }
+
+        // ---- One object ---------------------------------------------------------------------
+
+        private ProjectObject Of(PlcBlock block, string folder, ProjectMap map)
+        {
+            ProjectObject found = Described(block.Name, Kind(block), folder, TitleOf(block, map));
+
+            // TIA's own VERSION and FAMILY headers, which the core writes alongside its TITLE
+            // and which a comparison can fall back on when the TITLE cannot be read.
+            found.HeaderVersion = Native(() => block.HeaderVersion?.ToString());
+            found.HeaderFamily = Native(() => block.HeaderFamily);
+
+            return found;
+        }
+
+        private ProjectObject Of(PlcType type, string folder, ProjectMap map) =>
+            Described(type.Name, CodingStyleNames.PlcStruct, folder, TitleOf(type, map));
+
+        /// <summary>
+        /// **V21 has `Title` as a typed property; V20 does not have it at all.** That is a real
+        /// divergence between the two object models, found by compiling this file against both,
+        /// and it is why these two adapters are not identical the way the others are.
+        /// </summary>
+        private string TitleOf(PlcBlock block, ProjectMap map) => Title(block.Title);
+
+        private string TitleOf(PlcType type, ProjectMap map) => Title(type.Title);
+
+        /// <summary>A native header field, or null when TIA will not answer for it.</summary>
+        private static string Native(Func<string> read)
+        {
+            try
+            {
+                return read();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// A tag table's metadata is not on the table: it is in the **comment of the constant
+        /// named after it**, which is how the core's `.xlsx` carries it and what TIA imports
+        /// that workbook into. `PlcTagTable` has a `Name` and nothing else - no `Title`, no
+        /// `Comment` - so there is nowhere else it could be.
+        /// </summary>
+        private static ProjectObject Of(PlcTagTable table, string folder, ProjectMap map)
+        {
+            string title = null;
+
+            try
+            {
+                PlcUserConstant marker = table.UserConstants
+                    .FirstOrDefault(one => string.Equals(one.Name, table.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (marker != null) title = Title(marker.Comment);
+            }
+            catch (Exception exception)
+            {
+                map.Problems.Add(table.Name + ": its constants could not be read - " + exception.Message);
+            }
+
+            return Described(table.Name, CodingStyleNames.PlcTagTable, folder, title);
+        }
+
+        private static ProjectObject Described(string name, string kind, string folder, string title)
+        {
+            string problem;
+            BlockMetadata metadata = BlockMetadata.Read(title, out problem);
+
+            ProjectObject found = new ProjectObject
+            {
+                Name = name,
+                Kind = kind,
+                Folder = folder,
+                Problem = problem
+            };
+
+            if (metadata == null) return found;
+
+            found.Version = metadata.Number;
+            found.Status = metadata.Status;
+            found.DeprecatedBy = metadata.DeprecatedBy;
+            found.Family = metadata.Family;
+            found.Dependencies = metadata.Dependencies;
+
+            return found;
+        }
+
+        /// <summary>
+        /// **Most specific first**, or every technology object reports as an instance DB:
+        /// `TechnologicalInstanceDB` derives from `InstanceDB`, which derives from `DataBlock`.
+        /// The names are `CodingStyleNames`', so one vocabulary serves the check, the
+        /// configuration and this.
+        /// </summary>
+        private static string Kind(PlcBlock block)
+        {
+            if (block is TechnologicalInstanceDB) return CodingStyleNames.TechnologicalInstanceDB;
+            if (block is InstanceDB) return CodingStyleNames.InstanceDB;
+            if (block is ArrayDB) return CodingStyleNames.ArrayDB;
+            if (block is GlobalDB) return CodingStyleNames.GlobalDB;
+            if (block is OB) return CodingStyleNames.OB;
+            if (block is FB) return CodingStyleNames.FB;
+            if (block is FC) return CodingStyleNames.FC;
+
+            return block.GetType().Name;
+        }
+
+        /// <summary>
+        /// The first thing a multilingual text actually says. **Any language will do**: the
+        /// metadata is JSON, the same in every one of them, and demanding a particular
+        /// language would make the map depend on which the project was edited in.
+        /// </summary>
+        private static string Title(MultilingualText text)
+        {
+            if (text == null) return null;
+
+            try
+            {
+                foreach (MultilingualTextItem item in text.Items)
+                    if (!string.IsNullOrWhiteSpace(item.Text)) return item.Text;
+            }
+            catch (Exception)
+            {
+                // A title that will not come back is not a reason to lose the object: it
+                // arrives with no metadata, which is what "not from the core" looks like.
+            }
+
+            return null;
+        }
+
+        // ---- Plumbing -----------------------------------------------------------------------
+
+        private IEnumerable<PlcSoftware> Software()
+        {
+            List<PlcSoftware> found = new List<PlcSoftware>();
+            HashSet<PlcSoftware> seen = new HashSet<PlcSoftware>();
+
+            if (_project == null) return found;
+
+            Devices(_project.Devices, found, seen);
+            Devices(_project.UngroupedDevicesGroup?.Devices, found, seen);
+
+            foreach (DeviceUserGroup group in _project.DeviceGroups) Group(group, found, seen);
+
+            return found;
+        }
+
+        private void Group(DeviceUserGroup group, List<PlcSoftware> found, HashSet<PlcSoftware> seen)
+        {
+            if (group == null) return;
+
+            Devices(group.Devices, found, seen);
+
+            foreach (DeviceUserGroup child in group.Groups) Group(child, found, seen);
+        }
+
+        private void Devices(DeviceComposition devices, List<PlcSoftware> found, HashSet<PlcSoftware> seen)
+        {
+            if (devices == null) return;
+
+            foreach (Device device in devices)
+            {
+                if (device == null) continue;
+
+                foreach (DeviceItem item in device.DeviceItems) Items(item, found, seen);
+            }
+        }
+
+        private void Items(DeviceItem item, List<PlcSoftware> found, HashSet<PlcSoftware> seen)
+        {
+            if (item == null) return;
+
+            PlcSoftware plc = SoftwareOf(item);
+            if (plc != null && seen.Add(plc)) found.Add(plc);
+
+            foreach (DeviceItem child in item.DeviceItems) Items(child, found, seen);
+        }
+
+        /// <summary>
+        /// The PLC a device item carries, or null. Asked of every module in a device, and most
+        /// of them are not a CPU - a refusal there is an answer, not a failure.
+        /// </summary>
+        private static PlcSoftware SoftwareOf(DeviceItem item)
+        {
+            try
+            {
+                return item.GetService<SoftwareContainer>()?.Software as PlcSoftware;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private PlcSoftware Find(string plc) =>
+            Software().FirstOrDefault(one => string.Equals(one.Name, plc, StringComparison.OrdinalIgnoreCase));
+
+        /// <summary>
+        /// Units and safety units alike. Only the S7-1500 family has them; on an S7-1200 the
+        /// provider service is simply not there, which is a normal answer.
+        /// </summary>
+        private static IEnumerable<PlcUnitBase> UnitsOf(PlcSoftware plc)
+        {
+            PlcUnitSystemGroup group;
+
+            try
+            {
+                group = plc.GetService<PlcUnitProvider>()?.UnitGroup;
+            }
+            catch (Exception)
+            {
+                group = null;
+            }
+
+            List<PlcUnitBase> units = new List<PlcUnitBase>();
+            if (group == null) return units;
+
+            foreach (PlcUnit unit in group.Units) units.Add(unit);
+            foreach (PlcSafetyUnit unit in group.SafetyUnits) units.Add(unit);
+
+            return units;
+        }
+
+        /// <summary>
+        /// **The objects of one folder are guarded; the tree is not walked past a failure.**
+        /// A folder that silently failed to read would drop out of the map and leave it
+        /// looking complete, which is the one outcome a comparison must never be handed.
+        /// </summary>
+        private static void Each(ProjectMap map, string folder, Action read)
+        {
+            try
+            {
+                read();
+            }
+            catch (Exception exception)
+            {
+                map.Problems.Add((folder ?? "(root)") + ": " + exception.Message);
+            }
+        }
+
+        /// <summary>
+        /// A folder's own folders, read into a list before anything walks them.
+        ///
+        /// **Typed, not `dynamic`.** The four compositions share no base worth naming, so a
+        /// dynamic call looked tempting - and would have traded a compile-time check plus a
+        /// `Microsoft.CSharp` reference for four saved lines, in the one method that decides
+        /// whether the walk reaches the rest of the tree.
+        /// </summary>
+        private static IEnumerable<T> Children<T>(IEnumerable<T> groups, string folder, ProjectMap map)
+        {
+            try
+            {
+                return new List<T>(groups);
+            }
+            catch (Exception exception)
+            {
+                map.Problems.Add((folder ?? "(root)") + ": its folders could not be read - " + exception.Message);
+                return new List<T>();
+            }
+        }
+
+        private static bool Deep(int depth, string folder, ProjectMap map)
+        {
+            if (depth < MaxDepth) return false;
+
+            map.Problems.Add("Stopped at " + MaxDepth + " folders deep: " + folder);
+            return true;
+        }
+
+        private static string Join(string parent, string name)
+        {
+            if (string.IsNullOrEmpty(name)) return parent ?? string.Empty;
+
+            return string.IsNullOrEmpty(parent) ? name : parent + "/" + name;
         }
 
         private static string Why(int running, int? preferred)
@@ -119,6 +562,14 @@ namespace Satellite.CoreUpdater.Tia
             }
 
             return string.Format(CultureInfo.CurrentCulture, "process {0} - {1}", process.Id, project);
+        }
+
+        public void Dispose()
+        {
+            // **Deliberately empty of disposals.** Disposing the portal closes TIA Portal;
+            // the references are dropped and the connection goes when this process ends.
+            _project = null;
+            _portal = null;
         }
     }
 }

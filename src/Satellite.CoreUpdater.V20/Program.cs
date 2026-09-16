@@ -17,11 +17,11 @@ namespace Satellite.CoreUpdater
         /// no `App.xaml` here precisely so that one application can serve two executables.
         /// </summary>
         [STAThread]
-        public static int Main()
+        public static int Main(string[] arguments)
         {
             OpennessAssemblies.Install();
 
-            return Start();
+            return Start(arguments);
         }
 
         /// <summary>
@@ -32,7 +32,7 @@ namespace Satellite.CoreUpdater
         /// compiler is told to keep is what orders the two correctly.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int Start() =>
-            CoreUpdaterApp.Run(() => new TiaSession(), OpennessAssemblies.Report);
+        private static int Start(string[] arguments) =>
+            CoreUpdaterApp.Run(() => new TiaSession(), OpennessAssemblies.Report, arguments, "V20");
     }
 }

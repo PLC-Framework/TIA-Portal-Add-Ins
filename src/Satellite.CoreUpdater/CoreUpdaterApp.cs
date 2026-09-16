@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 using System.Windows;
 
 using Satellite.CoreUpdater.Startup;
@@ -17,19 +16,26 @@ namespace Satellite.CoreUpdater
     ///
     /// **No single-instance guard yet.** The config editor takes one per TIA Portal because
     /// two windows over one document lose each other's changes, and this window will want the
-    /// same rule the moment it can change anything. It cannot yet, and a guard is a decision
-    /// about what the second launch should do - which is worth making when there is something
-    /// to protect.
+    /// same rule the moment it can change the project. It cannot yet - it only reads and
+    /// writes a map inside `repo\` - and a guard is a decision about what the second launch
+    /// should do, worth making when there is something to protect.
     /// </summary>
     public sealed class CoreUpdaterApp : Application
     {
         private readonly Func<ITiaSession> _connect;
         private readonly Func<string> _whereItLooked;
+        private readonly Requested _requested;
+        private readonly string _tiaVersion;
 
-        private CoreUpdaterApp(Func<ITiaSession> connect, Func<string> whereItLooked)
+        private TiaWorker _worker;
+
+        private CoreUpdaterApp(
+            Func<ITiaSession> connect, Func<string> whereItLooked, Requested requested, string tiaVersion)
         {
             _connect = connect;
             _whereItLooked = whereItLooked;
+            _requested = requested;
+            _tiaVersion = tiaVersion;
 
             Resources.MergedDictionaries.Add(Dictionary("Controls.xaml"));
             Resources.MergedDictionaries.Add(Dictionary("BrandLogo.xaml"));
@@ -38,8 +44,8 @@ namespace Satellite.CoreUpdater
         /// <summary>
         /// Runs the window. <paramref name="connect"/> is a factory rather than a session
         /// because **it is the first thing that touches Openness**: invoking it inside the
-        /// guarded call is what turns "the Siemens assemblies are not on this machine" into a
-        /// sentence in the window instead of a process that dies before it paints.
+        /// worker's own thread is what turns "the Siemens assemblies are not on this machine"
+        /// into a sentence in the window instead of a process that dies before it paints.
         /// </summary>
         /// <param name="whereItLooked">
         /// What the executable's assembly resolver searched, shown under a load failure.
@@ -47,11 +53,20 @@ namespace Satellite.CoreUpdater
         /// resolver that only says "not found" turns every wrong guess into another round
         /// trip to the VM. Optional: a caller with nothing to say passes null.
         /// </param>
-        public static int Run(Func<ITiaSession> connect, Func<string> whereItLooked = null)
+        /// <param name="tiaVersion">
+        /// <c>V20</c> or <c>V21</c>, shown beside the title. The two executables are otherwise
+        /// identical on screen, and an operator with both TIA versions installed has no other
+        /// way to tell which one is in front of them.
+        /// </param>
+        public static int Run(
+            Func<ITiaSession> connect,
+            Func<string> whereItLooked = null,
+            string[] arguments = null,
+            string tiaVersion = null)
         {
             if (connect == null) throw new ArgumentNullException(nameof(connect));
 
-            return new CoreUpdaterApp(connect, whereItLooked).Run();
+            return new CoreUpdaterApp(connect, whereItLooked, Requested.From(arguments), tiaVersion).Run();
         }
 
         protected override void OnStartup(StartupEventArgs e)
@@ -62,6 +77,8 @@ namespace Satellite.CoreUpdater
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             base.MainWindow = window;
 
+            window.Badge(_tiaVersion);
+
             // Asked on this thread before the window shows, so the window can say which TIA
             // Portal it is looking for rather than only that it is looking.
             int? parent = ParentProcess.Id();
@@ -69,44 +86,24 @@ namespace Satellite.CoreUpdater
             window.ShowWaiting(parent);
             window.Show();
 
-            Attach(window, parent);
+            _worker = new TiaWorker(_connect, Dispatcher);
+            window.Uses(_worker);
+
+            _worker.Post(
+                session => session.Attach(parent),
+                attachment => window.Arrived(attachment, _requested.Plc, _requested.Unit),
+                exception => window.Arrived(
+                    TiaAttachment.Failed(Describe(exception) + Looked()), _requested.Plc, _requested.Unit));
         }
 
-        /// <summary>
-        /// Attaches away from the UI thread, so the window paints and can be moved while TIA
-        /// answers.
-        ///
-        /// **A plain background thread, not the thread pool**, because the session is created
-        /// and used and let go entirely inside it: Openness objects belong to the thread that
-        /// obtained them, and a pool thread is one that other work also runs on. Nothing here
-        /// outlives the call - see <see cref="ITiaSession.Attach"/> for why stage two keeps it
-        /// that way.
-        /// </summary>
-        private void Attach(MainWindow window, int? parent)
+        protected override void OnExit(ExitEventArgs e)
         {
-            Thread worker = new Thread(() =>
-            {
-                TiaAttachment attachment;
+            // Stops the pump so its thread can leave. It does **not** dispose the session:
+            // disposing an attached TiaPortal closes TIA Portal, which was seen on the VM
+            // with an engineer's project open. The connection goes when this process does.
+            if (_worker != null) _worker.Dispose();
 
-                try
-                {
-                    attachment = _connect().Attach(parent);
-                }
-                catch (Exception exception)
-                {
-                    // Where the Openness assemblies failing to load lands: the resolver found
-                    // nothing, or TIA is installed but this user is not in the Openness group.
-                    // No `considered` list, because nothing ever enumerated anything - saying
-                    // "no TIA Portal was running" here would be a claim this never checked.
-                    attachment = TiaAttachment.Failed(Describe(exception) + Looked());
-                }
-
-                window.Dispatcher.BeginInvoke(new Action(() => window.Arrived(attachment)));
-            });
-
-            worker.IsBackground = true;
-            worker.SetApartmentState(ApartmentState.STA);
-            worker.Start();
+            base.OnExit(e);
         }
 
         /// <summary>What the resolver searched, when it has anything to say.</summary>

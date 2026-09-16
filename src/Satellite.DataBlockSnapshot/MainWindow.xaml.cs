@@ -61,7 +61,7 @@ namespace Satellite.DataBlockSnapshot
             // hand, and then the operator picks.
             FolderBox.Text = ConfigPaths.ExportsFor(request.ProjectDirectory) ?? string.Empty;
 
-            ProjectLine.Text = Describe(request);
+            Header.Subtitle = Describe(request);
 
             StatusLine.Text = Recall() ? DescribeBlocks() + "  Credentials remembered." : DescribeBlocks();
         }

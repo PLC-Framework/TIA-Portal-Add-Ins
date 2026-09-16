@@ -82,7 +82,7 @@ namespace Satellite.ConfigEditor
             // the tabs is set once more now that they do.
             OnCodingTab(this, null);
 
-            ProjectLine.Text = Describe(request);
+            Header.Subtitle = Describe(request);
 
             Open(Resolve(request.ProjectDirectory));
         }

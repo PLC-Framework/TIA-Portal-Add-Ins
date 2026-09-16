@@ -124,7 +124,7 @@ namespace Satellite.CodingStyleReport
 
             _lines.AddRange(report.Rows.Where(row => row != null).Select(row => new ReportLine(row, rules)));
 
-            ProjectLine.Text = Describe(report, _importedFrom);
+            Header.Subtitle = Describe(report, _importedFrom);
             SummaryLine.Text = Summarise(report.Rows);
 
             FailedCount.Text = Chip("Failed", CheckOutcome.Failed);
@@ -208,7 +208,7 @@ namespace Satellite.CodingStyleReport
 
             // The header says the same, so the window is recognisable among several before
             // any of them has a report.
-            ProjectLine.Text = notice == null ? string.Empty : Describe(notice);
+            Header.Subtitle = notice == null ? string.Empty : Describe(notice);
             StatusLine.Text = "Waiting for TIA Portal.";
 
             DoubleAnimation slide = new DoubleAnimation

@@ -30,6 +30,12 @@
       <HintPath>$(TiaApi)\Siemens.Engineering.Base.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <!-- V21 splits the object model: PlcSoftware, the blocks, the types and the tag tables
+         live here, while V20 carries them all inside its one client assembly. -->
+    <Reference Include="Siemens.Engineering.Step7">
+      <HintPath>$(TiaApi)\Siemens.Engineering.Step7.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

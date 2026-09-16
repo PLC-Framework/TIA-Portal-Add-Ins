@@ -48,9 +48,10 @@ namespace Satellite.CoreUpdater.Tia
         /// to V21's assemblies - different public key tokens, so the load would fail anyway,
         /// just later and with a worse message.
         ///
-        /// **This build covers V17 through V20**, which share one binary-compatible API - and
-        /// the station above publishes all four under `20.0\PublicAPI\`, which is why an older
-        /// one resolves here by name like any other.
+        /// **This build covers V17 through V20**, which share one binary-compatible API, and
+        /// the station above publishes all four under `20.0\PublicAPI\`. Which of them gets
+        /// loaded is what <see cref="Ordered"/> decides, and getting it wrong is what made
+        /// this executable load V17's assembly and fail on a type V17 never had.
         /// </summary>
         private const string Version = "20.0";
 
@@ -197,7 +198,7 @@ namespace Satellite.CoreUpdater.Tia
 
                 string found = null;
 
-                foreach (string name in api.GetSubKeyNames())
+                foreach (string name in Ordered(api.GetSubKeyNames(), version))
                 {
                     using (RegistryKey entries = api.OpenSubKey(name))
                     {
@@ -229,6 +230,57 @@ namespace Satellite.CoreUpdater.Tia
         }
 
         /// <summary>
+        /// The API subkeys, this version's first and the rest newest-first.
+        ///
+        /// **Order is the whole of it, and taking them as they came was a real bug.** One TIA
+        /// installation serves every older API it is compatible with, so `20.0\PublicAPI\`
+        /// holds `17.0.0.0`, `18.0.0.0`, `19.0.0.0` *and* `20.0.0.0`, each publishing its own
+        /// `Siemens.Engineering`. Enumerated as the registry returns them, the first match is
+        /// **V17** - which loaded, and then failed on the first type V17 does not have:
+        /// *"Could not load type 'Siemens.Engineering.SW.Units.PlcUnitBase' from assembly
+        /// 'Siemens.Engineering, Version=17.0.0.0'"*. Software units did not exist yet.
+        ///
+        /// A station with only an older TIA still resolves, through the rest of the list -
+        /// and a project using something that TIA has not got fails where it uses it, naming
+        /// the type, which is the best answer available.
+        /// </summary>
+        private static IEnumerable<string> Ordered(string[] names, string version)
+        {
+            List<string> rest = new List<string>(names);
+            List<string> ordered = new List<string>();
+
+            foreach (string name in names)
+            {
+                if (!name.StartsWith(version + ".", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(name, version, StringComparison.OrdinalIgnoreCase)) continue;
+
+                ordered.Add(name);
+                rest.Remove(name);
+            }
+
+            // Newest first among the rest: an older API is a fallback, and the newest of them
+            // is the one most likely to carry what this was compiled against.
+            rest.Sort((left, right) => Compare(right).CompareTo(Compare(left)));
+            ordered.AddRange(rest);
+
+            return ordered;
+        }
+
+        /// <summary>
+        /// A subkey name as a comparable version.
+        ///
+        /// **`System.Version` written out, because this class has a constant called
+        /// `Version`** and a member name shadows the type - the same trap `AddIn.Core` and
+        /// `Core.Repo.RepoPaths.CoreFolder` already record, met a third time.
+        /// </summary>
+        private static System.Version Compare(string name)
+        {
+            System.Version parsed;
+
+            return System.Version.TryParse(name, out parsed) ? parsed : new System.Version(0, 0);
+        }
+
+        /// <summary>
         /// Every folder worth probing: the ones the registry names, the ones their layout
         /// implies for *this* version, and the ordinary installation path as a last resort.
         /// </summary>
@@ -243,7 +295,7 @@ namespace Satellite.CoreUpdater.Tia
                 string root = InstallationRoot(folder);
                 if (root == null) continue;
 
-                // `PublicAPI\V20\` is what the layout implies; `PublicAPI\` itself is there
+                // `PublicAPI\V20\` is what V20's layout implies; `PublicAPI\` itself is there
                 // because the segment is only known to repeat for V20, and a probe costs a
                 // file-exists call.
                 Add(folders, Path.Combine(root, "Portal " + Segment, "PublicAPI", Segment));

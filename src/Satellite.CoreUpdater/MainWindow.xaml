@@ -1,9 +1,10 @@
 <Window x:Class="Satellite.CoreUpdater.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:UI.Shared.Controls;assembly=PLC-Framework.UI.Shared"
         Title="Core updater"
-        Height="440" Width="680"
-        MinHeight="320" MinWidth="520"
+        Height="480" Width="720"
+        MinHeight="360" MinWidth="560"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Surface}"
         Icon="{StaticResource BrandLogo}">
@@ -15,16 +16,15 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Orientation="Horizontal">
-            <Image Source="{StaticResource BrandLogo}" Width="28" Height="28" VerticalAlignment="Center" />
-            <TextBlock Text="Core updater" FontSize="18" Margin="10,0,0,0" VerticalAlignment="Center"
-                       Foreground="{StaticResource Ink}" />
-        </StackPanel>
+        <!-- The badge carries V20 or V21: this window is built once per TIA version and is
+             otherwise identical in both, so which one is running is not something the
+             operator could tell from looking. -->
+        <ui:BrandHeader x:Name="Header" Grid.Row="0" Title="Core updater" />
 
-        <!-- One panel at a time: waiting, attached, or the reason neither. Toggled with
-             Visibility from the code-behind rather than by binding, because there is one
-             transition in this window's whole life and a view model for it would be
-             ceremony around a single assignment. -->
+        <!-- One panel at a time: waiting, the project, or the reason neither. Toggled with
+             Visibility from the code-behind rather than by binding - this window has a
+             handful of transitions in its whole life, and a view model for them would be
+             ceremony around a few assignments. -->
         <Grid Grid.Row="1" Margin="0,18,0,0">
 
             <StackPanel x:Name="WaitingPanel" VerticalAlignment="Center">
@@ -35,29 +35,58 @@
                 <ProgressBar IsIndeterminate="True" Height="4" Width="260" Margin="0,14,0,0" />
             </StackPanel>
 
-            <StackPanel x:Name="AttachedPanel" Visibility="Collapsed" VerticalAlignment="Center">
-                <TextBlock Text="Attached to TIA Portal" FontSize="14"
-                           Foreground="{StaticResource InkGood}" />
+            <Grid x:Name="AttachedPanel" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-                <TextBlock Text="Project" Style="{StaticResource FieldLabel}" Margin="0,16,0,0" />
-                <TextBlock x:Name="ProjectNameText" FontSize="14" TextTrimming="CharacterEllipsis"
-                           Foreground="{StaticResource Ink}" />
+                <!-- The PLC and the unit sit on one row, sharing their label column through
+                     SharedSizeGroup rather than a Width: a constant lines two rows up at
+                     exactly one window size, and this one resizes. -->
+                <Grid Grid.Row="0" Grid.IsSharedSizeScope="True">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                <TextBlock Text="Folder" Style="{StaticResource FieldLabel}" Margin="0,12,0,0" />
-                <TextBlock x:Name="ProjectFolderText" TextWrapping="Wrap"
-                           Foreground="{StaticResource InkMuted}" />
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="PLC" Style="{StaticResource FieldLabel}"
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <ComboBox x:Name="PlcBox" Grid.Row="0" Grid.Column="1" Height="26"
+                              SelectionChanged="PlcChanged" />
 
-                <TextBlock x:Name="ProcessText" Margin="0,12,0,0"
-                           Foreground="{StaticResource InkMuted}" />
-            </StackPanel>
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Software unit" Style="{StaticResource FieldLabel}"
+                               VerticalAlignment="Center" Margin="0,10,10,0" />
+                    <ComboBox x:Name="UnitBox" Grid.Row="1" Grid.Column="1" Height="26" Margin="0,10,0,0" />
+
+                    <Button x:Name="MapButton" Grid.Row="1" Grid.Column="2" Content="Map project"
+                            Style="{StaticResource Primary}" Margin="10,10,0,0" Padding="16,4"
+                            Click="MapClicked" />
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" Margin="0,18,0,0"
+                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <TextBlock x:Name="MapHeading" FontSize="14" TextWrapping="Wrap"
+                                   Foreground="{StaticResource InkGood}" Visibility="Collapsed" />
+                        <TextBlock x:Name="MapText" Margin="0,10,0,0" TextWrapping="Wrap"
+                                   Foreground="{StaticResource InkMuted}" />
+                        <TextBlock x:Name="MapProblems" Margin="0,12,0,0" TextWrapping="Wrap"
+                                   Foreground="{StaticResource InkWarn}" Visibility="Collapsed" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
 
             <!-- Scrolled, because the failure that matters most is the longest: when the
                  Openness assemblies cannot be found, this carries the account of every
                  registry key that was read and every folder that was probed. The first
-                 version centred it in a fixed row and **clipped it on the VM**, cutting off
-                 the half that said where it had looked. The ScrollViewer sits inside the
-                 star row rather than around the whole window, which is what keeps it from
-                 handing its content infinite height. -->
+                 version centred it in a fixed row and clipped it on the VM, cutting off
+                 the half that said where it had looked. -->
             <ScrollViewer x:Name="ProblemPanel" Visibility="Collapsed"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>

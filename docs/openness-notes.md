@@ -453,6 +453,18 @@ _tiaPortal.GetService<MessageBoxProvider>()
 
 This is precisely the kind of difference that justifies a port in `AddIn.Shared` — `ITiaNotifier.Info(caption, message)` — implemented once per version, so the rest of the code never learns that the difference exists.
 
+**V21 gave a block a `Title` and a `Comment`; V20 has neither.** Found by compiling one file against both, which is the cheapest way these differences ever surface:
+
+| Property | V20 `PlcBlock` | V21 `PlcBlock` |
+| --- | --- | --- |
+| `Title` | **absent** | `MultilingualText` |
+| `Comment` | **absent** | `MultilingualText` |
+| `HeaderAuthor` · `HeaderFamily` · `HeaderName` · `HeaderVersion` | present | present |
+
+Same for `PlcType`, which gained `Title` and `Comment` in V21 and has no `Header*` at all in either. `PlcTagTable` has only a `Name` in both — no title, no comment — so anything a tag table has to say about itself lives in its constants, where `PlcUserConstant.Comment` **is** a `MultilingualText` in both versions.
+
+That matters to anything reading a block's `TITLE` line, which is where the framework's core library keeps its metadata. V21 reads the typed property; **V20 has to go through `IEngineeringObject.GetAttribute("Title")`**, the untyped escape hatch both versions offer — and whether it answers for that name is **not verified**, since the development PC has no TIA Portal. The native `Header*` fields are the fallback either way: `VERSION` and `FAMILY` carry two of the three things a comparison needs, typed, in both versions.
+
 **`ProjectBase` lost four properties and gained one.** Compared declared property by declared property, seven of the eight spine types are identical across versions — `TiaPortal`, `HardwareObject`, `DeviceItem`, `SoftwareContainer`, `PlcSoftware`, `PlcBlockGroup` and `PlcUnitBase` all keep the same surface *and* the same base class. `ProjectBase` is the exception:
 
 | Property | In V21 |

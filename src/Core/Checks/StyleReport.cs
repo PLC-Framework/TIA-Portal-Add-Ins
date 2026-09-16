@@ -226,8 +226,15 @@ namespace Core.Checks
     [DataContract]
     public sealed class ReportRow
     {
-        /// <summary>What <see cref="Unit"/> says when the row belongs to the general program.</summary>
-        public const string GeneralProgram = "*";
+        /// <summary>
+        /// What <see cref="Unit"/> says when the row belongs to the general program.
+        ///
+        /// Part of this document's published surface, so it stays - but it is
+        /// <see cref="Places.GeneralProgram"/>'s value rather than its own literal, because
+        /// the core updater takes the same character as an argument and two spellings in two
+        /// assemblies would drift with nothing failing to compile.
+        /// </summary>
+        public const string GeneralProgram = Places.GeneralProgram;
 
         /// <summary><c>Object</c> or <c>Member</c>, the names of <see cref="RowScope"/>.</summary>
         [DataMember(Name = "scope", Order = 0)]

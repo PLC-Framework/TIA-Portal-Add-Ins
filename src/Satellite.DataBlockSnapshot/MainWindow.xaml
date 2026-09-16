@@ -1,6 +1,7 @@
 <Window x:Class="Satellite.DataBlockSnapshot.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:UI.Shared.Controls;assembly=PLC-Framework.UI.Shared"
         Title="Data block snapshot"
         Icon="{StaticResource BrandLogo}"
         Height="640" Width="780"
@@ -28,17 +29,9 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,18">
-            <Image Source="{StaticResource BrandLogo}" Width="38" Height="38"
-                   VerticalAlignment="Center" />
-            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                <TextBlock Text="Data Block snapshot" FontSize="18" FontWeight="SemiBold"
-                           Foreground="{StaticResource BrandBrushTop}" />
-                <!-- Which project and which CPU this capture belongs to. Worth keeping:
-                     several of these windows can be open at once, one per PLC. -->
-                <TextBlock x:Name="ProjectLine" FontSize="11" Foreground="#7E8899" />
-            </StackPanel>
-        </StackPanel>
+        <!-- The subtitle says which project and which CPU this capture belongs to. Worth
+             keeping: several of these windows can be open at once, one per PLC. -->
+        <ui:BrandHeader x:Name="Header" Grid.Row="0" Title="Data Block snapshot" Margin="0,0,0,18" />
 
         <!-- Connection.
 

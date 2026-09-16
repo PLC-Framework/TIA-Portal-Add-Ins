@@ -1,6 +1,7 @@
 <Window x:Class="Satellite.CodingStyleReport.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:UI.Shared.Controls;assembly=PLC-Framework.UI.Shared"
         Title="Coding style report"
         Icon="{StaticResource BrandLogo}"
         Height="680" Width="1240"
@@ -69,17 +70,9 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <Image Source="{StaticResource BrandLogo}" Width="38" Height="38" VerticalAlignment="Center" />
-                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="Coding style report" FontSize="18" FontWeight="SemiBold"
-                               Foreground="{StaticResource BrandBrushTop}" />
-                    <!-- Which project, what was selected and when. Several of these windows can
-                         be open at once, one per run, so each has to say which run it is. -->
-                    <TextBlock x:Name="ProjectLine" FontSize="11" Foreground="{StaticResource InkMuted}"
-                               TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-            </StackPanel>
+            <!-- The subtitle says which project, what was selected and when. Several of these
+                 windows can be open at once, one per run, so each has to say which run it is. -->
+            <ui:BrandHeader x:Name="Header" Grid.Column="0" Title="Coding style report" />
 
             <!-- Only when TIA Portal sent nothing: a window opened from the menu is that run's
                  report, and another workbook over it would contradict its own header. -->
