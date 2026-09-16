@@ -44,13 +44,30 @@ namespace Satellite.CoreUpdater.Tia
         IReadOnlyList<string> Units(string plc);
 
         /// <summary>
+        /// Counts what a PLC holds, by kind and by programming language, without reading any
+        /// of it.
+        ///
+        /// **The cheap half of the walk**: both are typed properties in every TIA version, so
+        /// this costs one pass and no exports, where the map itself exports every object in
+        /// V17-V20. It is what lets the operator narrow four hundred objects down to the
+        /// thirty they want before paying for any of them.
+        /// </summary>
+        ProjectSurvey Survey(string plc, string unit);
+
+        /// <summary>
         /// Walks one PLC, or one of its software units, and says what is there.
         ///
-        /// **Everything, not only what looks like the core.** A block in the wrong folder and
-        /// a folder the core never heard of are two of the three discrepancies this exists to
-        /// find, and neither is visible from a list of core blocks alone.
+        /// **Everything the filter asks for, not only what looks like the core.** A block in
+        /// the wrong folder and a folder the core never heard of are two of the three
+        /// discrepancies this exists to find, and neither is visible from a list of core
+        /// blocks alone.
         /// </summary>
         /// <param name="unit">A unit's name, or <see cref="Core.Places.GeneralProgram"/>.</param>
+        /// <param name="filter">
+        /// Which kinds and languages to keep. **Applied before the export**, which is the
+        /// whole of its value: the kind and the language cost nothing to read, and the export
+        /// is what a run spends its minutes on. Null or empty means everything.
+        /// </param>
         /// <param name="progress">
         /// Where it has got to, in words a window can show. **Not optional politeness**: in
         /// V17-V20 this exports every block and type to read its title, and a PLC of several
@@ -60,6 +77,6 @@ namespace Satellite.CoreUpdater.Tia
         ///
         /// Called on the worker's thread, so whatever is passed must marshal for itself.
         /// </param>
-        ProjectMap Map(string plc, string unit, Action<string> progress);
+        ProjectMap Map(string plc, string unit, MapFilter filter, Action<string> progress);
     }
 }

@@ -38,6 +38,7 @@
             <Grid x:Name="AttachedPanel" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
@@ -62,14 +63,51 @@
 
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Software unit" Style="{StaticResource FieldLabel}"
                                VerticalAlignment="Center" Margin="0,10,10,0" />
-                    <ComboBox x:Name="UnitBox" Grid.Row="1" Grid.Column="1" Height="26" Margin="0,10,0,0" />
+                    <ComboBox x:Name="UnitBox" Grid.Row="1" Grid.Column="1" Height="26" Margin="0,10,0,0"
+                              SelectionChanged="UnitChanged" />
 
                     <Button x:Name="MapButton" Grid.Row="1" Grid.Column="2" Content="Map project"
                             Style="{StaticResource Primary}" Margin="10,10,0,0" Padding="16,4"
                             Click="MapClicked" />
                 </Grid>
 
-                <ScrollViewer Grid.Row="1" Margin="0,18,0,0"
+                <!-- What to map, offered as tick boxes built from the counts the survey took
+                     out of this very PLC - not from a list in the code. The language enum has
+                     twenty-nine values and a project uses four or five of them, so a fixed
+                     list would be mostly noise; "SCL (312)" tells the operator what is there.
+
+                     Everything starts ticked, which is what the previous behaviour was, and
+                     `All` / `None` make narrowing to one kind two clicks rather than seven. -->
+                <Grid x:Name="FilterPanel" Grid.Row="1" Margin="0,16,0,0" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,14,0">
+                        <TextBlock Text="Objects" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                        <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1" Margin="10,0,0,0"
+                                Click="AllKinds" />
+                        <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1" Margin="4,0,0,0"
+                                Click="NoKinds" />
+                    </StackPanel>
+                    <WrapPanel x:Name="KindsPanel" Grid.Row="1" Grid.Column="0" Margin="0,6,14,0" />
+
+                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
+                        <TextBlock Text="Languages" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
+                        <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1" Margin="10,0,0,0"
+                                Click="AllLanguages" />
+                        <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1" Margin="4,0,0,0"
+                                Click="NoLanguages" />
+                    </StackPanel>
+                    <WrapPanel x:Name="LanguagesPanel" Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" />
+                </Grid>
+
+                <ScrollViewer Grid.Row="2" Margin="0,18,0,0"
                               VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
                         <TextBlock x:Name="MapHeading" FontSize="14" TextWrapping="Wrap"

@@ -57,6 +57,26 @@ namespace Satellite.CoreUpdater.Tia
         private int _done;
         private int _refused;
 
+        /// <summary>What this run was asked to keep. Never null while a walk is running.</summary>
+        private MapFilter _filter = MapFilter.Everything;
+
+        /// <summary>
+        /// What the current walk does with each object it reaches.
+        ///
+        /// **One tree walk, two jobs.** The survey counts and the map reads, and the only thing
+        /// that must not drift between them is which folders were reached - so the walk is
+        /// written once and what happens at the leaves is handed in. It matters more here than
+        /// in V21: the counting half costs nothing and the reading half is one export per
+        /// object, which is the whole reason there is a survey to tick against.
+        /// </summary>
+        private Action<PlcBlock, string, ProjectMap> _onBlock;
+        private Action<PlcTagTable, string, ProjectMap> _onTable;
+        private Action<PlcType, string, ProjectMap> _onType;
+
+        private Dictionary<string, int> _kinds;
+        private Dictionary<string, int> _languages;
+        private int _total;
+
         public TiaAttachment Attach(int? preferredProcessId)
         {
             IList<TiaPortalProcess> running;
@@ -159,22 +179,74 @@ namespace Satellite.CoreUpdater.Tia
             return names;
         }
 
-        public ProjectMap Map(string plc, string unit, Action<string> progress)
+        /// <summary>
+        /// **Nothing is exported here**, which is what makes the survey worth having in this
+        /// version at all: the kind and the language are typed properties, so counting a PLC
+        /// of four hundred costs one pass over the tree, where mapping it costs four hundred
+        /// exports. This is what the operator ticks against before paying for any of them.
+        /// </summary>
+        public ProjectSurvey Survey(string plc, string unit)
         {
+            _kinds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            _languages = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            _total = 0;
+
+            _filter = MapFilter.Everything;
+            _progress = null;
+
+            _onBlock = Counted;
+            _onTable = Counted;
+            _onType = Counted;
+
+            // A map handed in only as somewhere for the walk to put what it could not read.
+            // **The survey drops those and the map that follows reports them**: it walks the
+            // same tree a moment later, where a problem is part of a document somebody keeps
+            // rather than a sentence under a row of tick boxes.
+            Walk(plc, unit, ProjectMap.Of(_project?.Name, plc, unit, null));
+
+            return ProjectSurvey.Of(_kinds, _languages, _total);
+        }
+
+        public ProjectMap Map(string plc, string unit, MapFilter filter, Action<string> progress)
+        {
+            _filter = filter ?? MapFilter.Everything;
             _progress = progress;
             _done = 0;
             _refused = 0;
+
+            _onBlock = Mapped;
+            _onTable = Mapped;
+            _onType = Mapped;
 
             ProjectMap map = ProjectMap.Of(
                 _project?.Name, plc, unit,
                 DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture));
 
+            // Recorded only when it narrowed something. A map of the whole PLC carrying a
+            // filter that keeps everything would say nothing, and null already means that.
+            map.Filter = _filter.Narrows ? _filter : null;
+
+            Walk(plc, unit, map);
+
+            Noted(map);
+            return map;
+        }
+
+        /// <summary>
+        /// One PLC, or one of its software units, top to bottom.
+        ///
+        /// **Shared by the survey and the map** rather than written twice: the pair is only
+        /// worth anything while the count an operator ticked against and the map they then
+        /// asked for cover exactly the same folders.
+        /// </summary>
+        private void Walk(string plc, string unit, ProjectMap map)
+        {
             PlcSoftware software = Find(plc);
 
             if (software == null)
             {
                 map.Problems.Add("This project holds no PLC called '" + plc + "'.");
-                return map;
+                return;
             }
 
             string wanted = Places.UnitOrNull(unit);
@@ -188,8 +260,7 @@ namespace Satellite.CoreUpdater.Tia
                 TagTables(software.TagTableGroup, null, map);
                 Types(software.TypeGroup, null, map);
 
-                Noted(map);
-                return map;
+                return;
             }
 
             PlcUnitBase found = UnitsOf(software)
@@ -198,15 +269,95 @@ namespace Satellite.CoreUpdater.Tia
             if (found == null)
             {
                 map.Problems.Add("'" + plc + "' has no software unit called '" + wanted + "'.");
-                return map;
+                return;
             }
 
             Blocks(found.BlockGroup, null, map);
             TagTables(found.TagTableGroup, null, map);
             Types(found.TypeGroup, null, map);
+        }
 
-            Noted(map);
-            return map;
+        // ---- What happens at a leaf -----------------------------------------------------------
+
+        /// <summary>
+        /// **The filter is applied here, before the export.** That is the whole of its value in
+        /// this version: the kind and the language are two typed property reads, and the line
+        /// below them writes the object out to disk and reads it back. Filtering afterwards
+        /// would pay the minutes and then throw the answer away.
+        /// </summary>
+        private void Mapped(PlcBlock block, string folder, ProjectMap map)
+        {
+            string kind = Kind(block);
+
+            if (!_filter.Wants(kind, Language(block))) return;
+
+            map.Objects.Add(Of(block, kind, folder, map));
+            Tick();
+        }
+
+        private void Mapped(PlcTagTable table, string folder, ProjectMap map)
+        {
+            if (!_filter.Wants(CodingStyleNames.PlcTagTable, null)) return;
+
+            map.Objects.Add(Of(table, folder, map));
+            Tick();
+        }
+
+        private void Mapped(PlcType type, string folder, ProjectMap map)
+        {
+            if (!_filter.Wants(CodingStyleNames.PlcStruct, null)) return;
+
+            map.Objects.Add(Of(type, folder, map));
+            Tick();
+        }
+
+        private void Counted(PlcBlock block, string folder, ProjectMap notes) =>
+            Count(Kind(block), Language(block));
+
+        private void Counted(PlcTagTable table, string folder, ProjectMap notes) =>
+            Count(CodingStyleNames.PlcTagTable, null);
+
+        private void Counted(PlcType type, string folder, ProjectMap notes) =>
+            Count(CodingStyleNames.PlcStruct, null);
+
+        private void Count(string kind, string language)
+        {
+            _total++;
+
+            Add(_kinds, kind);
+
+            // Only what has one. A PLC data type and a tag table are not counted here at all,
+            // which is the same rule the filter reads by - null passes the language half.
+            if (language != null) Add(_languages, language);
+        }
+
+        private static void Add(IDictionary<string, int> counted, string name)
+        {
+            if (string.IsNullOrEmpty(name)) return;
+
+            int found;
+
+            counted[name] = counted.TryGetValue(name, out found) ? found + 1 : 1;
+        }
+
+        /// <summary>
+        /// A block's programming language as the enum spells it - <c>SCL</c>, <c>LAD</c>,
+        /// <c>GRAPH</c>, <c>DB</c>, <c>F_DB</c> - or null when TIA will not answer for it.
+        ///
+        /// **Null keeps the object.** It passes every language filter, so a block whose
+        /// language could not be read is mapped rather than silently dropped by a choice the
+        /// operator made about something else.
+        /// </summary>
+        private static string Language(PlcBlock block)
+        {
+            try
+            {
+                return block.ProgrammingLanguage.ToString();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         // ---- The walk -----------------------------------------------------------------------
@@ -219,7 +370,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcBlock block in group.Blocks) { map.Objects.Add(Of(block, here, map)); Tick(); }
+                foreach (PlcBlock block in group.Blocks) _onBlock(block, here, map);
             });
 
             foreach (PlcBlockUserGroup child in Children(group.Groups, here, map)) Blocks(child, here, map, depth + 1);
@@ -236,8 +387,9 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (TechnologicalInstanceDB found in group.TechnologicalObjects)
-                { map.Objects.Add(Of(found, here, map)); Tick(); }
+                // A technology object is a PlcBlock, so it is filtered and counted like one -
+                // its kind is TechnologicalInstanceDB and its language is whatever TIA gave it.
+                foreach (TechnologicalInstanceDB found in group.TechnologicalObjects) _onBlock(found, here, map);
             });
 
             foreach (TechnologicalInstanceDBUserGroup child in Children(group.Groups, here, map))
@@ -252,7 +404,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcTagTable table in group.TagTables) { map.Objects.Add(Of(table, here, map)); Tick(); }
+                foreach (PlcTagTable table in group.TagTables) _onTable(table, here, map);
             });
 
             foreach (PlcTagTableUserGroup child in Children(group.Groups, here, map)) TagTables(child, here, map, depth + 1);
@@ -266,7 +418,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcType type in group.Types) { map.Objects.Add(Of(type, here, map)); Tick(); }
+                foreach (PlcType type in group.Types) _onType(type, here, map);
             });
 
             foreach (PlcTypeUserGroup child in Children(group.Groups, here, map)) Types(child, here, map, depth + 1);
@@ -274,9 +426,9 @@ namespace Satellite.CoreUpdater.Tia
 
         // ---- One object ---------------------------------------------------------------------
 
-        private ProjectObject Of(PlcBlock block, string folder, ProjectMap map)
+        private ProjectObject Of(PlcBlock block, string kind, string folder, ProjectMap map)
         {
-            ProjectObject found = Described(block.Name, Kind(block), folder, TitleOf(block, map));
+            ProjectObject found = Described(block.Name, kind, folder, TitleOf(block, map));
 
             // TIA's own VERSION and FAMILY headers, which the core writes alongside its TITLE
             // and which a comparison can fall back on when the TITLE cannot be read.
@@ -289,20 +441,6 @@ namespace Satellite.CoreUpdater.Tia
         private ProjectObject Of(PlcType type, string folder, ProjectMap map) =>
             Described(type.Name, CodingStyleNames.PlcStruct, folder, TitleOf(type, map));
 
-        /// <summary>
-        /// **V21 has `Title` as a typed property; V20 does not have it at all** - not on
-        /// `PlcBlock` and not on `PlcType`. Found by compiling this file against both, and it
-        /// is why these two adapters are not identical the way the rest are.
-        ///
-        /// So V20 asks for it the untyped way. `IEngineeringObject.GetAttribute` is the escape
-        /// hatch Openness offers for exactly this, and it is present in both versions - but
-        /// **whether it answers for `Title` is not something this machine can check**, since it
-        /// has no TIA Portal. If it does not, the map still carries the native `VERSION` and
-        /// `FAMILY` headers, which are two of the three fields a comparison needs.
-        ///
-        /// It is asked once per object and gives up for the whole run the first time it
-        /// refuses: thousands of identical failures would bury the map's real problems.
-        /// </summary>
         /// <summary>
         /// **Every block and every type is exported to read its title**, which is the whole
         /// difference between this adapter and V21's.

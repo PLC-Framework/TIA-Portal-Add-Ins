@@ -48,7 +48,17 @@ namespace Core.Repo
         [DataMember(Name = "unit", Order = 4)]
         public string Unit { get; set; }
 
-        [DataMember(Name = "objects", Order = 5)]
+        /// <summary>
+        /// What this map was asked to cover, when it was asked to cover less than everything.
+        ///
+        /// **A filtered map is not a map of the project**, and saying so is the difference
+        /// between "the project has no FCs" and "this map did not look for them". Null when
+        /// nothing was narrowed.
+        /// </summary>
+        [DataMember(Name = "filter", Order = 5)]
+        public MapFilter Filter { get; set; }
+
+        [DataMember(Name = "objects", Order = 6)]
         public List<ProjectObject> Objects { get; set; }
 
         /// <summary>
@@ -56,7 +66,7 @@ namespace Core.Repo
         /// not come back. **Kept rather than thrown**, so a map with holes says where they
         /// are instead of looking complete.
         /// </summary>
-        [DataMember(Name = "problems", Order = 6)]
+        [DataMember(Name = "problems", Order = 7)]
         public List<string> Problems { get; set; }
 
         public static ProjectMap Of(string project, string plc, string unit, string builtAt) =>

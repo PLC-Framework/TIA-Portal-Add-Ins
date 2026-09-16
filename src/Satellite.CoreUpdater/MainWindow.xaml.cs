@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 
 using Core;
 using Core.Repo;
@@ -27,6 +30,14 @@ namespace Satellite.CoreUpdater
         private TiaWorker _worker;
         private string _projectDirectory;
         private bool _filling;
+        private bool _busy;
+
+        /// <summary>
+        /// Whether the status line is currently holding a complaint about the tick boxes, so
+        /// that clearing it puts back "Ready." rather than leaving the complaint on screen
+        /// beside a button that now works.
+        /// </summary>
+        private bool _complaining;
 
         public MainWindow()
         {
@@ -119,8 +130,6 @@ namespace Satellite.CoreUpdater
                         ? "This project holds no PLC."
                         : "Ready.";
 
-                    MapButton.IsEnabled = found.Count > 0;
-
                     // The unit list belongs to whichever PLC ended up selected, which
                     // PlcChanged is already the one place that knows.
                     Units(unit);
@@ -128,11 +137,18 @@ namespace Satellite.CoreUpdater
                 Failed);
         }
 
-        private void PlcChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void PlcChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_filling) return;
 
             Units(Places.GeneralProgram);
+        }
+
+        private void UnitChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_filling) return;
+
+            Survey();
         }
 
         private void Units(string unit)
@@ -142,6 +158,11 @@ namespace Satellite.CoreUpdater
             if (plc == null)
             {
                 Fill(UnitBox, new string[0], null);
+
+                // Still through Survey, which is the one place that clears the tick boxes and
+                // settles the button. Returning here instead left a project with no PLC
+                // showing an enabled Map button.
+                Survey();
                 return;
             }
 
@@ -155,8 +176,131 @@ namespace Satellite.CoreUpdater
                     choices.AddRange(found);
 
                     Fill(UnitBox, choices, unit);
+
+                    // Filling suppresses the selection event, so the survey of whatever ended
+                    // up selected is asked for here rather than left to fire by itself.
+                    Survey();
                 },
                 Failed);
+        }
+
+        /// <summary>
+        /// Counts what the chosen scope holds, and offers it as tick boxes.
+        ///
+        /// **Run for every scope the operator picks, before they ask for anything.** It reads
+        /// no object - a kind and a language are typed properties - so it costs one pass over
+        /// the tree, where the map costs one export per object in V17-V20. Paying that second
+        /// for four hundred objects is what lets somebody map the thirty they wanted.
+        /// </summary>
+        private void Survey()
+        {
+            string plc = PlcBox.SelectedItem as string;
+            string unit = UnitBox.SelectedItem as string;
+
+            if (plc == null)
+            {
+                Offer(null);
+                Ready();
+                return;
+            }
+
+            Working(true);
+            StatusText.Text = "Counting what " + plc + " holds…";
+
+            _worker.Post(
+                session => session.Survey(plc, unit),
+                survey =>
+                {
+                    Offer(survey);
+                    Working(false);
+
+                    StatusText.Text = survey == null || survey.Total == 0
+                        ? "Nothing to map in this scope."
+                        : "Ready — " + survey.Total + " objects.";
+                },
+                exception =>
+                {
+                    Offer(null);
+                    Working(false);
+                    Failed(exception);
+                });
+        }
+
+        /// <summary>
+        /// The tick boxes, built from the counts this very PLC gave back.
+        ///
+        /// **Everything starts ticked**, which is what the window did before there were any:
+        /// somebody who ignores this panel gets the whole scope, and "empty means everything"
+        /// stays true from the window down to the map.
+        /// </summary>
+        private void Offer(ProjectSurvey survey)
+        {
+            KindsPanel.Children.Clear();
+            LanguagesPanel.Children.Clear();
+
+            if (survey == null || survey.Total == 0)
+            {
+                FilterPanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            foreach (Counted one in survey.Kinds) KindsPanel.Children.Add(Box(one));
+            foreach (Counted one in survey.Languages) LanguagesPanel.Children.Add(Box(one));
+
+            FilterPanel.Visibility = Visibility.Visible;
+        }
+
+        private CheckBox Box(Counted one)
+        {
+            CheckBox box = new CheckBox
+            {
+                IsChecked = true,
+                Tag = one.Name,
+                Margin = new Thickness(0, 4, 14, 0),
+
+                // **A TextBlock, never a string in Content.** WPF reads an underscore as a
+                // keyboard accelerator and hides it, so `F_DB` would render as `FDB` and
+                // `Motion_DB` as `MotionDB` - and these are exact names out of the enum.
+                Content = new TextBlock { Text = one.ToString() }
+            };
+
+            Brush ink = TryFindResource("Ink") as Brush;
+            if (ink != null) box.Foreground = ink;
+
+            box.Checked += TickChanged;
+            box.Unchecked += TickChanged;
+
+            return box;
+        }
+
+        private void TickChanged(object sender, RoutedEventArgs e)
+        {
+            Ready();
+        }
+
+        private void AllKinds(object sender, RoutedEventArgs e)
+        {
+            Tick(KindsPanel, true);
+        }
+
+        private void NoKinds(object sender, RoutedEventArgs e)
+        {
+            Tick(KindsPanel, false);
+        }
+
+        private void AllLanguages(object sender, RoutedEventArgs e)
+        {
+            Tick(LanguagesPanel, true);
+        }
+
+        private void NoLanguages(object sender, RoutedEventArgs e)
+        {
+            Tick(LanguagesPanel, false);
+        }
+
+        private void Tick(Panel panel, bool ticked)
+        {
+            foreach (CheckBox box in panel.Children.OfType<CheckBox>()) box.IsChecked = ticked;
         }
 
         private void MapClicked(object sender, RoutedEventArgs e)
@@ -166,21 +310,95 @@ namespace Satellite.CoreUpdater
 
             if (plc == null) return;
 
+            MapFilter filter = MapFilter.Of(Chosen(KindsPanel), Chosen(LanguagesPanel));
+
             Working(true);
             StatusText.Text = "Reading " + plc + "…";
 
             MapHeading.Visibility = Visibility.Collapsed;
             MapProblems.Visibility = Visibility.Collapsed;
-            MapText.Text = "Walking the project. A PLC of a few thousand objects takes a moment.";
+            MapText.Text = filter.Narrows
+                ? "Walking the project, keeping what is ticked."
+                : "Walking the project. A PLC of a few thousand objects takes a moment.";
 
             _worker.Post(
-                session => session.Map(plc, unit, Say),
+                session => session.Map(plc, unit, filter, Say),
                 Mapped,
                 exception =>
                 {
                     Working(false);
                     Failed(exception);
                 });
+        }
+
+        /// <summary>
+        /// What one panel was asked for, or **null when every box in it is ticked** - which is
+        /// the absence of a decision rather than a list of everything, and is what keeps a map
+        /// of the whole PLC from recording a filter that narrows nothing.
+        /// </summary>
+        private static List<string> Chosen(Panel panel)
+        {
+            List<string> ticked = new List<string>();
+            int offered = 0;
+
+            foreach (CheckBox box in panel.Children.OfType<CheckBox>())
+            {
+                offered++;
+
+                if (box.IsChecked == true) ticked.Add(box.Tag as string);
+            }
+
+            return ticked.Count == offered ? null : ticked;
+        }
+
+        /// <summary>
+        /// Whether the Map button may be pressed, and why not when it may not.
+        ///
+        /// **Nothing ticked is refused rather than read as everything.** The filter's own rule
+        /// is that empty means the whole scope - the safe reading of a decision nobody made -
+        /// and an operator who has just cleared a panel has very much made one. The two would
+        /// contradict each other in the one place it matters, so the window does not let it
+        /// through.
+        /// </summary>
+        private void Ready()
+        {
+            bool kinds = AnyTicked(KindsPanel);
+            bool languages = AnyTicked(LanguagesPanel);
+            bool enough = kinds && languages;
+
+            MapButton.IsEnabled = !_busy && PlcBox.SelectedItem != null && enough;
+
+            if (_busy) return;
+
+            if (!enough)
+            {
+                StatusText.Text = kinds
+                    ? "Nothing is ticked under Languages, so there is nothing to map."
+                    : "Nothing is ticked under Objects, so there is nothing to map.";
+
+                _complaining = true;
+                return;
+            }
+
+            if (!_complaining) return;
+
+            StatusText.Text = "Ready.";
+            _complaining = false;
+        }
+
+        /// <summary>A panel with nothing in it narrows nothing, so it is never the objection.</summary>
+        private static bool AnyTicked(Panel panel)
+        {
+            bool offered = false;
+
+            foreach (CheckBox box in panel.Children.OfType<CheckBox>())
+            {
+                offered = true;
+
+                if (box.IsChecked == true) return true;
+            }
+
+            return !offered;
         }
 
         /// <summary>
@@ -236,8 +454,15 @@ namespace Satellite.CoreUpdater
 
             return string.Format(
                 CultureInfo.CurrentCulture,
-                "{0} objects in {1}, {2} of them from the core.",
-                all, map.Plc + (Places.IsGeneralProgram(map.Unit) ? string.Empty : " / " + map.Unit), core);
+                "{0} objects in {1}, {2} of them from the core.{3}",
+                all,
+                map.Plc + (Places.IsGeneralProgram(map.Unit) ? string.Empty : " / " + map.Unit),
+                core,
+
+                // **A filtered map is not a map of the project**, and the heading is where
+                // somebody reads the number: "18 objects" under a filter would otherwise be
+                // taken for what the PLC holds.
+                map.Filter == null ? string.Empty : " Of what was ticked, not of the whole scope.");
         }
 
         private static string Listed(IReadOnlyList<string> problems)
@@ -258,7 +483,7 @@ namespace Satellite.CoreUpdater
         /// empties loses its selection and comes back blank - the trap the config editor
         /// already records.
         /// </summary>
-        private void Fill(System.Windows.Controls.ComboBox box, IReadOnlyList<string> values, string wanted)
+        private void Fill(ComboBox box, IReadOnlyList<string> values, string wanted)
         {
             _filling = true;
 
@@ -288,9 +513,15 @@ namespace Satellite.CoreUpdater
 
         private void Working(bool busy)
         {
-            MapButton.IsEnabled = !busy;
+            _busy = busy;
+
             PlcBox.IsEnabled = !busy;
             UnitBox.IsEnabled = !busy;
+            FilterPanel.IsEnabled = !busy;
+
+            // Never `IsEnabled = !busy` on its own: what is ticked decides it too, and coming
+            // back from a run must not re-enable a button the tick boxes have disabled.
+            Ready();
         }
 
         private void Failed(Exception exception)
