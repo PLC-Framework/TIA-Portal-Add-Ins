@@ -198,7 +198,16 @@ That redirection is worth remembering: it is a ready-made IPC channel between th
 "E:\proyectos\TestSlave"  second      ->   [E:\proyectos\TestSlave]  [second]
 ```
 
-The backslash escapes the closing quote, so the path swallows whatever follows it and the program is handed one argument nobody meant. `ProcessLauncher.Browse` trims the separator before quoting — and leaves a drive root alone, since `E:` on its own means something else. **`StandardInput` is a plain `StreamWriter` in both versions**, so the channel does not have to be written all at once: the coding-style check starts its window, works for minutes, and writes the report into the same pipe afterwards.
+The backslash escapes the closing quote, so the path swallows whatever follows it and the program is handed one argument nobody meant. `ProcessLauncher.Browse` trims the separator before quoting — and leaves a drive root alone, since `E:` on its own means something else.
+
+**The process that starts a satellite is not the process `TiaPortal.GetProcesses()` lists**, and that is worth knowing before building anything on the parent process. Measured on the VM with two TIA Portals open, in both versions:
+
+```
+V21    parent of the satellite 12896     portals listed 12924, 5236
+V20    parent of the satellite 14736     portals listed  7756, 2480
+```
+
+Neither parent appears among the portals. Whether TIA hosts an Add-In in a process of its own or starts the child through an intermediary is **not settled here** — only that the identity does not carry across, so a satellite cannot recognise its own TIA Portal that way. What does carry across is the **project**: the Add-In reads `project.Path.FullName` and `TiaPortalProcess.ProjectPath` answers the same string. With a single instance running the difference never shows, which is why this went unnoticed until it mattered. **`StandardInput` is a plain `StreamWriter` in both versions**, so the channel does not have to be written all at once: the coding-style check starts its window, works for minutes, and writes the report into the same pipe afterwards.
 
 ### Exporting a project's objects
 

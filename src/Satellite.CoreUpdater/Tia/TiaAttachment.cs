@@ -17,7 +17,7 @@ namespace Satellite.CoreUpdater.Tia
             string projectName,
             string projectDirectory,
             string problem,
-            IReadOnlyList<string> considered)
+            IReadOnlyList<RunningPortal> considered)
         {
             ProcessId = processId;
             ProjectName = projectName;
@@ -45,12 +45,24 @@ namespace Satellite.CoreUpdater.Tia
         /// window said that under an error about a missing assembly, with a TIA Portal open
         /// on screen behind it. Seen on the VM.
         /// </summary>
-        public IReadOnlyList<string> Considered { get; }
+        public IReadOnlyList<RunningPortal> Considered { get; }
 
         /// <summary>Whether the running TIA Portals were enumerated at all.</summary>
         public bool Looked => Considered != null;
 
         public bool Attached => Problem == null;
+
+        /// <summary>
+        /// Nothing was attached, but there is something to attach *to* - so the window offers
+        /// the list rather than stopping.
+        ///
+        /// **This is not the window guessing**, which is the decision it has to live beside:
+        /// with several TIA Portals open and no way to tell which one launched this, attaching
+        /// to one of them would be reaching into somebody else's project and then offering to
+        /// change it. Handing the same list to the operator makes the choice theirs, which is
+        /// the one person qualified to make it.
+        /// </summary>
+        public bool CanChoose => !Attached && Considered != null && Considered.Count > 0;
 
         /// <summary>
         /// The project was found but has never been saved, so it has no folder - and a core
@@ -59,10 +71,10 @@ namespace Satellite.CoreUpdater.Tia
         public bool HasProjectFolder => Attached && !string.IsNullOrWhiteSpace(ProjectDirectory);
 
         public static TiaAttachment To(
-            int processId, string projectName, string projectDirectory, IReadOnlyList<string> considered) =>
+            int processId, string projectName, string projectDirectory, IReadOnlyList<RunningPortal> considered) =>
             new TiaAttachment(processId, projectName, projectDirectory, null, considered);
 
-        public static TiaAttachment Failed(string problem, IReadOnlyList<string> considered = null) =>
+        public static TiaAttachment Failed(string problem, IReadOnlyList<RunningPortal> considered = null) =>
             new TiaAttachment(0, null, null, problem ?? "TIA Portal could not be reached.", considered);
     }
 }

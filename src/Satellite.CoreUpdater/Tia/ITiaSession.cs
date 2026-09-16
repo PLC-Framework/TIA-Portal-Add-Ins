@@ -27,12 +27,26 @@ namespace Satellite.CoreUpdater.Tia
         /// <summary>
         /// Attaches to a running TIA Portal and reads what identifies its project. Called
         /// once, first; everything else needs it to have succeeded.
+        ///
+        /// **It never picks between two candidates.** Each signal has to name exactly one
+        /// instance, and when none does the answer is a refusal carrying the list - which the
+        /// window turns into a choice rather than a dead end.
         /// </summary>
-        /// <param name="preferredProcessId">
-        /// The TIA Portal to prefer when several are running - the process that launched this
-        /// window. Null when it could not be read, or when the window was started by hand.
+        /// <param name="wanted">
+        /// How to recognise the right instance: the project the Add-In was in, and the
+        /// processes this one descends from. <see cref="TiaWanted.Nothing"/> for a window
+        /// started by hand.
         /// </param>
-        TiaAttachment Attach(int? preferredProcessId);
+        TiaAttachment Attach(TiaWanted wanted);
+
+        /// <summary>
+        /// Attaches to one named instance, because the operator picked it out of the list.
+        ///
+        /// **It looks the machine up again rather than trusting the list**, which may be a
+        /// minute old by the time somebody clicks: an instance that has closed in between is
+        /// reported as gone, with whatever is running now, instead of throwing.
+        /// </summary>
+        TiaAttachment AttachTo(int processId);
 
         /// <summary>The PLCs the attached project holds, in the order the project lists them.</summary>
         IReadOnlyList<string> Plcs();

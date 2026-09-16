@@ -190,7 +190,7 @@ The scroll bars were light grey in every satellite until this window, whose tabl
 
 **It is the one satellite that talks to TIA Portal itself.** Every other one is handed what it should work on, because it cannot ask. This attaches to the running TIA Portal as an Openness *client* and finds the project that way, so the Add-In hands over nothing — no payload, no handoff, and none of the bugs where the two ends disagree about what was selected. The Add-In entry is one line that starts an executable.
 
-- **It attaches to the TIA Portal that opened it**, worked out from its own parent process. With only one running there is nothing to choose between; with several and no parent it **refuses rather than guesses**, because guessing would attach to somebody else's project and then offer to change it.
+- **It attaches to the TIA Portal that has the Add-In's project open**, which the Add-In names on the command line. With only one running there is nothing to choose between; when nothing identifies one it **refuses rather than guesses**, because guessing would attach to somebody else's project and then offer to change it — and hands the list to the operator instead.
 - **Either way it lists what was running.** "No TIA Portal is open" and "two are, and neither is the one that started this" look identical from the window and want opposite answers.
 - **A project that was never saved is attached and still unusable**, and the window says so: the core is copied into the project's own folder, and there is no folder yet.
 - **It maps the PLC you picked.** The Add-In sends the PLC that was right-clicked and `*` for the general program; the window offers that PLC's software units so the star is a starting point rather than a decision. *Map project* walks blocks, PLC data types, tag tables and every folder, reads what each says about itself, and writes `repo\project.json`.
@@ -199,6 +199,30 @@ The scroll bars were light grey in every satellite until this window, whose tabl
 - **In TIA V17-V20 every block and type is exported to read its title**, because those versions expose no `Title` at all - measured on the VM, where even the untyped escape hatch refuses it. A block would still have its native `VERSION` and `FAMILY`; a PLC data type has neither in any version, so without the export a core UDT is indistinguishable from one of the plant's. It costs one export per object, so the window counts as it goes, and the files are written, read and deleted one at a time under the project's own `repo\tmp\`. **V21 needs none of it** and reads the property directly.
 - **A map with holes says where they are.** A folder that would not read is a line of its own, not a silent omission: the one thing a comparison must never be handed is a map that looks complete.
 - **It disposes nothing, and that is not an oversight.** `TiaPortal.Dispose` is how an Openness client shuts a portal **down**, and attaching to one does not change what the method means — a `using` around an attached portal closed the engineer's TIA Portal, with their project open, the moment the window said "Ready". The handles it holds instead are released when the window closes and the process ends.
+
+### Finding the right TIA Portal among several
+
+**The first version got this wrong, and only a station with two instances open could show it.** It matched its own parent process against the processes `TiaPortal.GetProcesses()` lists, on the reasoning that an Add-In runs inside TIA Portal so the process that started the satellite *is* the one to attach to. Measured on the VM, in both TIA versions, it is not:
+
+| | Parent of the satellite | What Openness listed |
+| --- | --- | --- |
+| V21 | 12896 | 12924, 5236 |
+| V20 | 14736 | 7756, 2480 |
+
+Neither parent is among the portals — TIA either hosts the Add-In in a process of its own or starts the child through an intermediary, and which of the two is still not settled. **With one instance open it worked anyway**, because a lone TIA Portal needs no identifying, which is why this survived until somebody opened two.
+
+So the signals are three, in order, and **each has to name exactly one instance or it says nothing**:
+
+1. **The project.** The Add-In passes the open project's own file as a third argument, and `TiaPortalProcess.ProjectPath` says what each running instance has open. The Add-In is *in* a project, so this is the one fact both ends name identically — and it is the same string the window was already printing in that list.
+2. **The ancestry**, now the whole chain rather than the immediate parent: whatever is hosting what, the TIA Portal is an ancestor if it is anywhere at all. One WMI query for the machine, walked in memory, and **read on the worker's thread** — four queries at 170 ms each, before the window paints, is what a satellite that failed to start looks like.
+3. **Only one is running**, which is not a guess.
+4. Otherwise **the operator picks**, from the same list that used to be the dead end. Nothing is preselected: a highlighted first row turns *Attach* into one click on whatever happened to be at the top, which is the guess this panel exists to replace with a decision.
+
+**Two answers is no answer.** The same project open in two instances, or a chain running through both, identifies nothing — and taking the first would be the guess again, so it falls through to the operator.
+
+**An older Add-In still works.** It sends two arguments and simply has nothing to say about which instance, which is exactly where it was before; blank and absent are read as the same thing, so the positions stay fixed whatever is known. A project that was never saved sends an empty third argument for the same reason.
+
+> The plain `ListBox` in that panel is what found the framework's last unthemed control: there was no implicit `ListBox` style, so the stock one painted a **white** background behind rows in `Ink` — light grey on white. It is themed in `Controls.xaml` now, so every window gets it. `ListView` is untouched, an implicit style matching the exact type, which is the rule that already forces three separate row styles.
 
 ### Choosing what to map, before paying for it
 
@@ -220,6 +244,10 @@ Picking a PLC and a unit **counts what is in there without reading any of it**, 
 > When it still fails the window names what the loader said **and where it looked** — which keys existed, what each published, which folders were probed — and that panel scrolls, because the account is longer than the window. The two failures worth telling apart are "the assemblies are not here" and "TIA refused the connection", the second of which usually means the Windows user is not in the **Siemens TIA Openness** group.
 
 Exercised here without TIA Portal, by running the real shared library behind a stand-in session: attached to a saved project, attached to one never saved, nothing running, several running, and the Openness assemblies missing — with the rendered window read back each time, which is what confirms the dark theme and the brand icon resolved rather than silently falling back.
+
+The way it recognises its own TIA Portal was checked apart from TIA: the command line the Add-In writes, parsed back with **Windows' own `CommandLineToArgvW`** rather than with anything that agrees with the code that wrote it — a PLC name and a path both carrying spaces, and the measured backslash trap where a quoted argument ending in `\` swallows the one after it; two arguments from an older Add-In still parsing, and blank and absent reading alike; a project matched case-insensitively and through a relative step, and refused when it is a different file; and the ancestor walk run in a grandchild process, whose chain starts with the child that spawned it and carries on past it without repeating.
+
+The chooser was driven on the real window with a stand-in session behind the real worker: two instances offered as rows naming their projects, **nothing preselected and *Attach* off** until one is picked, the click reaching the session with that instance's id and the failure panel giving way to the project, one instance still offered as a choice, and the two states that are not a choice at all — nothing running, and nothing having looked, which must not claim that no TIA Portal was running.
 
 The tick boxes were driven on the real window, shown and laid out: a survey of five kinds and four languages filling both panels in count order, `F_DB` and `Motion_DB` keeping their underscores — a label in `Content` would have rendered them `FDB` and `MotionDB` — everything ticked asking for no filter at all, one unticked asking for the rest, `None` switching *Map project* off with the panel named in the status line, `All` putting it back and clearing the complaint, and an empty scope collapsing the panel without becoming an objection. The filter itself was checked apart from the window, including the case that would be silently wrong: a UDT and a tag table surviving a language filter, asked with a real null and with an empty string.
 

@@ -132,6 +132,18 @@
                                Foreground="{StaticResource InkBad}" />
                     <TextBlock x:Name="ConsideredText" Margin="0,14,0,0" TextWrapping="Wrap"
                                Foreground="{StaticResource InkMuted}" />
+
+                    <!-- When it could not tell which TIA Portal this belongs to, the same list
+                         it would otherwise have printed becomes the choice. Nothing is
+                         preselected: a highlighted row invites the click that this panel
+                         exists to stop being automatic. -->
+                    <ListBox x:Name="ChoicesList" Visibility="Collapsed"
+                             Margin="0,12,0,0" MaxHeight="150"
+                             SelectionChanged="ChoiceChanged" />
+                    <Button x:Name="AttachButton" Content="Attach" Visibility="Collapsed"
+                            Style="{StaticResource Primary}" IsEnabled="False"
+                            HorizontalAlignment="Left" Margin="0,12,0,0" Padding="16,4"
+                            Click="AttachClicked" />
                 </StackPanel>
             </ScrollViewer>
 

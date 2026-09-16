@@ -29,6 +29,8 @@ namespace Satellite.CoreUpdater
     {
         private TiaWorker _worker;
         private string _projectDirectory;
+        private string _plc;
+        private string _unit;
         private bool _filling;
         private bool _busy;
 
@@ -65,13 +67,21 @@ namespace Satellite.CoreUpdater
             Header.Badge = tiaVersion;
         }
 
-        /// <summary>What the window shows while the attach is still running.</summary>
-        public void ShowWaiting(int? parentProcessId)
+        /// <summary>
+        /// What the window shows while the attach is still running.
+        ///
+        /// **It names the project, not the process that launched this.** It used to say
+        /// "Attaching to the TIA Portal that opened this window (process 12896)" - which named
+        /// a number that turned out not to identify any TIA Portal at all, and that no operator
+        /// could act on either. The project is both what decides the attach and what somebody
+        /// recognises on screen.
+        /// </summary>
+        public void ShowWaiting(string project)
         {
-            WaitingText.Text = parentProcessId.HasValue
-                ? string.Format(CultureInfo.CurrentCulture,
-                    "Attaching to the TIA Portal that opened this window (process {0})…", parentProcessId.Value)
-                : "Looking for a running TIA Portal…";
+            WaitingText.Text = string.IsNullOrWhiteSpace(project)
+                ? "Looking for a running TIA Portal…"
+                : string.Format(CultureInfo.CurrentCulture,
+                    "Attaching to the TIA Portal that has '{0}' open…", project);
 
             StatusText.Text = string.Empty;
         }
@@ -79,6 +89,11 @@ namespace Satellite.CoreUpdater
         /// <summary>The answer to the attach, whichever of the three it is.</summary>
         public void Arrived(TiaAttachment attachment, string plc, string unit)
         {
+            // Kept, because the operator may pick an instance out of the failure panel and
+            // arrive back here - at which point this needs to know what to fill in again.
+            _plc = plc;
+            _unit = unit;
+
             WaitingPanel.Visibility = Visibility.Collapsed;
 
             if (attachment == null)
@@ -95,6 +110,9 @@ namespace Satellite.CoreUpdater
 
             _projectDirectory = attachment.ProjectDirectory;
 
+            // A second attempt succeeding has to clear the first one's refusal, or the window
+            // shows a project and the reason it could not be reached at the same time.
+            ProblemPanel.Visibility = Visibility.Collapsed;
             AttachedPanel.Visibility = Visibility.Visible;
 
             Header.Subtitle = string.IsNullOrWhiteSpace(attachment.ProjectName)
@@ -530,17 +548,79 @@ namespace Satellite.CoreUpdater
             MapText.Text = exception == null ? "Something went wrong." : exception.Message;
         }
 
+        /// <summary>
+        /// Nothing was attached — and, when there is something to attach to, this is where the
+        /// operator picks it rather than where the window gives up.
+        /// </summary>
         private void Refused(TiaAttachment attachment)
         {
+            bool choose = attachment.CanChoose;
+
             ProblemPanel.Visibility = Visibility.Visible;
             ProblemText.Text = attachment.Problem;
 
-            string considered = Considered(attachment.Considered);
+            string considered = Considered(attachment.Considered, choose);
 
             ConsideredText.Text = considered;
             ConsideredText.Visibility = considered.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
 
-            StatusText.Text = "Not attached.";
+            OfferChoices(choose ? attachment.Considered : null);
+
+            StatusText.Text = choose ? "Pick a TIA Portal." : "Not attached.";
+        }
+
+        /// <summary>
+        /// The running instances, as a list to choose from.
+        ///
+        /// **Nothing is preselected, deliberately.** A highlighted first row turns Attach into
+        /// one click on whatever happened to be at the top, which is the guess this panel
+        /// exists to replace with a decision. The button stays off until a row is picked.
+        ///
+        /// **Not called `Offer`**, which the tick boxes already are: two overloads differing
+        /// only by an interface argument made `Offer(null)` ambiguous, and disambiguating a
+        /// null with a cast is a worse sentence than two names.
+        /// </summary>
+        private void OfferChoices(IReadOnlyList<RunningPortal> choices)
+        {
+            ChoicesList.Items.Clear();
+
+            if (choices != null)
+                foreach (RunningPortal one in choices) ChoicesList.Items.Add(one);
+
+            Visibility shown = choices == null ? Visibility.Collapsed : Visibility.Visible;
+
+            ChoicesList.Visibility = shown;
+            ChoicesList.IsEnabled = true;
+            AttachButton.Visibility = shown;
+            AttachButton.IsEnabled = false;
+        }
+
+        private void ChoiceChanged(object sender, SelectionChangedEventArgs e)
+        {
+            AttachButton.IsEnabled = ChoicesList.SelectedItem is RunningPortal;
+        }
+
+        private void AttachClicked(object sender, RoutedEventArgs e)
+        {
+            RunningPortal chosen = ChoicesList.SelectedItem as RunningPortal;
+
+            if (chosen == null || _worker == null) return;
+
+            ChoicesList.IsEnabled = false;
+            AttachButton.IsEnabled = false;
+            StatusText.Text = "Attaching…";
+
+            _worker.Post(
+                session => session.AttachTo(chosen.Id),
+                attachment => Arrived(attachment, _plc, _unit),
+                exception =>
+                {
+                    // The list is put back rather than left dead: the instance the operator
+                    // picked may have closed, and the next one along is still worth a try.
+                    ChoicesList.IsEnabled = true;
+                    AttachButton.IsEnabled = true;
+                    Failed(exception);
+                });
         }
 
         /// <summary>
@@ -551,7 +631,11 @@ namespace Satellite.CoreUpdater
         /// would be a claim this never checked - which is exactly what it said on the VM,
         /// under an error about a missing assembly, with TIA Portal open behind the window.
         /// </summary>
-        private static string Considered(IReadOnlyList<string> considered)
+        /// <param name="choosing">
+        /// Whether the list below is about to show the same instances. It is then a heading
+        /// rather than a report, and printing both would say everything twice.
+        /// </param>
+        private static string Considered(IReadOnlyList<RunningPortal> considered, bool choosing)
         {
             if (considered == null) return string.Empty;
 
@@ -561,6 +645,8 @@ namespace Satellite.CoreUpdater
             string heading = considered.Count == 1
                 ? "One TIA Portal was running:"
                 : string.Format(CultureInfo.CurrentCulture, "{0} TIA Portals were running:", considered.Count);
+
+            if (choosing) return heading;
 
             return heading + Environment.NewLine + "    " +
                    string.Join(Environment.NewLine + "    ", considered);

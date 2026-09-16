@@ -267,6 +267,32 @@
     </Style>
 
     <!--
+        The list itself, which had no style until a plain `ListBox` appeared in the core
+        updater and came out with the stock chrome: a WHITE background behind rows painted
+        in `Ink`, which is light grey - so the text was all but unreadable. The same trap the
+        `GridView` corner already records one control down: everything here templates its
+        rows and had never templated the box around them, because every list so far was a
+        `ListView`.
+
+        `ListView` derives from `ListBox` and is untouched by this - an implicit style matches
+        the exact type, which is the same rule that forces `ListBoxItem`, `ListViewItem` and
+        `TreeViewItem` to be declared separately below.
+    -->
+    <Style TargetType="ListBox">
+        <Setter Property="Background" Value="{StaticResource Field}" />
+        <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        <Setter Property="Padding" Value="2" />
+        <!--
+            Auto rather than Disabled: a row here is a file path, and the part that tells two
+            of them apart is the file name at the end - exactly what clipping removes. Scroll
+            rather than hide, and the window is resizable besides.
+        -->
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+    </Style>
+
+    <!--
         A plain list row. Same story as the tree node below, and it needs its own style
         because an implicit style matches the exact type: `ListViewItem` derives from
         `ListBoxItem` but does not inherit its style.

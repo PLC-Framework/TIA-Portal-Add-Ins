@@ -121,8 +121,12 @@ namespace AddIn
                     // side, and an engineering object could not cross to another process
                     // anyway. TiaProjectPlaces answers null for a device item that is not a
                     // CPU, which the action turns into a sentence.
+                    // The project file goes with it, and it is not decoration: with two TIA
+                    // Portals open the window could not tell which one had launched it, and
+                    // this is the one thing both ends name identically.
                     CoreUpdaterAction.Execute(
-                        _notifier, _launcher, TiaVersion, TiaProjectPlaces.SoftwareOf(selected)?.Name);
+                        _notifier, _launcher, TiaVersion,
+                        TiaProjectPlaces.SoftwareOf(selected)?.Name, ProjectFile());
                 });
 
             // On data blocks, and it works on a multiple selection: GetSelection returns
@@ -253,6 +257,14 @@ namespace AddIn
             else
                 root.Items.AddActionItem<T>(text, onClick);
         }
+
+        /// <summary>
+        /// The open project's own file, <c>…\LabSlave.ap20</c> - which is what a satellite
+        /// attaching through Openness matches against `TiaPortalProcess.ProjectPath` to tell
+        /// one running TIA Portal from another.
+        /// </summary>
+        private string ProjectFile() =>
+            _tiaPortal?.Projects?.FirstOrDefault()?.Path?.FullName;
 
         /// <summary>Directory of the open TIA project, where .plc-framework lives.</summary>
         private string ProjectDirectory() =>

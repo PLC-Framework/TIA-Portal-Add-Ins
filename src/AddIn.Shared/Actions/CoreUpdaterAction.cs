@@ -13,14 +13,21 @@ namespace AddIn.Shared.Actions
     /// to one PLC's software, so an entry on the project root would have to ask which PLC it
     /// meant, and one on a block would offer a whole-PLC operation from a single object.
     ///
-    /// **Two arguments, and no handoff.** Every other satellite is told what to work on in a
+    /// **Three arguments, and no handoff.** Every other satellite is told what to work on in a
     /// JSON document, because it cannot ask; this one attaches to TIA Portal itself and finds
     /// the project that way. All it needs telling is which part of the project the operator
     /// was pointing at - the PLC that was right-clicked, and the software unit, which from a
-    /// PLC-level entry is always the general program. Two arguments are not a handoff: there
-    /// is no document, no payload type, and no pair of ends that can disagree about what was
-    /// selected. The window offers the PLC's units so the star is a starting point rather
-    /// than a decision.
+    /// PLC-level entry is always the general program - and **which TIA Portal it belongs to**.
+    /// Three arguments are not a handoff: there is no document, no payload type, and no pair
+    /// of ends that can disagree about what was selected. The window offers the PLC's units so
+    /// the star is a starting point rather than a decision.
+    ///
+    /// **The project path was added to fix a bug** (2026-09-16). The satellite used to
+    /// recognise its TIA Portal by the process that launched it, and with two instances open
+    /// that matched nothing in either TIA version: the process a satellite is started from is
+    /// not one of the processes Openness lists. The project is the one thing both ends name
+    /// identically - the Add-In is *in* a project, and `TiaPortalProcess.ProjectPath` says
+    /// what each running instance has open.
     ///
     /// **Two executables, one per TIA version**, since Openness is a different assembly with
     /// a different public key token in V20 and V21. The version project names its own, which
@@ -46,7 +53,13 @@ namespace AddIn.Shared.Actions
         /// why this is passed rather than asked.
         /// </param>
         /// <param name="plc">The PLC the entry was clicked on. Nothing is launched without one.</param>
-        public static void Execute(ITiaNotifier notifier, IProcessLauncher launcher, string tiaVersion, string plc)
+        /// <param name="projectFile">
+        /// The open project's own file - <c>…\LabSlave.ap21</c> - which is how the window picks
+        /// the right TIA Portal out of several. Null is allowed and costs only that: the window
+        /// falls back to its ancestry, then to asking the operator.
+        /// </param>
+        public static void Execute(
+            ITiaNotifier notifier, IProcessLauncher launcher, string tiaVersion, string plc, string projectFile)
         {
             if (notifier == null || launcher == null) return;
 
@@ -72,21 +85,29 @@ namespace AddIn.Shared.Actions
                 return;
             }
 
-            string error = launcher.Start(path, Arguments(plc), null);
+            string error = launcher.Start(path, Arguments(plc, projectFile), null);
 
             if (error != null)
                 notifier.Error(Title, "\n\nThe core updater could not be started.\n\n" + error);
         }
 
         /// <summary>
-        /// The command line: the PLC, and the general program.
+        /// The command line: the PLC, the general program, and the project file.
         ///
-        /// **Quoted, because a PLC's name may hold a space** - and a quoted argument must not
-        /// end in a backslash, which is why the name is trimmed of one. That trap is measured
-        /// and recorded in the Openness notes; a name ending in `\` would swallow the argument
-        /// after it.
+        /// **Quoted, because a PLC's name and a path both hold spaces** - and a quoted argument
+        /// must not end in a backslash, which is why each is trimmed of one. That trap is
+        /// measured and recorded in the Openness notes; a value ending in `\` would swallow the
+        /// argument after it. A project file never ends in a separator, but the rule is applied
+        /// to every argument rather than to the ones somebody remembered.
+        ///
+        /// **A project that was never saved sends an empty third argument**, not a missing one.
+        /// The satellite reads blank and absent as the same thing, so the positions stay fixed
+        /// whatever is known.
         /// </summary>
-        public static string Arguments(string plc) =>
-            "\"" + (plc ?? string.Empty).Trim().TrimEnd('\\') + "\" \"" + Places.GeneralProgram + "\"";
+        public static string Arguments(string plc, string projectFile) =>
+            Quoted(plc) + " " + Quoted(Places.GeneralProgram) + " " + Quoted(projectFile);
+
+        private static string Quoted(string value) =>
+            "\"" + (value ?? string.Empty).Trim().TrimEnd('\\') + "\"";
     }
 }

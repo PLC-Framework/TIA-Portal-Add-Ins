@@ -69,7 +69,31 @@ namespace Satellite.CoreUpdater.Tia
         private Dictionary<string, int> _languages;
         private int _total;
 
-        public TiaAttachment Attach(int? preferredProcessId)
+        public TiaAttachment Attach(TiaWanted wanted)
+        {
+            TiaWanted asked = wanted ?? TiaWanted.Nothing;
+
+            IList<TiaPortalProcess> running;
+
+            try
+            {
+                running = TiaPortal.GetProcesses();
+            }
+            catch (Exception exception)
+            {
+                return TiaAttachment.Failed(
+                    "The running TIA Portals could not be listed.\n\n" + exception.Message);
+            }
+
+            List<RunningPortal> considered = Describe(running);
+            TiaPortalProcess chosen = Pick(running, considered, asked);
+
+            if (chosen == null) return TiaAttachment.Failed(Why(running.Count, asked), considered);
+
+            return Read(chosen, considered);
+        }
+
+        public TiaAttachment AttachTo(int processId)
         {
             IList<TiaPortalProcess> running;
 
@@ -83,22 +107,78 @@ namespace Satellite.CoreUpdater.Tia
                     "The running TIA Portals could not be listed.\n\n" + exception.Message);
             }
 
-            List<string> considered = new List<string>();
-            TiaPortalProcess chosen = null;
+            List<RunningPortal> considered = Describe(running);
+            TiaPortalProcess chosen = Process(running, processId);
 
-            foreach (TiaPortalProcess process in running)
-            {
-                considered.Add(Describe(process));
-
-                if (preferredProcessId.HasValue && process.Id == preferredProcessId.Value) chosen = process;
-            }
-
-            // Nothing said which one, and there is only one: that is not a guess.
-            if (chosen == null && running.Count == 1) chosen = running[0];
-
-            if (chosen == null) return TiaAttachment.Failed(Why(running.Count, preferredProcessId), considered);
+            if (chosen == null)
+                return TiaAttachment.Failed(
+                    string.Format(CultureInfo.CurrentCulture,
+                        "TIA Portal process {0} is no longer running.", processId),
+                    considered);
 
             return Read(chosen, considered);
+        }
+
+        /// <summary>
+        /// Which running instance this window belongs to, or null when nothing says.
+        ///
+        /// **The project decides and the ancestry only corroborates**, which is the opposite
+        /// of how this was first written and is why it failed. Matching the process that
+        /// launched this against the processes Openness lists found nothing at all with two
+        /// TIA Portals open, in either version - see <see cref="TiaWanted"/>.
+        /// </summary>
+        private static TiaPortalProcess Pick(
+            IList<TiaPortalProcess> running, List<RunningPortal> considered, TiaWanted wanted)
+        {
+            TiaPortalProcess byProject = Only(running, considered, one => wanted.IsProject(one.Project));
+            if (byProject != null) return byProject;
+
+            TiaPortalProcess byAncestry = Only(running, considered, one => wanted.IsAncestor(one.Id));
+            if (byAncestry != null) return byAncestry;
+
+            // Nothing said which one, and there is only one: that is not a guess.
+            return running.Count == 1 ? running[0] : null;
+        }
+
+        /// <summary>
+        /// The one instance a signal names, or null.
+        ///
+        /// **Two answers is no answer.** A signal that matches twice - the same project open
+        /// in two instances, a chain running through both - has identified nothing, and taking
+        /// the first would be exactly the guess this path exists to avoid. It falls through to
+        /// the operator instead.
+        /// </summary>
+        private static TiaPortalProcess Only(
+            IList<TiaPortalProcess> running, List<RunningPortal> considered, Func<RunningPortal, bool> wants)
+        {
+            RunningPortal found = null;
+
+            foreach (RunningPortal one in considered)
+            {
+                if (!wants(one)) continue;
+                if (found != null) return null;
+
+                found = one;
+            }
+
+            return found == null ? null : Process(running, found.Id);
+        }
+
+        private static TiaPortalProcess Process(IEnumerable<TiaPortalProcess> running, int id)
+        {
+            foreach (TiaPortalProcess process in running)
+            {
+                try
+                {
+                    if (process.Id == id) return process;
+                }
+                catch (Exception)
+                {
+                    // An instance that will not say its id is not one anything can attach to.
+                }
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -112,7 +192,7 @@ namespace Satellite.CoreUpdater.Tia
         /// open the moment this window said "Ready". `TiaPortal.Dispose` is how an Openness
         /// client shuts a portal down, and attaching does not change what the method means.
         /// </summary>
-        private TiaAttachment Read(TiaPortalProcess process, List<string> considered)
+        private TiaAttachment Read(TiaPortalProcess process, List<RunningPortal> considered)
         {
             int id = process.Id;
 
@@ -698,38 +778,58 @@ namespace Satellite.CoreUpdater.Tia
             return string.IsNullOrEmpty(parent) ? name : parent + "/" + name;
         }
 
-        private static string Why(int running, int? preferred)
+        private static string Why(int running, TiaWanted wanted)
         {
             if (running == 0)
                 return "No TIA Portal is running. Open the project in TIA Portal and start this again.";
 
-            if (!preferred.HasValue)
-                return "Several TIA Portals are running and this window cannot tell which one opened it, " +
-                       "so it will not guess. Start it from the PLC in the project you mean.";
+            if (wanted.NamesProject)
+                return string.Format(CultureInfo.CurrentCulture,
+                    "No running TIA Portal has '{0}' open - it may have been closed, or reopened, " +
+                    "since this window was started.", wanted.ProjectName);
 
-            return string.Format(CultureInfo.CurrentCulture,
-                "The TIA Portal that opened this window (process {0}) is no longer running.", preferred.Value);
+            return "Several TIA Portals are running and nothing said which one this window belongs to.";
         }
 
         /// <summary>
-        /// One running TIA Portal, in the words the window shows: the project is what an
-        /// operator recognises, the process id is what tells two of the same project apart.
+        /// Every running TIA Portal, as parts rather than as a sentence: the project is what
+        /// an operator recognises *and* what identifies the instance, and the process id is
+        /// what tells two of the same project apart.
+        ///
+        /// **An instance that will not say its id is left out**, because there is nothing to
+        /// attach to; one that will not say its project is listed anyway, since it is on the
+        /// machine and a list that disagrees with the machine is worse than one with a gap.
         /// </summary>
-        private static string Describe(TiaPortalProcess process)
+        private static List<RunningPortal> Describe(IEnumerable<TiaPortalProcess> running)
         {
-            string project;
+            List<RunningPortal> found = new List<RunningPortal>();
 
-            try
+            foreach (TiaPortalProcess process in running)
             {
-                project = process.ProjectPath == null ? "no project open" : process.ProjectPath.FullName;
-            }
-            catch (Exception)
-            {
-                // An instance that is starting up, or shutting down, answers nothing useful.
-                project = "its project could not be read";
+                int id;
+
+                try
+                {
+                    id = process.Id;
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    found.Add(RunningPortal.With(
+                        id, process.ProjectPath == null ? null : process.ProjectPath.FullName));
+                }
+                catch (Exception)
+                {
+                    // An instance that is starting up, or shutting down, answers nothing useful.
+                    found.Add(RunningPortal.Unreadable(id));
+                }
             }
 
-            return string.Format(CultureInfo.CurrentCulture, "process {0} - {1}", process.Id, project);
+            return found;
         }
 
         public void Dispose()

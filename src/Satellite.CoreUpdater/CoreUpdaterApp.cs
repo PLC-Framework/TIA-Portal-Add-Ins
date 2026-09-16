@@ -79,18 +79,20 @@ namespace Satellite.CoreUpdater
 
             window.Badge(_tiaVersion);
 
-            // Asked on this thread before the window shows, so the window can say which TIA
-            // Portal it is looking for rather than only that it is looking.
-            int? parent = ParentProcess.Id();
-
-            window.ShowWaiting(parent);
+            // The project is what the window says it is looking for, because it is what an
+            // operator recognises - and, since the bug fix, what actually decides the attach.
+            window.ShowWaiting(TiaWanted.Of(_requested.Project, null).ProjectName);
             window.Show();
 
             _worker = new TiaWorker(_connect, Dispatcher);
             window.Uses(_worker);
 
+            // **The ancestry is read on the worker's thread, not here.** It is one query over
+            // every process on the machine, and this line runs between the window being built
+            // and being painted - which is where a satellite looks like one that failed to
+            // start. Nothing about it is thread-bound.
             _worker.Post(
-                session => session.Attach(parent),
+                session => session.Attach(TiaWanted.Of(_requested.Project, ParentProcess.Chain())),
                 attachment => window.Arrived(attachment, _requested.Plc, _requested.Unit),
                 exception => window.Arrived(
                     TiaAttachment.Failed(Describe(exception) + Looked()), _requested.Plc, _requested.Unit));
