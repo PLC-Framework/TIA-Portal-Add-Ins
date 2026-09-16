@@ -19,9 +19,14 @@ TIA-Portal-Add-Ins.slnx
     ├── Satellite.DataBlockSnapshot/  (net48, WPF) — captures a DB to .xlsx           ← EXISTS
     ├── Satellite.ConfigEditor/       (net48, WPF) — edits config.json                ← EXISTS
     ├── Satellite.CodingStyleReport/  (net48, WPF) — shows a coding-style check       ← EXISTS
+    ├── Satellite.CoreUpdater/        (net48, WPF, LIBRARY) — the window and its port ← EXISTS
+    ├── Satellite.CoreUpdater.V20/    (net48, x64) — the same app, Openness V17–V20   ← EXISTS
+    ├── Satellite.CoreUpdater.V21/    (net48, x64) — the same app, Openness V21       ← EXISTS
     ├── Satellite.<Name>/     (net48, WPF) — a UI app the Add-In launches
     └── Tool.<Name>/          (net48) — a command-line helper
 ```
+
+> **One satellite, three projects, and it is the first of its kind.** `Satellite.CoreUpdater` is a **library**: it holds the window and an `ITiaSession` port, and references no Siemens assembly at all. The two executables beside it are thin — a `Main`, an assembly resolver and one adapter each — because Openness is `Siemens.Engineering` (token `d29ec89bac048f84`) in V17–V20 and `Siemens.Engineering.Base` (token `29bfe5fdf4ba5d3b`) in V21, so one binary cannot serve both. Read off the built output, which is where a claim like that should come from: the library references `mscorlib`, `PresentationFramework`, `System.Management` and WPF, and **not one Siemens assembly**.
 
 ```
 src/S7PlcWebserverApi/
@@ -205,6 +210,9 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
 | `S7PlcWebserverApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |
 | `AddIn.VXX` | anything, Siemens included | `+ Siemens.Engineering.AddIn` |
 | `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window |  |
+| `Satellite.<Name>.VXX` | the above **plus Openness**, as a *client* | `+ Siemens.Engineering` (V20) / `.Base` (V21) |
+
+**That last row was added on 2026-09-16 and it is a real widening, not a clarification.** Until then no satellite touched Siemens at all, and the rule read as though none ever would. `Satellite.CoreUpdater` has to: it reads a PLC's program and will write to it, and handing that much through a JSON payload would be an Add-In doing the work with a window watching. Two things keep the widening narrow. **Only the `.VXX` executables may reference Openness** — the satellite's own project is a library that must not, which is checkable from the metadata rather than by intention. And **an Openness client runs in full trust**, so the constraints that shape the Add-In half — `Assembly.Location` throwing, serialization needing public types, the Publisher refusing a field that holds an engineering object — simply do not apply on this side. That is the point of moving the work here.
 
 That third column is read from the compiled assemblies, not from the `using` statements — it is the only check that cannot drift.
 

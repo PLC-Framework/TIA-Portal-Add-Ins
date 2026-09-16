@@ -2,22 +2,33 @@
 
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- A library, and that is the whole shape of this satellite. The window and everything it
+       does are version-agnostic; only attaching to TIA Portal is not, because Openness is
+       `Siemens.Engineering` in V17-V20 and `Siemens.Engineering.Base` in V21 - different
+       assembly names with different public key tokens, so one binary cannot serve both. The
+       two executables beside this are thin, and this is where the work lives.
+
+       No ApplicationIcon either: a library has no Win32 resource to put one in. The
+       executables carry it. -->
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Library</OutputType>
     <TargetFramework>net48</TargetFramework>
     <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
     <RootNamespace>Satellite.CoreUpdater</RootNamespace>
     <AssemblyName>PLC-Framework.Satellite.CoreUpdater</AssemblyName>
-    <!-- Win32 icon resource: what Explorer, Alt-Tab and shortcuts show. It must be a
-         file on disk at build time, so it reads assets\ directly rather than through
-         the copy Core embeds. Window.Icon is set separately, in XAML. -->
-    <ApplicationIcon>..\..\assets\Brand\favicon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Core\Core.csproj" />
     <ProjectReference Include="..\UI.Shared\UI.Shared.csproj" />
+  </ItemGroup>
+
+  <!-- WMI, to read this process's parent - which is the TIA Portal that launched it, and
+       therefore the instance to attach to when several are open. Not part of the default
+       net48 reference set. -->
+  <ItemGroup>
+    <Reference Include="System.Management" />
   </ItemGroup>
 
 </Project>

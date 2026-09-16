@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <!-- x64, unlike the other satellites, and for the mirror image of the Add-In's reason:
+         this process loads TIA Portal's own 64-bit Openness assemblies into itself. AnyCPU
+         would start as 32-bit under WOW64 on a 32-bit host and fail to bind to them. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>Satellite.CoreUpdater</RootNamespace>
+    <AssemblyName>PLC-Framework.Satellite.CoreUpdater.V20</AssemblyName>
+    <ApplicationIcon>..\..\assets\Brand\favicon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <SiemensPublicApi Condition="'$(SiemensPublicApi)' == ''">$(MSBuildThisFileDirectory)..\..\..\.lib\Siemens\PublicAPI</SiemensPublicApi>
+    <!-- The client assemblies, in V20\ - not the Add-In ones in V20.addIn\. -->
+    <TiaApi>$(SiemensPublicApi)\V20</TiaApi>
+  </PropertyGroup>
+
+  <!-- An Openness *client*, not an Add-In. The V20 rule about never referencing both
+       Siemens.Engineering and Siemens.Engineering.AddIn does not arise here: this references
+       no AddIn assembly at all, so IEngineeringObject exists exactly once and no extern
+       alias is needed. -->
+  <ItemGroup>
+    <Reference Include="Siemens.Engineering">
+      <HintPath>$(TiaApi)\Siemens.Engineering.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Satellite.CoreUpdater\Satellite.CoreUpdater.csproj" />
+  </ItemGroup>
+
+</Project>

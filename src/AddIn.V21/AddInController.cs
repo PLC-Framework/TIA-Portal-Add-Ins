@@ -22,6 +22,16 @@ namespace AddIn
 {
     public class AddInController : ContextMenuAddIn
     {
+        /// <summary>
+        /// Which TIA version this Add-In was built for, which decides the executable a
+        /// version-specific satellite is launched from.
+        ///
+        /// **A literal, because no Siemens API answers it** - neither `TiaPortal` nor the
+        /// whole `Siemens.Engineering.AddIn` namespace exposes the running version. The one
+        /// thing that knows is the project this file is compiled in.
+        /// </summary>
+        private const string TiaVersion = "V21";
+
         private readonly TiaPortal _tiaPortal;
         private readonly ITiaNotifier _notifier;
         private readonly IProcessLauncher _launcher;
@@ -91,6 +101,15 @@ namespace AddIn
                         result.Config.ProjectConfig?.Hierarchy,
                         TiaGroupNode.TargetsFor(deviceItem));
                 });
+
+            // Beside it, on the PLC and nowhere else: a core belongs to one PLC's software.
+            // This one hands nothing over - the window attaches to TIA Portal itself - so all
+            // the Add-In supplies is which of the two executables its TIA version needs.
+            AddAction<DeviceItem>(
+                menuAddInRoot,
+                CoreUpdaterAction.Title,
+                CoreUpdaterAction.IconPath,
+                menuSelectionProvider => CoreUpdaterAction.Execute(_notifier, _launcher, TiaVersion));
 
             // On data blocks, and it works on a multiple selection: GetSelection returns
             // the whole thing, so several blocks travel to the satellite in one run.

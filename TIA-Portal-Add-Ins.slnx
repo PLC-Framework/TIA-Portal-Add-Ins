@@ -8,6 +8,8 @@
   <Project Path="src/Satellite.CodingStyleReport/Satellite.CodingStyleReport.csproj" Id="5f79d405-0361-47b9-8fbb-be4c14ce64a2" />
   <Project Path="src/Satellite.ConfigEditor/Satellite.ConfigEditor.csproj" Id="7b00b3da-bdaa-47d6-bf26-f41003173e28" />
   <Project Path="src/Satellite.CoreUpdater/Satellite.CoreUpdater.csproj" Id="83b02bb0-0e0c-4350-b9e8-9309e39a9811" />
+  <Project Path="src/Satellite.CoreUpdater.V20/Satellite.CoreUpdater.V20.csproj" />
+  <Project Path="src/Satellite.CoreUpdater.V21/Satellite.CoreUpdater.V21.csproj" />
   <Project Path="src/Satellite.DataBlockSnapshot/Satellite.DataBlockSnapshot.csproj" Id="49aadeee-f757-4f43-b2b0-4326fdcffe22" />
   <Project Path="src/UI.Shared/UI.Shared.csproj" Id="7dc1d8ba-91fc-4080-834a-e54bfc1030df" />
 </Solution>

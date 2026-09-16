@@ -37,7 +37,11 @@ function Copy-Tree($from, $to, $extra)
     if ($code -ge 8) { throw "robocopy failed with $code copying $from" }
 }
 
-$satellites = @("Satellite.About", "Satellite.DataBlockSnapshot", "Satellite.ConfigEditor", "Satellite.CodingStyleReport")
+# The core updater is two executables, one per TIA version, because it is an Openness client
+# and Openness is a different assembly with a different public key token in V20 and V21. Its
+# shared library travels inside each of their build outputs, so it is not listed here.
+$satellites = @("Satellite.About", "Satellite.DataBlockSnapshot", "Satellite.ConfigEditor", "Satellite.CodingStyleReport",
+                "Satellite.CoreUpdater.V20", "Satellite.CoreUpdater.V21")
 $versions   = @(@{ Project = "AddIn.V20"; Package = "PLC-Framework.V20.addin" },
                 @{ Project = "AddIn.V21"; Package = "PLC-Framework.V21.addin" })
 

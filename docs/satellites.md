@@ -182,6 +182,23 @@ Verified: an export read back identical field by field, for the real report and 
 
 The scroll bars were light grey in every satellite until this window, whose table scrolls both ways, made it impossible to miss; they are now themed for all of them — see *Theming* in [architecture.md](architecture.md).
 
+## Updating a project's core
+
+`Satellite.CoreUpdater` opens from **"Core updater"** on a PLC — not on the project root, and not on a block: a core belongs to one PLC's software, so an entry anywhere else would either have to ask which PLC it meant or offer a whole-PLC operation from a single object.
+
+**It is the one satellite that talks to TIA Portal itself.** Every other one is handed what it should work on, because it cannot ask. This attaches to the running TIA Portal as an Openness *client* and finds the project that way, so the Add-In hands over nothing — no payload, no handoff, and none of the bugs where the two ends disagree about what was selected. The Add-In entry is one line that starts an executable.
+
+- **It attaches to the TIA Portal that opened it**, worked out from its own parent process. With only one running there is nothing to choose between; with several and no parent it **refuses rather than guesses**, because guessing would attach to somebody else's project and then offer to change it.
+- **Either way it lists what was running.** "No TIA Portal is open" and "two are, and neither is the one that started this" look identical from the window and want opposite answers.
+- **A project that was never saved is attached and still unusable**, and the window says so: the core is copied into the project's own folder, and there is no folder yet.
+- **It lets go again.** The snapshot is read and the attachment dropped; disposing it detaches this client and does **not** close TIA Portal, so it is safe to take while an engineer is working in the project.
+
+> **Three projects for one window.** `Satellite.CoreUpdater` is a library with the window and a port; `…V20.exe` and `…V21.exe` are thin shells around it. Openness is `Siemens.Engineering` in V17–V20 and `Siemens.Engineering.Base` in V21 — different assemblies with different public key tokens — so one binary cannot serve both, the same reason the Add-In exists twice. The library references no Siemens assembly at all, which is checkable from its metadata rather than promised in prose.
+
+> **An Openness client has to locate the assemblies at run time**, from `HKLM\SOFTWARE\Siemens\Automation\Openness`: they are not in the GAC and cannot be shipped. When that fails the window says so and names what the loader said, rather than the process dying before it paints — the two failures worth telling apart being "the assemblies are not here" and "TIA refused the connection", the second of which usually means the Windows user is not in the **Siemens TIA Openness** group.
+
+Exercised here without TIA Portal, by running the real shared library behind a stand-in session: attached to a saved project, attached to one never saved, nothing running, several running, and the Openness assemblies missing — with the rendered window read back each time, which is what confirms the dark theme and the brand icon resolved rather than silently falling back.
+
 ## Editing a configuration
 
 `Satellite.ConfigEditor` opens from **"Config. Editor"** on the project root of both Add-Ins. Section navigation down the left rather than tabs — two of the four sections subdivide again — and a **dot beside a section** marks where the problems are, which costs nothing because the validator already reports per concern.
