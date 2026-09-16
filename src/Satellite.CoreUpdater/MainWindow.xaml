@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Core updater"
-        Height="360" Width="640"
-        MinHeight="300" MinWidth="520"
+        Height="440" Width="680"
+        MinHeight="320" MinWidth="520"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Surface}"
         Icon="{StaticResource BrandLogo}">
@@ -51,12 +51,22 @@
                            Foreground="{StaticResource InkMuted}" />
             </StackPanel>
 
-            <StackPanel x:Name="ProblemPanel" Visibility="Collapsed" VerticalAlignment="Center">
-                <TextBlock x:Name="ProblemText" FontSize="14" TextWrapping="Wrap"
-                           Foreground="{StaticResource InkBad}" />
-                <TextBlock x:Name="ConsideredText" Margin="0,14,0,0" TextWrapping="Wrap"
-                           Foreground="{StaticResource InkMuted}" />
-            </StackPanel>
+            <!-- Scrolled, because the failure that matters most is the longest: when the
+                 Openness assemblies cannot be found, this carries the account of every
+                 registry key that was read and every folder that was probed. The first
+                 version centred it in a fixed row and **clipped it on the VM**, cutting off
+                 the half that said where it had looked. The ScrollViewer sits inside the
+                 star row rather than around the whole window, which is what keeps it from
+                 handing its content infinite height. -->
+            <ScrollViewer x:Name="ProblemPanel" Visibility="Collapsed"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <TextBlock x:Name="ProblemText" FontSize="14" TextWrapping="Wrap"
+                               Foreground="{StaticResource InkBad}" />
+                    <TextBlock x:Name="ConsideredText" Margin="0,14,0,0" TextWrapping="Wrap"
+                               Foreground="{StaticResource InkMuted}" />
+                </StackPanel>
+            </ScrollViewer>
 
         </Grid>
 
