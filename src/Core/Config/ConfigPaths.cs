@@ -15,6 +15,7 @@ namespace Core.Config
     ///     +-- .gitignore           written by the editor: everything here but those three
     ///     +-- exports\             captures, for a person to open
     ///     +-- logs\                what a run recorded about itself
+    ///     +-- repo\                the core as this project last saw it, and its workspace
     ///     +-- tmp\                 scratch space for one action
     ///     +-- reports\             generated reports
     ///
@@ -34,6 +35,13 @@ namespace Core.Config
 
         /// <summary>What a run recorded about itself, for reading when something went wrong.</summary>
         public const string Logs = "logs";
+
+        /// <summary>
+        /// Everything to do with the core this project is built on: the copy it was last
+        /// compared against, the map of the project itself, and the sources a later update
+        /// downloads. See <see cref="Core.Repo.RepoPaths"/> for what goes where inside it.
+        /// </summary>
+        public const string Repo = "repo";
 
         /// <summary>Scratch space for a single action. Nothing here survives being deleted.</summary>
         public const string Tmp = "tmp";

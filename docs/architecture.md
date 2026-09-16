@@ -69,6 +69,13 @@ src/Core/
 │   └── StyleReport.cs        the report document the Add-In sends and the satellite reads
 ├── Exports/
 │   └── ExportTree.cs         where an exported object goes: exports\ shaped like the project
+├── Repo/                     the core a project is built on, and the workspace for it
+│   ├── RepoPaths.cs          what lives inside .plc-framework\repo\
+│   ├── RepoSource.cs         where a core comes from, resolved to paths — local today
+│   ├── RepoCopy.cs           mirrors a core into the project, removing what it no longer has
+│   ├── CoreCatalog.cs        a core that has been read: the graph, plus lookup by id and base
+│   ├── CoreCatalogLoader.cs  core.json → CoreCatalog, and why it could not be read
+│   └── CoreValidator.cs      what is wrong with one that loaded — as ValidationIssues
 ├── Secrets/
 │   ├── DotEnv.cs             the per-user .env: read, and written back surgically
 │   └── Variables.cs          ${NAME} references — pure, given a lookup
@@ -358,10 +365,11 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `.gitignore` | `Satellite.ConfigEditor`, only when absent | **yes** |
 | `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx`, and the Add-In's export → a tree shaped like the project's, `<PLC>\Program blocks\03-ALL\_oc_seq2.xml` and every other format that block has beside it | no |
 | `logs\` | what a run recorded about itself | no |
+| `repo\` | the core update → `core\` the core as copied out of the repository, `project.json` what the TIA project holds, `tmp\` what a download is writing | no |
 | `tmp\` | the coding-style check, while it reads an interface → `coding-style-<timestamp>\`, deleted when the run ends | no |
 | `reports\` | `Satellite.CodingStyleReport`, on export → `<project>-coding-style-<timestamp>.xlsx` | no |
 
-The four folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and `ConfigPaths.FolderFor(projectDirectory, name)` resolves one. **Two of them have no writer yet, which is exactly when two components drift apart on a string** — the same reason the other literals are there. Nothing creates them: whoever writes the first file creates it then, so a project that never ran an action does not collect four empty folders, and git would not record them anyway.
+The five folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and `ConfigPaths.FolderFor(projectDirectory, name)` resolves one; what goes *inside* `repo\` is `Core.Repo.RepoPaths`, because that folder has a layout of its own rather than being a place to drop files. **One of them has no writer yet, which is exactly when two components drift apart on a string** — the same reason the other literals are there. Nothing creates them: whoever writes the first file creates it then, so a project that never ran an action does not collect four empty folders, and git would not record them anyway.
 
 **Not one secret lives here, and that is deliberate**: this folder is under version control, with `.version-control\` sitting right beside it. It is why the PLC credentials live under `%LOCALAPPDATA%` and why `config.json` carries the literal `${GITHUB_TOKEN}` rather than the token.
 
