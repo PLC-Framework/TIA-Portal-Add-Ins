@@ -202,7 +202,7 @@ The backslash escapes the closing quote, so the path swallows whatever follows i
 
 ### Exporting a project's objects
 
-The menu's *Export objects* writes the selection into `.plc-framework\exports\`, and what the API allows decides its shape:
+The menu's *Export objects* writes the selection into `.plc-framework\exports\`, and what the API allows decides its shape. **Run in TIA Portal on the VM (2026-09-16)**, which is what settles the claims no test without TIA can reach: that a block's `ProgrammingLanguage` really does decide which formats exist, that `ExportAsDocuments` writes both halves of the SD pair under one call, and that `GenerateSource` reaches a block living inside a software unit through that unit's own external source folder.
 
 | Family | How | |
 | --- | --- | --- |
