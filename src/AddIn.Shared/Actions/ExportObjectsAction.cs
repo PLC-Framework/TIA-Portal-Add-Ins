@@ -112,7 +112,9 @@ namespace AddIn.Shared.Actions
             }
 
             int written = 0;
+            int files = 0;
             bool cancelled = false;
+            List<string> partly = new List<string>();
             List<string> refused = new List<string>();
             HashSet<string> taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -126,13 +128,17 @@ namespace AddIn.Shared.Actions
                     break;
                 }
 
-                string problem = Write(item, projectDirectory, taken);
+                ExportOutcome outcome = Write(item, projectDirectory, taken);
 
-                if (problem == null) written++;
-                else refused.Add(item.Name + ": " + problem);
+                files += outcome.Files;
+
+                if (!outcome.IsRefused) written++;
+
+                if (outcome.IsRefused) refused.Add(item.Name + ": " + outcome.Problem);
+                else if (outcome.Problem != null) partly.Add(item.Name + ": " + outcome.Problem);
             }
 
-            notifier.Info(Title, Summary(exports, scope, items.Count, written, refused, cancelled));
+            notifier.Info(Title, Summary(exports, scope, items.Count, written, files, partly, refused, cancelled));
         }
 
         /// <summary>
@@ -144,32 +150,30 @@ namespace AddIn.Shared.Actions
         /// place - and losing one of them silently would be the worst outcome of an export
         /// somebody will read as a backup.
         /// </summary>
-        private static string Write(ExportItem item, string projectDirectory, HashSet<string> taken)
+        private static ExportOutcome Write(ExportItem item, string projectDirectory, HashSet<string> taken)
         {
-            string path = ExportTree.FileFor(
-                projectDirectory, item.Plc, item.Unit, item.Folders, item.Name, item.Extension ?? ExportTree.SimaticMl);
+            string folder = ExportTree.FolderFor(projectDirectory, item.Plc, item.Unit, item.Folders);
 
-            if (path == null) return "There is nowhere to export to.";
+            if (folder == null) return ExportOutcome.Refused("There is nowhere to export to.");
 
-            string tooLong = ExportTree.TooLong(path);
-            if (tooLong != null) return tooLong;
+            string name = ExportTree.Segment(item.Name);
 
-            if (!taken.Add(path)) return "another object in this run was already exported to " + path;
+            string tooLong = ExportTree.TooLong(folder, name);
+            if (tooLong != null) return ExportOutcome.Refused(tooLong);
+
+            if (!taken.Add(Path.Combine(folder, name)))
+                return ExportOutcome.Refused("another object in this run was already exported as " + name);
 
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
-
-                // Openness refuses to export onto a file that is there, and an export is a
-                // mirror: what was written last time is what this replaces.
-                if (File.Exists(path)) File.Delete(path);
+                Directory.CreateDirectory(folder);
             }
             catch (Exception exception)
             {
-                return exception.Message;
+                return ExportOutcome.Refused(exception.Message);
             }
 
-            return item.ExportTo(path);
+            return item.Write(folder, name);
         }
 
         private static bool Stop(Progress progress, string text) => progress != null && progress(text);
@@ -183,29 +187,38 @@ namespace AddIn.Shared.Actions
         /// a backup with four holes in it.
         /// </summary>
         private static string Summary(
-            string exports, string scope, int total, int written, List<string> refused, bool cancelled)
+            string exports, string scope, int total, int written, int files,
+            List<string> partly, List<string> refused, bool cancelled)
         {
             StringBuilder text = new StringBuilder();
 
             text.Append("\n\n").Append(written).Append(" of ").Append(total)
-                .Append(total == 1 ? " object" : " objects").Append(" exported from ").Append(scope).Append(".\n\n")
+                .Append(total == 1 ? " object" : " objects").Append(" exported from ").Append(scope)
+                .Append(", ").Append(files).Append(files == 1 ? " file" : " files").Append(".\n\n")
                 .Append(exports).Append('\n');
 
             if (cancelled)
                 text.Append("\nThe export was cancelled. What had already been written is still there.\n");
 
-            if (refused.Count > 0)
-            {
-                text.Append('\n').Append(refused.Count == 1 ? "One object was not exported:" : "These were not exported:").Append('\n');
-
-                for (int i = 0; i < refused.Count && i < ListedProblems; i++)
-                    text.Append("  ").Append(refused[i]).Append('\n');
-
-                int rest = refused.Count - ListedProblems;
-                if (rest > 0) text.Append("  ...and ").Append(rest).Append(" more.\n");
-            }
+            // Two different facts, so two different lists: an object that came out without one
+            // of its formats is not the same as one that did not come out at all.
+            List(text, partly, "One object came out without every format:", "These came out without every format:");
+            List(text, refused, "One object was not exported:", "These were not exported:");
 
             return text.ToString();
+        }
+
+        private static void List(StringBuilder text, List<string> problems, string one, string many)
+        {
+            if (problems.Count == 0) return;
+
+            text.Append('\n').Append(problems.Count == 1 ? one : many).Append('\n');
+
+            for (int i = 0; i < problems.Count && i < ListedProblems; i++)
+                text.Append("  ").Append(problems[i]).Append('\n');
+
+            int rest = problems.Count - ListedProblems;
+            if (rest > 0) text.Append("  ...and ").Append(rest).Append(" more.\n");
         }
     }
 }

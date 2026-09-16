@@ -56,6 +56,23 @@ namespace Core.Exports
         /// </summary>
         public const int LongestPath = 259;
 
+        /// <summary>
+        /// The two halves of a SIMATIC SD export: the declaration and the resources. TIA
+        /// writes both from one call and names them itself, so these are what to expect back
+        /// rather than what to ask for - and they are here, beside the other extensions,
+        /// because <see cref="LongestExtension"/> is derived from them.
+        /// </summary>
+        public const string SimaticSdDeclaration = ".s7dcl";
+
+        public const string SimaticSdResources = ".s7res";
+
+        /// <summary>
+        /// The longest extension an exported object can carry - SIMATIC SD's declaration file.
+        /// One object becomes several files, so the length that has to fit is the longest of
+        /// them, not whichever one happens to be written first.
+        /// </summary>
+        public const string LongestExtension = SimaticSdDeclaration;
+
         /// <summary>What a segment becomes when there is nothing left of it.</summary>
         private const string Fallback = "_";
 
@@ -118,6 +135,13 @@ namespace Core.Exports
         /// deep inside a user profile, a TIA tree four folders deep and a block name of forty
         /// characters together pass 259 without anything looking unusual.
         /// </summary>
+        /// <summary>
+        /// Why nothing can be written for this object here, or null when it can: the same
+        /// question as below, asked about the longest file it could produce.
+        /// </summary>
+        public static string TooLong(string folder, string name) =>
+            folder == null ? null : TooLong(Path.Combine(folder, name + LongestExtension));
+
         public static string TooLong(string path)
         {
             if (string.IsNullOrEmpty(path) || path.Length <= LongestPath) return null;

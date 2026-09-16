@@ -89,8 +89,9 @@ src/AddIn.Shared/
 └── Adapters/                 ports: ITiaNotifier, IGroupNode, IProcessLauncher, ITiaBusy
                               (TIA's own busy state, with cancellation), HierarchyTargets,
                               PlcSelection, ExportScratch (one run's tmp\ folder, given back
-                              when the run ends), ExportItem (an object that can write itself
-                              out), plus Icons (assets → System.Drawing.Icon)
+                              when the run ends), ExportItem + ExportOutcome (an object that
+                              writes every format it has into a folder, and how many came out),
+                              plus Icons (assets → System.Drawing.Icon)
 ```
 
 ```
@@ -355,7 +356,7 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `config.json` | the user by hand, and `Satellite.ConfigEditor` | **yes** |
 | `config.schema.json` | `Satellite.ConfigEditor` | **yes** — `config.json` points at it relatively |
 | `.gitignore` | `Satellite.ConfigEditor`, only when absent | **yes** |
-| `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx`, and the Add-In's export → a tree shaped like the project's, `<PLC>\Program blocks\03-ALL\_oc_seq2.xml` | no |
+| `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx`, and the Add-In's export → a tree shaped like the project's, `<PLC>\Program blocks\03-ALL\_oc_seq2.xml` and every other format that block has beside it | no |
 | `logs\` | what a run recorded about itself | no |
 | `tmp\` | the coding-style check, while it reads an interface → `coding-style-<timestamp>\`, deleted when the run ends | no |
 | `reports\` | `Satellite.CodingStyleReport`, on export → `<project>-coding-style-<timestamp>.xlsx` | no |

@@ -6,6 +6,7 @@ using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
+using Siemens.Engineering.SW.ExternalSources;
 using Siemens.Engineering.SW.Tags;
 using Siemens.Engineering.SW.TechnologicalObjects;
 using Siemens.Engineering.SW.Types;
@@ -126,6 +127,34 @@ namespace AddIn.Adapters
             {
                 PlcSoftware software = current as PlcSoftware;
                 if (software != null) return software;
+
+                if (current is HardwareObject || current is Project) break;
+
+                current = current.Parent;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// The external source group that generates a source for this object: a software
+        /// unit's own when it lives in one, otherwise its PLC's.
+        ///
+        /// **The unit's, not the PLC's, when there is one.** A unit is a compilation scope of
+        /// its own, and generating one of its blocks through the PLC's group is asking the
+        /// wrong half of the software for it.
+        /// </summary>
+        public static PlcExternalSourceSystemGroup SourcesFor(IEngineeringObject start)
+        {
+            IEngineeringObject current = start;
+
+            for (int step = 0; current != null && step < MaxParentSteps; step++)
+            {
+                PlcUnitBase unit = current as PlcUnitBase;
+                if (unit != null) return unit.ExternalSourceGroup;
+
+                PlcSoftware software = current as PlcSoftware;
+                if (software != null) return software.ExternalSourceGroup;
 
                 if (current is HardwareObject || current is Project) break;
 

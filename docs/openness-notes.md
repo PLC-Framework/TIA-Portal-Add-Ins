@@ -219,6 +219,31 @@ The provider is an `IEngineeringService` and **answers null when a PLC has none*
 - **More is kept here than the coding-style walk keeps.** There, an object TIA named itself is dropped because a rule could only fail it; here the question is what the project contains, so **instance DBs, array DBs and technology objects are all exported**. Out stay only the system block and type folders and the default tag table, which TIA rebuilds.
 - **Nothing is compiled.** TIA refuses to export a block that is not consistent; the refusal is reported with the block's name, and compiling it would change the project behind an operator who asked for a copy.
 
+#### An object is not one file
+
+`Export` is only one of the three ways out, and which of them an object has is decided by its **programming language** — `PlcBlock.ProgrammingLanguage`, a 29-value enum. Read off both assemblies on 2026-09-15, and matching what TIA's own export dialog offers:
+
+| Language | SimaticML | SIMATIC SD | Source |
+| --- | --- | --- | --- |
+| LAD, FBD | `.xml` | `.s7dcl` + `.s7res` | — |
+| SCL | `.xml` | `.s7dcl` + `.s7res` | `.scl` |
+| STL | `.xml` | — | `.awl` |
+| GRAPH | `.xml` | — | — |
+| DB | `.xml` | `.s7dcl` + `.s7res` | `.db` |
+| F_DB, F_LAD, F_FBD, F_STL | `.xml` | `.s7dcl` + `.s7res` | — |
+| a PLC data type | `.xml` | `.s7dcl` + `.s7res` | `.udt` |
+| a tag table | `.xml` | — | — |
+
+Three API facts behind that table, each of which changes the code rather than only the documentation:
+
+- **`ExportAsDocuments(DirectoryInfo, string fileNameWithoutExtension)` is SIMATIC SD**, declared on `PlcBlock` and `PlcType` and **not on `PlcTagTable`**. One call writes both halves of the pair and TIA names them.
+- **It reports failure in its return value, not by throwing.** It answers a `DocumentExportResult` carrying `State` — `Success`, `PartialSuccess` or `Failure` — a `Messages` composition of `DocumentResultMessage`, and `ExportedDocuments`, the `FileInfo`s that really came out. **This is the one export call in the API where a clean return can mean nothing was written**, so the files are counted from `ExportedDocuments` and anything short of `Success` is reported with TIA's own messages. Assuming two files per call would have put a refused SD export in the summary as two files on disk.
+- **A source comes from the external source folder, not from the object**: `PlcExternalSourceSystemGroup.GenerateSource(IEnumerable<IGenerateSource>, FileInfo, GenerateOptions)`. `PlcBlock` and `PlcType` both implement `IGenerateSource`; `PlcTagTable` does not. The group is `PlcSoftware.ExternalSourceGroup` — or **the software unit's own `PlcUnitBase.ExternalSourceGroup` when the object lives in one**, since a unit is a compilation scope of its own. `GenerateOptions.None`, never `WithDependencies`: this export is one file per object, and pulling every called block and data type into each source would write the same code into a hundred files.
+
+**A safety PLC data type cannot be told apart, so its `.udt` is attempted and the refusal reported.** `PlcType` carries no `ProgrammingLanguage`, and `Siemens.Engineering.Safety` declares eighteen types, none of which is a data type — checked, because the alternative was guessing from a name. An F-UDT therefore comes out with its SimaticML and its SD pair and is listed as *came out without every format*, which is true. Safety **blocks** need no such guess: `F_DB` and the rest are values of the language enum.
+
+**A path is checked against the longest extension an object could produce, not the first file written.** `ExportTree.LongestExtension` is `.s7dcl`, so a name that fits a `.xml` and not its SD pair is refused whole rather than half-exported.
+
 ### Saying "busy", and letting the operator stop
 
 A check of a whole PLC runs on TIA's own thread, so TIA is unresponsive for as long as it takes. What is available to say so, read off both versions on 2026-09-15:
