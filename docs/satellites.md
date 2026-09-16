@@ -201,6 +201,8 @@ The scroll bars were light grey in every satellite until this window, whose tabl
 
 Exercised here without TIA Portal, by running the real shared library behind a stand-in session: attached to a saved project, attached to one never saved, nothing running, several running, and the Openness assemblies missing — with the rendered window read back each time, which is what confirms the dark theme and the brand icon resolved rather than silently falling back.
 
+**And attached for real, in TIA Portal V20 and V21 on the VM** (2026-09-16), which is what settles the two things no test without TIA can reach: that the resolver finds the assemblies in both versions, and that attaching leaves the engineer's session alone. The second cost a wrong assumption to learn — see the note about disposing, above.
+
 ## Editing a configuration
 
 `Satellite.ConfigEditor` opens from **"Config. Editor"** on the project root of both Add-Ins. Section navigation down the left rather than tabs — two of the four sections subdivide again — and a **dot beside a section** marks where the problems are, which costs nothing because the validator already reports per concern.
