@@ -82,6 +82,7 @@ src/Core/
 │   ├── CoreCatalogLoader.cs  core.json → CoreCatalog, and why it could not be read
 │   ├── CoreValidator.cs      what is wrong with one that loaded — as ValidationIssues
 │   ├── BlockMetadata.cs      the JSON a core block carries on its TITLE line
+│   ├── SimaticMlTitle.cs     that title read back out of an export — the only way in V17-V20
 │   ├── ProjectMap.cs         what the TIA project holds — repo\project.json
 │   └── ProjectMapFile.cs     that map, written indented and read back
 ├── Places.cs                 "*" for the general program, spelled once for every reader

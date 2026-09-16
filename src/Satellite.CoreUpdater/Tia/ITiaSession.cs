@@ -51,6 +51,15 @@ namespace Satellite.CoreUpdater.Tia
         /// find, and neither is visible from a list of core blocks alone.
         /// </summary>
         /// <param name="unit">A unit's name, or <see cref="Core.Places.GeneralProgram"/>.</param>
-        ProjectMap Map(string plc, string unit);
+        /// <param name="progress">
+        /// Where it has got to, in words a window can show. **Not optional politeness**: in
+        /// V17-V20 this exports every block and type to read its title, and a PLC of several
+        /// hundred takes minutes. A window that says nothing for minutes is one an operator
+        /// concludes has died - which this project has already paid for once, and is why the
+        /// coding-style report opens before its work starts.
+        ///
+        /// Called on the worker's thread, so whatever is passed must marshal for itself.
+        /// </param>
+        ProjectMap Map(string plc, string unit, Action<string> progress);
     }
 }

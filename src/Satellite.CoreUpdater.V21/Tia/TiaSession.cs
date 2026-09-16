@@ -42,6 +42,12 @@ namespace Satellite.CoreUpdater.Tia
         /// </summary>
         private const int MaxDepth = 32;
 
+        /// <summary>How many objects pass between two updates of the text the window shows.</summary>
+        private const int ProgressEvery = 25;
+
+        private Action<string> _progress;
+        private int _done;
+
         private TiaPortal _portal;
         private Project _project;
 
@@ -147,8 +153,11 @@ namespace Satellite.CoreUpdater.Tia
             return names;
         }
 
-        public ProjectMap Map(string plc, string unit)
+        public ProjectMap Map(string plc, string unit, Action<string> progress)
         {
+            _progress = progress;
+            _done = 0;
+
             ProjectMap map = ProjectMap.Of(
                 _project?.Name, plc, unit,
                 DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture));
@@ -201,7 +210,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcBlock block in group.Blocks) map.Objects.Add(Of(block, here, map));
+                foreach (PlcBlock block in group.Blocks) { map.Objects.Add(Of(block, here, map)); Tick(); }
             });
 
             foreach (PlcBlockUserGroup child in Children(group.Groups, here, map)) Blocks(child, here, map, depth + 1);
@@ -219,7 +228,7 @@ namespace Satellite.CoreUpdater.Tia
             Each(map, here, () =>
             {
                 foreach (TechnologicalInstanceDB found in group.TechnologicalObjects)
-                    map.Objects.Add(Of(found, here, map));
+                { map.Objects.Add(Of(found, here, map)); Tick(); }
             });
 
             foreach (TechnologicalInstanceDBUserGroup child in Children(group.Groups, here, map))
@@ -234,7 +243,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcTagTable table in group.TagTables) map.Objects.Add(Of(table, here, map));
+                foreach (PlcTagTable table in group.TagTables) { map.Objects.Add(Of(table, here, map)); Tick(); }
             });
 
             foreach (PlcTagTableUserGroup child in Children(group.Groups, here, map)) TagTables(child, here, map, depth + 1);
@@ -248,7 +257,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcType type in group.Types) map.Objects.Add(Of(type, here, map));
+                foreach (PlcType type in group.Types) { map.Objects.Add(Of(type, here, map)); Tick(); }
             });
 
             foreach (PlcTypeUserGroup child in Children(group.Groups, here, map)) Types(child, here, map, depth + 1);
@@ -279,6 +288,21 @@ namespace Satellite.CoreUpdater.Tia
         private string TitleOf(PlcBlock block, ProjectMap map) => Title(block.Title);
 
         private string TitleOf(PlcType type, ProjectMap map) => Title(type.Title);
+
+        /// <summary>
+        /// Says where the walk has got to, every twenty-fifth object. **Not every one**: each
+        /// is a call across to the UI thread, and a number changing thousands of times is not
+        /// a number anybody reads. Less often than V20's, which exports each object and is
+        /// therefore slow enough that the count is the only sign of life.
+        /// </summary>
+        private void Tick()
+        {
+            _done++;
+
+            if (_progress == null || _done % ProgressEvery != 0) return;
+
+            _progress("Read " + _done + " objects...");
+        }
 
         /// <summary>A native header field, or null when TIA will not answer for it.</summary>
         private static string Native(Func<string> read)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 
 using Core;
@@ -45,8 +46,16 @@ namespace Satellite.CoreUpdater.Tia
         private TiaPortal _portal;
         private Project _project;
 
-        /// <summary>Set once, the first time TIA refuses to answer for a block's title.</summary>
-        private bool _titlesUnavailable;
+        /// <summary>How many objects a run may name before it only counts the rest.</summary>
+        private const int ListedProblems = 10;
+
+        /// <summary>How many objects pass between two updates of the text the window shows.</summary>
+        private const int ProgressEvery = 10;
+
+        private Action<string> _progress;
+        private string _scratch;
+        private int _done;
+        private int _refused;
 
         public TiaAttachment Attach(int? preferredProcessId)
         {
@@ -150,8 +159,12 @@ namespace Satellite.CoreUpdater.Tia
             return names;
         }
 
-        public ProjectMap Map(string plc, string unit)
+        public ProjectMap Map(string plc, string unit, Action<string> progress)
         {
+            _progress = progress;
+            _done = 0;
+            _refused = 0;
+
             ProjectMap map = ProjectMap.Of(
                 _project?.Name, plc, unit,
                 DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture));
@@ -175,6 +188,7 @@ namespace Satellite.CoreUpdater.Tia
                 TagTables(software.TagTableGroup, null, map);
                 Types(software.TypeGroup, null, map);
 
+                Noted(map);
                 return map;
             }
 
@@ -191,6 +205,7 @@ namespace Satellite.CoreUpdater.Tia
             TagTables(found.TagTableGroup, null, map);
             Types(found.TypeGroup, null, map);
 
+            Noted(map);
             return map;
         }
 
@@ -204,7 +219,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcBlock block in group.Blocks) map.Objects.Add(Of(block, here, map));
+                foreach (PlcBlock block in group.Blocks) { map.Objects.Add(Of(block, here, map)); Tick(); }
             });
 
             foreach (PlcBlockUserGroup child in Children(group.Groups, here, map)) Blocks(child, here, map, depth + 1);
@@ -222,7 +237,7 @@ namespace Satellite.CoreUpdater.Tia
             Each(map, here, () =>
             {
                 foreach (TechnologicalInstanceDB found in group.TechnologicalObjects)
-                    map.Objects.Add(Of(found, here, map));
+                { map.Objects.Add(Of(found, here, map)); Tick(); }
             });
 
             foreach (TechnologicalInstanceDBUserGroup child in Children(group.Groups, here, map))
@@ -237,7 +252,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcTagTable table in group.TagTables) map.Objects.Add(Of(table, here, map));
+                foreach (PlcTagTable table in group.TagTables) { map.Objects.Add(Of(table, here, map)); Tick(); }
             });
 
             foreach (PlcTagTableUserGroup child in Children(group.Groups, here, map)) TagTables(child, here, map, depth + 1);
@@ -251,7 +266,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcType type in group.Types) map.Objects.Add(Of(type, here, map));
+                foreach (PlcType type in group.Types) { map.Objects.Add(Of(type, here, map)); Tick(); }
             });
 
             foreach (PlcTypeUserGroup child in Children(group.Groups, here, map)) Types(child, here, map, depth + 1);
@@ -288,29 +303,166 @@ namespace Satellite.CoreUpdater.Tia
         /// It is asked once per object and gives up for the whole run the first time it
         /// refuses: thousands of identical failures would bury the map's real problems.
         /// </summary>
-        private string TitleOf(PlcBlock block, ProjectMap map) => Attribute(block, block.Name, map);
+        /// <summary>
+        /// **Every block and every type is exported to read its title**, which is the whole
+        /// difference between this adapter and V21's.
+        ///
+        /// V17-V20 has no `Title` property on `PlcBlock` or `PlcType`, and the untyped escape
+        /// hatch refuses it outright - measured on the VM: *"'Title' is not supported by type
+        /// 'Siemens.Engineering.SW.Blocks.OB'"*. The export is the only way left, and it is a
+        /// way this project already trusts: the coding-style check reads interfaces out of
+        /// exactly these files, in exactly this TIA version.
+        ///
+        /// **It is not free and it is not optional.** One export per object, so a PLC of four
+        /// hundred is four hundred of them - which is why this reports progress and why the
+        /// maintainer was asked before it went in. Without it a block would be identified only
+        /// by its native `VERSION` and `FAMILY` headers and a PLC data type, which has neither
+        /// in any TIA version, not at all - and 91 of the core's 249 sources are data types.
+        ///
+        /// **`ExportOptions.None`**: the file is read for one string and deleted a moment
+        /// later, so there is no reason to ask TIA to write out every default value as well.
+        /// </summary>
+        private string TitleOf(PlcBlock block, ProjectMap map) =>
+            Exported(file => block.Export(file, ExportOptions.None), block.Name, map);
 
-        private string TitleOf(PlcType type, ProjectMap map) => Attribute(type, type.Name, map);
+        private string TitleOf(PlcType type, ProjectMap map) =>
+            Exported(file => type.Export(file, ExportOptions.None), type.Name, map);
 
-        private string Attribute(IEngineeringObject item, string name, ProjectMap map)
+        private string Exported(Action<FileInfo> export, string name, ProjectMap map)
         {
-            if (_titlesUnavailable) return null;
+            string folder = Scratch(map);
+            if (folder == null) return null;
+
+            // One file, reused: it is written, read and deleted before the next object, so a
+            // run leaves nothing behind even if it is interrupted half way.
+            string path = Path.Combine(folder, "read.xml");
 
             try
             {
-                return Title(item.GetAttribute("Title") as MultilingualText);
+                Fresh(path);
+                export(new FileInfo(path));
+
+                using (FileStream stream = File.OpenRead(path))
+                {
+                    string problem;
+                    string title = SimaticMlTitle.Read(stream, out problem);
+
+                    if (problem != null) Refused(map, name + ": " + problem);
+
+                    return title;
+                }
             }
             catch (Exception exception)
             {
-                _titlesUnavailable = true;
-
-                map.Problems.Add(
-                    "This TIA version does not expose a block's TITLE, so the core metadata could not be read " +
-                    "for any object - only the native VERSION and FAMILY headers. First refused by '" + name +
-                    "': " + exception.Message);
-
+                // Know-how protected, inconsistent, or something TIA will not write out. One
+                // object without metadata, not the end of a walk over several thousand.
+                Refused(map, name + ": " + exception.Message);
                 return null;
             }
+            finally
+            {
+                Fresh(path);
+            }
+        }
+
+        /// <summary>
+        /// Where the exports go: the project's own <c>repo\tmp\</c>, which exists for this.
+        ///
+        /// **Inside the project rather than in %TEMP%**, for the reason the coding-style check
+        /// already records: what is in these files is somebody's source code, and the folder
+        /// beside it is the one the project already gitignores.
+        /// </summary>
+        private string Scratch(ProjectMap map)
+        {
+            if (_scratch != null) return _scratch;
+
+            string folder = RepoPaths.TmpFor(_project?.Path?.DirectoryName);
+
+            if (folder == null)
+            {
+                Refused(map, "This project has no folder, so there is nowhere to export to.");
+                return null;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(folder);
+                _scratch = folder;
+            }
+            catch (Exception exception)
+            {
+                Refused(map, "The scratch folder could not be created: " + exception.Message);
+                return null;
+            }
+
+            return _scratch;
+        }
+
+        /// <summary>
+        /// Says where the walk has got to, every tenth object. **Not every one**: each is a
+        /// call across to the UI thread, and a number changing four hundred times is not a
+        /// number anybody reads.
+        /// </summary>
+        private void Tick()
+        {
+            _done++;
+
+            if (_progress == null || _done % ProgressEvery != 0) return;
+
+            _progress("Read " + _done + " objects...");
+        }
+
+        private static void Fresh(string path)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch (Exception)
+            {
+                // The next export overwrites it, and the folder goes at the end of the run.
+            }
+        }
+
+        /// <summary>
+        /// One object that would not come out. **Named for the first ten and counted after**:
+        /// a PLC where every block is know-how protected would otherwise bury the map's other
+        /// problems under four hundred identical lines.
+        /// </summary>
+        private void Refused(ProjectMap map, string problem)
+        {
+            _refused++;
+
+            if (_refused <= ListedProblems) map.Problems.Add(problem);
+        }
+
+        /// <summary>What the run has to say for itself once the walk is over.</summary>
+        private void Noted(ProjectMap map)
+        {
+            if (_refused > ListedProblems)
+                map.Problems.Add("…and " + (_refused - ListedProblems) + " more that would not be read.");
+
+            Discard();
+        }
+
+        /// <summary>
+        /// The scratch folder goes when the run ends, whatever happened - it held the
+        /// project's own source code for as long as one file at a time.
+        /// </summary>
+        private void Discard()
+        {
+            if (_scratch == null) return;
+
+            try
+            {
+                Directory.Delete(_scratch, true);
+            }
+            catch (Exception)
+            {
+                // A folder that will not go is empty by now; the next run reuses it.
+            }
+
+            _scratch = null;
         }
 
         /// <summary>A native header field, or null when TIA will not answer for it.</summary>

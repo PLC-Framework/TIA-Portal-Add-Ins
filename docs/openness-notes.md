@@ -463,7 +463,18 @@ This is precisely the kind of difference that justifies a port in `AddIn.Shared`
 
 Same for `PlcType`, which gained `Title` and `Comment` in V21 and has no `Header*` at all in either. `PlcTagTable` has only a `Name` in both — no title, no comment — so anything a tag table has to say about itself lives in its constants, where `PlcUserConstant.Comment` **is** a `MultilingualText` in both versions.
 
-That matters to anything reading a block's `TITLE` line, which is where the framework's core library keeps its metadata. V21 reads the typed property; **V20 has to go through `IEngineeringObject.GetAttribute("Title")`**, the untyped escape hatch both versions offer — and whether it answers for that name is **not verified**, since the development PC has no TIA Portal. The native `Header*` fields are the fallback either way: `VERSION` and `FAMILY` carry two of the three things a comparison needs, typed, in both versions.
+That matters to anything reading a block's `TITLE` line, which is where the framework's core library keeps its metadata. V21 reads the typed property. **V20 cannot read it at all** — the untyped escape hatch both versions offer was worth one call and answered on the VM: *"'Title' is not supported by type 'Siemens.Engineering.SW.Blocks.OB'"*. So in V17–V20 the title is simply not reachable through the object model.
+
+**What survives that is enough for a block and nothing for a PLC data type**, which is the shape of the gap:
+
+| | V20 | V21 |
+| --- | --- | --- |
+| `PlcBlock.Title` | — | ✓ |
+| `PlcBlock.HeaderVersion` · `HeaderFamily` · `HeaderAuthor` · `HeaderName` | ✓ | ✓ |
+| `PlcType.Title` | — | ✓ |
+| `PlcType.Header*` | **—** | **—** |
+
+A block keeps its native `VERSION` and `FAMILY` in both versions, and those two are what identifies a library block and says where it belongs. A `PlcType` has no header at all in *either* version, so with no title there is nothing left: in V20 a UDT from a library is indistinguishable from one somebody wrote for the plant. The only way to its title there is to export it and read the SimaticML, which is what the coding-style check already does in V20 for interfaces — at one export per type.
 
 **`ProjectBase` lost four properties and gained one.** Compared declared property by declared property, seven of the eight spine types are identical across versions — `TiaPortal`, `HardwareObject`, `DeviceItem`, `SoftwareContainer`, `PlcSoftware`, `PlcBlockGroup` and `PlcUnitBase` all keep the same surface *and* the same base class. `ProjectBase` is the exception:
 

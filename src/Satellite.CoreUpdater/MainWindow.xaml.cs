@@ -174,13 +174,23 @@ namespace Satellite.CoreUpdater
             MapText.Text = "Walking the project. A PLC of a few thousand objects takes a moment.";
 
             _worker.Post(
-                session => session.Map(plc, unit),
+                session => session.Map(plc, unit, Say),
                 Mapped,
                 exception =>
                 {
                     Working(false);
                     Failed(exception);
                 });
+        }
+
+        /// <summary>
+        /// Where the walk has got to. Called from the worker's thread, so it marshals itself -
+        /// the one place in this window that has to, and it says so rather than leaving the
+        /// next reader to work it out.
+        /// </summary>
+        private void Say(string text)
+        {
+            Dispatcher.BeginInvoke(new Action(() => StatusText.Text = text));
         }
 
         private void Mapped(ProjectMap map)
