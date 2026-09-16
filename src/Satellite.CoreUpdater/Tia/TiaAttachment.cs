@@ -12,8 +12,6 @@ namespace Satellite.CoreUpdater.Tia
     /// </summary>
     public sealed class TiaAttachment
     {
-        private static readonly string[] Nothing = new string[0];
-
         private TiaAttachment(
             int processId,
             string projectName,
@@ -25,7 +23,7 @@ namespace Satellite.CoreUpdater.Tia
             ProjectName = projectName;
             ProjectDirectory = projectDirectory;
             Problem = problem;
-            Considered = considered ?? Nothing;
+            Considered = considered;
         }
 
         /// <summary>The TIA Portal this attached to, or 0 when it did not.</summary>
@@ -40,10 +38,17 @@ namespace Satellite.CoreUpdater.Tia
         public string Problem { get; }
 
         /// <summary>
-        /// Every TIA Portal that was running when this ran, one line each. Populated whether
-        /// it succeeded or not - it is what the window shows when it has to explain itself.
+        /// Every TIA Portal that was running when this ran, one line each - or **null when
+        /// nothing ever looked**, which is a different fact and was being told as the wrong
+        /// one: with the Openness assemblies missing, the failure happens before any
+        /// enumeration, and an empty list read back as "no TIA Portal was running". The
+        /// window said that under an error about a missing assembly, with a TIA Portal open
+        /// on screen behind it. Seen on the VM.
         /// </summary>
         public IReadOnlyList<string> Considered { get; }
+
+        /// <summary>Whether the running TIA Portals were enumerated at all.</summary>
+        public bool Looked => Considered != null;
 
         public bool Attached => Problem == null;
 

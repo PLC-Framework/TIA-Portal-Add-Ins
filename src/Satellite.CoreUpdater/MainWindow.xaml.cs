@@ -81,17 +81,27 @@ namespace Satellite.CoreUpdater
             ProblemPanel.Visibility = Visibility.Visible;
             ProblemText.Text = attachment.Problem;
 
-            ConsideredText.Text = Considered(attachment.Considered);
+            string considered = Considered(attachment.Considered);
+
+            ConsideredText.Text = considered;
+            ConsideredText.Visibility = considered.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+
             StatusText.Text = "Not attached.";
         }
 
         /// <summary>
         /// What was running, so the operator can tell "none" from "several, and not that one"
         /// - two failures that read alike and want opposite answers.
+        ///
+        /// **Null means nothing ever looked**, and saying "no TIA Portal was running" there
+        /// would be a claim this never checked - which is exactly what it said on the VM,
+        /// under an error about a missing assembly, with TIA Portal open behind the window.
         /// </summary>
         private static string Considered(IReadOnlyList<string> considered)
         {
-            if (considered == null || considered.Count == 0)
+            if (considered == null) return string.Empty;
+
+            if (considered.Count == 0)
                 return "No TIA Portal was running when this window opened.";
 
             string heading = considered.Count == 1

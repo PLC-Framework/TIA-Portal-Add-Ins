@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 
@@ -21,14 +22,16 @@ namespace Satellite.CoreUpdater.Tia
     ///     Siemens.Engineering = ...\PublicAPI\V20\Siemens.Engineering.dll
     /// </code>
     ///
+    /// **A named entry is looked for first, and its folder second**, which is what V21 needs:
+    /// the object model is split across sixteen assemblies there, and the registry does not
+    /// publish an entry for each. `Siemens.Engineering.Base` sits *beside* whatever is
+    /// published, so the directory of any sibling entry is where to look next. Found the hard
+    /// way - the first version resolved V20 and failed V21 with
+    /// *"Could not load file or assembly 'Siemens.Engineering.Base'"*.
+    ///
     /// **It is installed before anything Siemens is touched**, and the caller keeps that true
     /// by putting the first such use behind a method the JIT has not reached yet. Resolving
     /// runs once per assembly; the CLR caches what a handler returns.
-    ///
-    /// **Not verified on this machine** - the development PC has no TIA Portal and therefore
-    /// no such key. The shape above is Siemens' documented layout, and the matching is
-    /// deliberately loose because the value names differ between installations: some carry
-    /// the simple name, some the full display name. **Confirm on the VM.**
     /// </summary>
     internal static class OpennessAssemblies
     {
@@ -41,10 +44,15 @@ namespace Satellite.CoreUpdater.Tia
         /// with a worse message.
         ///
         /// **This build covers V17 through V20**, which share one binary-compatible API, so a
-        /// station running an older one falls through to <c>InAnyVersion</c> rather than being
-        /// refused - the assemblies it finds there will bind.
+        /// station running an older one falls through to the other version keys rather than
+        /// being refused - the assemblies it finds there will bind.
         /// </summary>
         private const string Version = "20.0";
+
+        /// <summary>Enough of an account to act on, short enough to fit in a window.</summary>
+        private const int MostLines = 40;
+
+        private static readonly List<string> Looked = new List<string>();
 
         private static bool _installed;
 
@@ -54,6 +62,35 @@ namespace Satellite.CoreUpdater.Tia
 
             _installed = true;
             AppDomain.CurrentDomain.AssemblyResolve += Resolve;
+        }
+
+        /// <summary>
+        /// Where this looked, for the window to show when a load failed.
+        ///
+        /// **Because the alternative is another round trip to the VM.** The registry layout
+        /// cannot be checked on a machine without TIA Portal, so a resolver that only says
+        /// "not found" turns every wrong guess into a day. This says which keys existed, what
+        /// they published and which folders were probed.
+        /// </summary>
+        public static string Report()
+        {
+            lock (Looked)
+            {
+                if (Looked.Count == 0) return null;
+
+                return "Where the Openness assemblies were looked for:" + Environment.NewLine +
+                       "    " + string.Join(Environment.NewLine + "    ", Looked.ToArray());
+            }
+        }
+
+        private static void Note(string line)
+        {
+            lock (Looked)
+            {
+                if (Looked.Count >= MostLines) return;
+
+                Looked.Add(Looked.Count == MostLines - 1 ? "…and more" : line);
+            }
         }
 
         private static Assembly Resolve(object sender, ResolveEventArgs args)
@@ -66,7 +103,15 @@ namespace Satellite.CoreUpdater.Tia
 
             string path = Find(wanted);
 
-            return path == null ? null : Assembly.LoadFrom(path);
+            if (path == null)
+            {
+                Note(wanted + ": not found");
+                return null;
+            }
+
+            Note(wanted + " -> " + path);
+
+            return Assembly.LoadFrom(path);
         }
 
         private static string Find(string assembly)
@@ -82,33 +127,39 @@ namespace Satellite.CoreUpdater.Tia
                            .OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64)
                            .OpenSubKey(Root))
                 {
-                    if (root == null) return null;
+                    if (root == null)
+                    {
+                        Note(@"HKLM\" + Root + " does not exist");
+                        return null;
+                    }
+
+                    string[] versions = root.GetSubKeyNames();
+                    Note(@"HKLM\" + Root + " has: " + string.Join(", ", versions));
 
                     // The version this was built against wins; anything else is a fallback
                     // that will probably fail to bind, but failing with a path named is
                     // better than failing with nothing found.
-                    return InVersion(root, Version, assembly) ?? InAnyVersion(root, assembly);
+                    string found = InVersion(root, Version, assembly);
+                    if (found != null) return found;
+
+                    foreach (string version in versions)
+                    {
+                        if (string.Equals(version, Version, StringComparison.OrdinalIgnoreCase)) continue;
+
+                        found = InVersion(root, version, assembly);
+                        if (found != null) return found;
+                    }
+
+                    return null;
                 }
             }
-            catch (Exception)
+            catch (Exception exception)
             {
                 // A locked-down machine can refuse the read outright. There is nothing to do
                 // about it here; the caller turns a failed load into a sentence on screen.
+                Note("the registry could not be read: " + exception.Message);
                 return null;
             }
-        }
-
-        private static string InAnyVersion(RegistryKey root, string assembly)
-        {
-            foreach (string version in root.GetSubKeyNames())
-            {
-                if (string.Equals(version, Version, StringComparison.OrdinalIgnoreCase)) continue;
-
-                string found = InVersion(root, version, assembly);
-                if (found != null) return found;
-            }
-
-            return null;
         }
 
         private static string InVersion(RegistryKey root, string version, string assembly)
@@ -117,29 +168,38 @@ namespace Satellite.CoreUpdater.Tia
             {
                 if (api == null) return null;
 
+                List<string> folders = new List<string>();
+
                 foreach (string name in api.GetSubKeyNames())
                 {
                     using (RegistryKey entries = api.OpenSubKey(name))
                     {
-                        string found = InEntries(entries, assembly);
-                        if (found != null) return found;
+                        if (entries == null) continue;
+
+                        string[] values = entries.GetValueNames();
+                        Note(version + @"\PublicAPI\" + name + " publishes: " + string.Join(", ", values));
+
+                        string named = Named(entries, values, assembly);
+                        if (named != null) return named;
+
+                        Folders(entries, values, folders);
                     }
                 }
-            }
 
-            return null;
+                // **The V21 case.** Sixteen assemblies, and the registry names only some of
+                // them; the rest are in the same folder as the ones it does name.
+                return Beside(folders, assembly);
+            }
         }
 
         /// <summary>
         /// **Matched loosely on purpose.** A value is named either by the simple name or by
-        /// the full display name - `Siemens.Engineering.Base, Version=21.0.0.0, ...` - and
-        /// which of the two an installation writes is not something to bet a launch on.
+        /// the full display name - `Siemens.Engineering, Version=21.0.0.0, ...` - and which of
+        /// the two an installation writes is not something to bet a launch on.
         /// </summary>
-        private static string InEntries(RegistryKey entries, string assembly)
+        private static string Named(RegistryKey entries, string[] values, string assembly)
         {
-            if (entries == null) return null;
-
-            foreach (string value in entries.GetValueNames())
+            foreach (string value in values)
             {
                 if (!string.Equals(value, assembly, StringComparison.OrdinalIgnoreCase) &&
                     !value.StartsWith(assembly + ",", StringComparison.OrdinalIgnoreCase)) continue;
@@ -147,6 +207,44 @@ namespace Satellite.CoreUpdater.Tia
                 string path = entries.GetValue(value) as string;
 
                 if (!string.IsNullOrWhiteSpace(path) && File.Exists(path)) return path;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// The folders every published entry lives in. A value can be a file or a directory,
+        /// since which of the two an installation writes is another thing not to bet on.
+        /// </summary>
+        private static void Folders(RegistryKey entries, string[] values, List<string> folders)
+        {
+            foreach (string value in values)
+            {
+                string path = entries.GetValue(value) as string;
+                if (string.IsNullOrWhiteSpace(path)) continue;
+
+                try
+                {
+                    string folder = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+
+                    if (!string.IsNullOrEmpty(folder) && !folders.Contains(folder)) folders.Add(folder);
+                }
+                catch (Exception)
+                {
+                    // A value that is not a path at all. Nothing to add.
+                }
+            }
+        }
+
+        private static string Beside(List<string> folders, string assembly)
+        {
+            foreach (string folder in folders)
+            {
+                string path = Path.Combine(folder, assembly + ".dll");
+
+                Note("probed " + path);
+
+                if (File.Exists(path)) return path;
             }
 
             return null;

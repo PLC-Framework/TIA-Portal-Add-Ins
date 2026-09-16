@@ -18,13 +18,6 @@ namespace Satellite.CoreUpdater.Tia
     /// </summary>
     internal sealed class TiaSession : ITiaSession
     {
-        /// <summary>
-        /// How long to wait for a named TIA Portal to answer. Long enough for one that is
-        /// busy, short enough that a window does not look hung: attaching is the first thing
-        /// this does and the operator is watching it.
-        /// </summary>
-        private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
-
         public TiaAttachment Attach(int? preferredProcessId)
         {
             IList<TiaPortalProcess> running;
@@ -42,45 +35,37 @@ namespace Satellite.CoreUpdater.Tia
             List<string> considered = new List<string>();
             TiaPortalProcess chosen = null;
 
-            try
+            foreach (TiaPortalProcess process in running)
             {
-                foreach (TiaPortalProcess process in running)
-                {
-                    considered.Add(Describe(process));
+                considered.Add(Describe(process));
 
-                    if (preferredProcessId.HasValue && process.Id == preferredProcessId.Value) chosen = process;
-                }
-
-                // Nothing said which one, and there is only one: that is not a guess.
-                if (chosen == null && running.Count == 1) chosen = running[0];
-
-                if (chosen == null) return TiaAttachment.Failed(Why(running.Count, preferredProcessId), considered);
-
-                return Read(chosen, considered);
+                if (preferredProcessId.HasValue && process.Id == preferredProcessId.Value) chosen = process;
             }
-            finally
-            {
-                // Every entry is a handle, including the ones not chosen.
-                foreach (TiaPortalProcess process in running)
-                {
-                    try
-                    {
-                        process.Dispose();
-                    }
-                    catch (Exception)
-                    {
-                        // Letting go of a handle is not worth failing an attach that worked.
-                    }
-                }
-            }
+
+            // Nothing said which one, and there is only one: that is not a guess.
+            if (chosen == null && running.Count == 1) chosen = running[0];
+
+            if (chosen == null) return TiaAttachment.Failed(Why(running.Count, preferredProcessId), considered);
+
+            return Read(chosen, considered);
         }
 
         /// <summary>
-        /// Attaches, reads what identifies the project, and detaches again.
+        /// Attaches and reads what identifies the project.
         ///
-        /// **Disposing the portal detaches this client; it does not close TIA Portal.** The
-        /// engineer's session is untouched, which is what makes a read-only snapshot safe to
-        /// take while somebody is working.
+        /// **Nothing is disposed, and that is the whole of the lesson.** The first version
+        /// wrapped the portal in a `using` and wrapped the process handles in a `finally`,
+        /// on the reasoning that disposing an *attached* portal detaches the client rather
+        /// than closing the application. **It closes TIA Portal** - confirmed on the VM, where
+        /// the V20 instance shut down the moment this window said "Ready". `TiaPortal.Dispose`
+        /// is how an Openness client *shuts a portal down*, and attaching does not change what
+        /// the method means.
+        ///
+        /// Which of the two disposals did it was not established and does not need to be:
+        /// neither is needed. What is held here is a handful of handles in a process that ends
+        /// when its window closes, and the operating system releases them then. Set against
+        /// closing an engineer's TIA Portal with their project open, that is not a trade worth
+        /// thinking about twice.
         /// </summary>
         private static TiaAttachment Read(TiaPortalProcess process, List<string> considered)
         {
@@ -88,12 +73,10 @@ namespace Satellite.CoreUpdater.Tia
 
             try
             {
-                using (TiaPortal portal = process.Attach())
-                {
-                    Project project = portal.Projects.FirstOrDefault();
+                TiaPortal portal = process.Attach();
+                Project project = portal.Projects.FirstOrDefault();
 
-                    return TiaAttachment.To(id, project?.Name, project?.Path?.DirectoryName, considered);
-                }
+                return TiaAttachment.To(id, project?.Name, project?.Path?.DirectoryName, considered);
             }
             catch (Exception exception)
             {

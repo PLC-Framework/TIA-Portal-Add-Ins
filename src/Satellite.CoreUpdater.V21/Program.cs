@@ -32,6 +32,7 @@ namespace Satellite.CoreUpdater
         /// the compiler is told to keep is what orders the two correctly.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int Start() => CoreUpdaterApp.Run(() => new TiaSession());
+        private static int Start() =>
+            CoreUpdaterApp.Run(() => new TiaSession(), OpennessAssemblies.Report);
     }
 }

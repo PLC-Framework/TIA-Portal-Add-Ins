@@ -24,10 +24,12 @@ namespace Satellite.CoreUpdater
     public sealed class CoreUpdaterApp : Application
     {
         private readonly Func<ITiaSession> _connect;
+        private readonly Func<string> _whereItLooked;
 
-        private CoreUpdaterApp(Func<ITiaSession> connect)
+        private CoreUpdaterApp(Func<ITiaSession> connect, Func<string> whereItLooked)
         {
             _connect = connect;
+            _whereItLooked = whereItLooked;
 
             Resources.MergedDictionaries.Add(Dictionary("Controls.xaml"));
             Resources.MergedDictionaries.Add(Dictionary("BrandLogo.xaml"));
@@ -39,11 +41,17 @@ namespace Satellite.CoreUpdater
         /// guarded call is what turns "the Siemens assemblies are not on this machine" into a
         /// sentence in the window instead of a process that dies before it paints.
         /// </summary>
-        public static int Run(Func<ITiaSession> connect)
+        /// <param name="whereItLooked">
+        /// What the executable's assembly resolver searched, shown under a load failure.
+        /// **The registry layout cannot be checked on a machine without TIA Portal**, so a
+        /// resolver that only says "not found" turns every wrong guess into another round
+        /// trip to the VM. Optional: a caller with nothing to say passes null.
+        /// </param>
+        public static int Run(Func<ITiaSession> connect, Func<string> whereItLooked = null)
         {
             if (connect == null) throw new ArgumentNullException(nameof(connect));
 
-            return new CoreUpdaterApp(connect).Run();
+            return new CoreUpdaterApp(connect, whereItLooked).Run();
         }
 
         protected override void OnStartup(StartupEventArgs e)
@@ -88,7 +96,9 @@ namespace Satellite.CoreUpdater
                 {
                     // Where the Openness assemblies failing to load lands: the resolver found
                     // nothing, or TIA is installed but this user is not in the Openness group.
-                    attachment = TiaAttachment.Failed(Describe(exception));
+                    // No `considered` list, because nothing ever enumerated anything - saying
+                    // "no TIA Portal was running" here would be a claim this never checked.
+                    attachment = TiaAttachment.Failed(Describe(exception) + Looked());
                 }
 
                 window.Dispatcher.BeginInvoke(new Action(() => window.Arrived(attachment)));
@@ -97,6 +107,23 @@ namespace Satellite.CoreUpdater
             worker.IsBackground = true;
             worker.SetApartmentState(ApartmentState.STA);
             worker.Start();
+        }
+
+        /// <summary>What the resolver searched, when it has anything to say.</summary>
+        private string Looked()
+        {
+            string report = null;
+
+            try
+            {
+                if (_whereItLooked != null) report = _whereItLooked();
+            }
+            catch (Exception)
+            {
+                // A diagnostic that throws must not replace the problem it was explaining.
+            }
+
+            return string.IsNullOrWhiteSpace(report) ? string.Empty : "\n\n" + report;
         }
 
         /// <summary>
