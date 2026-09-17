@@ -263,7 +263,7 @@ Objects   All  None        Languages   All  None
     1 up to date
     1 outdated
     1 at a version the core does not define
-    2 in a family the project keeps in more than one folder
+    2 in a folder their family does not name
     1 whose TITLE and VERSION header disagree
     12 not from the core
 
@@ -281,12 +281,36 @@ Objects   All  None        Languages   All  None
 
 ### The two panels
 
-**The project on the left, the repository on the right** — the layout settled before any of this was built. **Two trees, both open**, so the two sides read alike and neither has to be unfolded before it says anything.
+**The project on the left, the repository on the right** — the layout settled before any of this was built, and drawn out in full by the maintainer once both halves worked. **Two trees, both open**, so the two sides read alike and neither has to be unfolded before it says anything.
+
+```
+PLC  [KF1022            v]   Software unit  [*                          v]
+
+Project tree  [Filter]        |  Core tree  [Filter]
++---------------------------+ | +---------------------------------------+
+| v *  (6)                  | | | v adt  (1)                            |
+|   v Program blocks  (3)   | | |     [ ] EAdtConstants v1.1   absent    |
+|     v core  (2)           | | | v adt/queue  (4)                      |
+|       v adt/queue  (1)    | | |     [ ] EQueueMethod v3.0  in the …   |
+|           _queue v3.0 FC  | | |     [ ] EQueueStatus v3.0  absent     |
+|             up to date    | | |                                       |
++---------------------------+ | +---------------------------------------+
+Project - 6 of 8 objects …    |  Repository - 249 current nodes, 5 in …
+[Map project] [Sync folders…] |  [Compare with core] [Download and import]
+
+Compared.
+```
+
+- **Each side owns its filter, its caption and its buttons.** What a control acts on is the panel it sits under, rather than something to remember.
+- **The filters open from a button over each tree.** As three columns of tick boxes they were taking a third of the window for decisions taken once per run, above the two trees somebody opened it to read. The left popup holds the map filter — kinds, and the languages inside each — beside the finding boxes; the right one holds the core's states. Both have `All` and `None`.
+- **The line between the two is fixed and centred**, a one-pixel border rather than a splitter: the trees exist to be read against each other, and a divider one operator dragged is a layout the next one has to put back.
+- **The caption is under its tree, one line, with the whole of it on hover** — a map's counts kind by kind do not fit a line, and trimming with a tooltip is what this framework already does to a cell it cannot fit.
+- **It compares by itself when it opens, mapping first if there is no map**, and then never again on its own: changing the PLC or the unit is the operator steering, and re-walking several hundred objects under them would be the opposite of helpful. Both buttons stay.
 
 ```
 Project — 7 of 10 come from the core        Repository — 247 current nodes, 4 in the
 [x] Up to date (2)   [x] Outdated (2)         project, 3 at another version, 240 absent
-[x] Unknown version (1)  [x] Split family (2)
+[x] Unknown version (1)  [x] In the wrong folder (2)
 [x] Disagreeing (1)  [ ] Not from the core (3)  [x] In the project (4)
                                                 [x] At another version (3)  [ ] Absent (240)
 v *  (7)
@@ -303,7 +327,7 @@ v *  (7)
 - **The project tree comes out of the map, not out of a rule.** A mapped object's folder already begins with TIA's own name for its tree — `Program blocks/03-ALL/adt`, `PLC data types/node`, `PLC tags/enums` — because the walk starts at the software's root groups. All the window adds is one root for the scope the map covers: the software unit, or `*`.
 - **A line says the same things on both sides**: name, version, and what there is to say about it — with the object's kind on the project side. The kind is spelled as the map spells it, `GlobalDB` and `PlcStruct` rather than `DB` and `UDT`, which is `config.json`'s vocabulary and the one the filter rows at the top of this same window already use. `DB` would read faster and would hide the difference between a global and an instance data block.
 - **Every line says something.** A core block with nothing against it reads *up to date*, so no line on either side trails off into nothing.
-- **The counts are the filters**, as in the coding-style report, on both sides now: by finding on the left, by state on the right. **"Not from the core" starts off** — in a real project it is most of the rows and this window is about the core — and the box stays on screen with its count, so nothing is hidden without saying how much. A row shows under **any** of its findings, so a block that is outdated *and* in a split family does not vanish when one box is cleared.
+- **The counts are the filters**, as in the coding-style report, on both sides now: by finding on the left, by state on the right. **"Not from the core" starts off** — in a real project it is most of the rows and this window is about the core — and the box stays on screen with its count, so nothing is hidden without saying how much. A row shows under **any** of its findings, so a block that is outdated *and* in the wrong folder does not vanish when one box is cleared.
 - **A folder the tick boxes empty is not drawn.** Folders exist in either tree only because something is in them, so filtering to the outdated blocks shows the folders that hold outdated blocks rather than the whole tree with two leaves in it.
 - **The right panel holds the whole core, not only the gap.** What gets imported is not only what is missing: a block held at a retired version, or one sitting where its family does not otherwise live, is downloaded again too. Only what the core still stands behind, though — offering a retired version would be offering something the core has itself withdrawn. The folder comes from each node's own `file` in `core.json` rather than from a family written in a TITLE: the graph is the source of truth and it carries the path.
 - **What the project already has is what gets marked.** `absent` is muted — it is 240 of 247 rows — and `in the project` and `the project has v1.1` are the two worth picking out. On a filtered map a node the walk never covered reads *not covered by the map*, a fourth state rather than a wrong one, and its tick box appears **only then**: on any other run it would be a box that never does anything.
@@ -329,7 +353,30 @@ Tick blocks in the repository panel and press **Download**. Each one comes down 
 - **The comparison is thrown away afterwards**, with a line saying to map the project again: it described the project as it was a moment ago and no longer does.
 - **The external source is a step, not a thing to keep.** It is deleted once the blocks are generated, so the folder does not fill with one per import and the next download does not meet its own leftovers.
 
-> **Two things here are not confirmed yet, and are written so their refusal is legible.** Reflection over the real assemblies shows `GenerateBlockOption` has only `None` and `KeepOnError` — no `Override` — so **what TIA does when the block already exists has to be measured on the VM**. And `PlcTagTableComposition.Import` takes a bare `FileInfo`: the core's 15 `E*.xlsx` enumerations are handed over as they are, on the maintainer's word that TIA imports a tag table from a workbook and that the workbook carries its own destination path. If either is wrong, it arrives as TIA's own words against that object's name and the rest of the download carries on.
+> **One thing here is still unconfirmed.** `GenerateBlockOption` has only `None` and `KeepOnError` — no `Override` — so **what TIA does when the block already exists has to be measured on the VM**. It arrives as TIA's own words against that object's name, and the rest of the download carries on.
+
+### A tag table is built, not imported
+
+The core keeps its enumerations as `.xlsx`, and the first version handed the file straight to `PlcTagTableComposition.Import` — which takes a bare `FileInfo` and no format, next to a product that plainly does import Excel. **TIA Portal does; Openness does not.** On the VM it answered *"Invalid XML encountered while reading Simatic ML file: Data at the root level is invalid. Line 1, position 1."*
+
+So the table, its constants and its tags are created one at a time. What that took:
+
+- **The workbook is read by `Core`, without the OpenXML SDK.** Writing a real `.xlsx` is five XML parts in a zip whose only true test is whether Excel opens it, which is why the SDK earned its place for the exports; reading a shape this file already knows is one zip entry and two documents — and `Core` may not take that package at all, being loaded inside TIA Portal's process. What makes the reader worth anything is not the parser but the fifteen real workbooks it is run against.
+- **Sheets by name, columns by header, never by position.** `EAdtConstants` puts `Constants` first, `system` puts `PLC Tags` first, and the parts are not reliably called `sheet1.xml` either. Both would have been wrong if assumed.
+- **The first row of `Constants` is the table**, not a constant: its name is the table's, and **its comment is the `TITLE` line** — the same JSON a block carries, read by the same reader. Checked against `core.json` on all fifteen: the name is the node's `base`, and version, status and family agree with the graph.
+- **The `Path` column is the family**, `core\adt\EAdtConstants`, so a table is placed like every other object in a download. The `TagTable Properties` sheet beside it has a `Path` of its own — `90_LIbrary\ADT\ADT` — and it is deliberately not used: that is where the table sits in one plant's tree, not where the core says it belongs, and a table placed by it would land somewhere *sync folders with core* then wants to move it out of.
+- **A table already there is deleted and rebuilt.** An enumeration that has dropped a constant must drop it here too; creating over the top would leave the retired one behind with nothing saying so.
+- **A constant TIA refuses is named and the rest still go in** — five named, the remainder counted. A constants table quietly three entries short is the silent hole the rest of this window exists to avoid.
+
+### Putting a misplaced object back
+
+**Sync folders with core** moves every object the comparison found in a folder its family does not name — the rows the left panel shows as *belongs in core/node*, and nothing else.
+
+- **Openness has no move**, and that was checked: no `Move`, no `Cut`, no `Reparent`, no `ChangeGroup`, no `Relocate` in any of the 2,269 types. So a move is an export, a delete and an import, and **the order is forced**: an object's name is unique across a PLC's software, so the copy cannot go into its new folder while the original is still in the old one.
+- **Which leaves a moment where the object is only a file, and that is what the report is built around.** A move whose import fails keeps its export, names the path, and the run leaves the scratch folder alone. An object nobody can find again is the one outcome this must not produce.
+- **An object is found by name, not by the path the map recorded.** A name is unique across a PLC's software; a path starts with a tree name that follows TIA's interface language. Which tree to start in comes from the kind instead, which is the framework's own vocabulary.
+- **It asks first, naming every object against its destination** up to twenty — and says what a move *is*, because "for a moment this is only a file" is worth knowing before rather than after.
+- **A tag table moves this way too**, and here SimaticML is the door that works: what comes *out* of a project is SimaticML. The PLC's default table is refused by name — TIA rebuilds it, and it never came from the core.
 
 > **Three projects for one window.** `Satellite.CoreUpdater` is a library with the window and a port; `…V20.exe` and `…V21.exe` are thin shells around it. Openness is `Siemens.Engineering` in V17–V20 and `Siemens.Engineering.Base` in V21 — different assemblies with different public key tokens — so one binary cannot serve both, the same reason the Add-In exists twice. The library references no Siemens assembly at all, which is checkable from its metadata rather than promised in prose.
 

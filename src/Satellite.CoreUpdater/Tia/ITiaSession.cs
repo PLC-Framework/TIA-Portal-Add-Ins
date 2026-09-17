@@ -106,5 +106,25 @@ namespace Satellite.CoreUpdater.Tia
         /// in, named in the report rather than deleted.
         /// </summary>
         ImportReport Import(string plc, string unit, DownloadPlan plan, Action<string> progress);
+
+        /// <summary>
+        /// Moves the objects a comparison found misplaced into the folders their families name.
+        ///
+        /// **Openness has no move.** All 2,269 types were searched for one - no `Move`, no `Cut`,
+        /// no `Reparent`, no `ChangeGroup` - so a move is an export, a delete and an import, in
+        /// that order. The order is forced rather than chosen: a block's name is unique across a
+        /// PLC's software, so the copy cannot be put in its new folder while the original is
+        /// still in the old one.
+        ///
+        /// **Which leaves a window where the object is only a file, and that is what the report
+        /// is shaped around.** A move whose import fails keeps its export and names the path, and
+        /// the run does not clear the folder. An object nobody can find again is the one outcome
+        /// this must never produce.
+        ///
+        /// **The object is found by name, never by the path the map recorded.** A name is unique
+        /// across a PLC's software; a path begins with a tree name that follows TIA's interface
+        /// language, and taking that apart here would put a Siemens word inside a binary.
+        /// </summary>
+        SyncReport Sync(string plc, string unit, SyncPlan plan, Action<string> progress);
     }
 }

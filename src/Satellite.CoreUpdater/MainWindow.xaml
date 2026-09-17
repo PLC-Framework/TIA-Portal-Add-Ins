@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:UI.Shared.Controls;assembly=PLC-Framework.UI.Shared"
         Title="Core updater"
-        Height="640" Width="1000"
-        MinHeight="420" MinWidth="780"
+        Height="860" Width="1180"
+        MinHeight="560" MinWidth="880"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Surface}"
         Icon="{StaticResource BrandLogo}">
@@ -38,157 +38,246 @@
             <Grid x:Name="AttachedPanel" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- The PLC and the unit sit on one row, sharing their label column through
-                     SharedSizeGroup rather than a Width: a constant lines two rows up at
-                     exactly one window size, and this one resizes. -->
-                <Grid Grid.Row="0" Grid.IsSharedSizeScope="True">
+                <!-- The PLC and the unit on one line (the maintainer's layout): they are one
+                     decision - which software this window is about - and two rows made it read
+                     as two. -->
+                <Grid Grid.Row="0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
-                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="5*" />
                     </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="PLC" Style="{StaticResource FieldLabel}"
+                    <TextBlock Grid.Column="0" Text="PLC" Style="{StaticResource FieldLabel}"
                                VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <ComboBox x:Name="PlcBox" Grid.Row="0" Grid.Column="1" Height="26"
+                    <ComboBox x:Name="PlcBox" Grid.Column="1" Height="26"
                               SelectionChanged="PlcChanged" />
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Software unit" Style="{StaticResource FieldLabel}"
-                               VerticalAlignment="Center" Margin="0,10,10,0" />
-                    <ComboBox x:Name="UnitBox" Grid.Row="1" Grid.Column="1" Height="26" Margin="0,10,0,0"
+                    <TextBlock Grid.Column="2" Text="Software unit" Style="{StaticResource FieldLabel}"
+                               VerticalAlignment="Center" Margin="18,0,10,0" />
+                    <ComboBox x:Name="UnitBox" Grid.Column="3" Height="26"
                               SelectionChanged="UnitChanged" />
-
-                    <!-- Compare reads the map back off disk rather than using whatever is in
-                         memory, so it works on a window reopened tomorrow and so the round
-                         trip through repo\project.json is the one that gets exercised. -->
-                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0">
-                        <Button x:Name="CompareButton" Content="Compare with core"
-                                Style="{StaticResource Quiet}" Padding="16,4"
-                                IsEnabled="False" Click="CompareClicked" />
-
-                        <!-- The only button in this framework that changes somebody's project.
-                             It stays off until something is ticked, and what it would touch is
-                             worked out and shown before a single source is written. -->
-                        <Button x:Name="DownloadButton" Content="Download" Margin="8,0,0,0"
-                                Style="{StaticResource Primary}" Padding="16,4"
-                                IsEnabled="False" Click="DownloadClicked" />
-                    </StackPanel>
-
-                    <Button x:Name="MapButton" Grid.Row="1" Grid.Column="2" Content="Map project"
-                            Style="{StaticResource Primary}" Margin="10,10,0,0" Padding="16,4"
-                            Click="MapClicked" />
                 </Grid>
-
-                <!-- What to map: one row per kind of object, and on that row the languages
-                     found inside *that* kind. Both columns are built from the counts the
-                     survey took out of this very PLC, never from a list in the code - the
-                     language enum has twenty-nine values and a project uses four or five, so a
-                     fixed list would be mostly empty boxes. The day a GRAPH block arrives it
-                     appears on the row it belongs to, with its count, and nothing here changes.
-
-                     The rows are added from the code-behind, because how many there are and
-                     what is on each is a property of the project rather than of this file.
-                     Row 0 is the two headings and stays. -->
-                <Grid x:Name="FilterPanel" Grid.Row="1" Margin="0,16,0,0" Visibility="Collapsed">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,18,0">
-                        <TextBlock Text="Objects" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
-                        <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1" Margin="10,0,0,0"
-                                Click="AllKinds" />
-                        <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1" Margin="4,0,0,0"
-                                Click="NoKinds" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
-                        <TextBlock Text="Languages" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
-                        <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1" Margin="10,0,0,0"
-                                Click="AllLanguages" />
-                        <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1" Margin="4,0,0,0"
-                                Click="NoLanguages" />
-                    </StackPanel>
-                </Grid>
-
-                <!-- One area, two things in it: what a walk had to say, or the comparison. They
-                     are never both true at once, and stacking them would leave a map's counts
-                     on screen under a comparison of a different scope. -->
-                <ScrollViewer x:Name="ResultPanel" Grid.Row="2" Margin="0,18,0,0"
-                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel>
-                        <TextBlock x:Name="MapHeading" FontSize="14" TextWrapping="Wrap"
-                                   Foreground="{StaticResource InkGood}" Visibility="Collapsed" />
-                        <TextBlock x:Name="MapText" Margin="0,10,0,0" TextWrapping="Wrap"
-                                   Foreground="{StaticResource InkMuted}" />
-                        <TextBlock x:Name="MapProblems" Margin="0,12,0,0" TextWrapping="Wrap"
-                                   Foreground="{StaticResource InkWarn}" Visibility="Collapsed" />
-                    </StackPanel>
-                </ScrollViewer>
 
                 <!-- The project on the left, the repository on the right (the maintainer's
-                     layout). The splitter between them is what lets one side be read in full
-                     without the window growing: a block's folder is long and a core node's name
-                     is not. -->
-                <Grid x:Name="ComparePanel" Grid.Row="2" Margin="0,18,0,0" Visibility="Collapsed">
+                     layout, settled before any of this was built). Each side owns its own
+                     filter, its own caption and its own buttons, so what a control acts on is
+                     the panel it sits under rather than something to remember.
+
+                     The line between them is a fixed 1-pixel Border rather than a GridSplitter:
+                     the two trees exist to be read against each other, and a divider one
+                     operator dragged is a layout the next one has to put back. -->
+                <Grid Grid.Row="1" Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="320" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" MinWidth="320" />
+                    </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="4*" MinWidth="300" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="2*" MinWidth="230" />
-                    </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,0">
-                        <TextBlock x:Name="ProjectHeading" Style="{StaticResource FieldLabel}" TextWrapping="Wrap" />
+                    <!-- ============================ the project ============================ -->
 
-                        <!-- The counts are the filters, as in the coding-style report. They are
-                             tick boxes rather than chips because this window already has two
-                             rows of them and one vocabulary is worth more than one more control. -->
-                        <WrapPanel x:Name="ChipsPanel" Margin="0,4,0,0" />
+                    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal"
+                                Margin="0,0,16,8">
+                        <TextBlock Text="Project tree" Style="{StaticResource FieldLabel}"
+                                   VerticalAlignment="Center" />
+
+                        <!-- What to map and what to show are both decisions taken once per run,
+                             and as three columns of tick boxes they were taking a third of the
+                             window for the rest of it. -->
+                        <Button x:Name="ProjectFilterButton" Content="Filter" Margin="12,0,0,0"
+                                Style="{StaticResource Primary}" Padding="12,2"
+                                Click="ProjectFilterClicked"
+                                PreviewMouseLeftButtonDown="FilterPressed" />
                     </StackPanel>
 
-                    <StackPanel Grid.Row="0" Grid.Column="2" Margin="12,0,0,0">
-                        <TextBlock x:Name="RepositoryHeading" Style="{StaticResource FieldLabel}"
-                                   TextWrapping="Wrap" />
+                    <!-- A visible edge on each container (asked for): with two trees side by
+                         side and both scrolling, where one ends and the other begins is
+                         otherwise only the gap between them. -->
+                    <Border Grid.Row="1" Grid.Column="0" Margin="0,0,16,0"
+                            BorderBrush="{StaticResource FieldEdge}" BorderThickness="1" Padding="6">
+                        <TreeView x:Name="ProjectTree" />
+                    </Border>
 
-                        <!-- The same idea as the left, by state rather than by finding: with
-                             both trees open this is how "show me what is missing" is asked, and
-                             it is the first thing importing will want. -->
-                        <WrapPanel x:Name="RepoChipsPanel" Margin="0,4,0,0" />
+                    <TextBlock x:Name="ProjectStatus" Grid.Row="2" Grid.Column="0"
+                               Margin="0,10,16,0" TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource InkMuted}" />
+
+                    <StackPanel Grid.Row="3" Grid.Column="0" Orientation="Horizontal"
+                                Margin="0,10,16,0">
+                        <Button x:Name="MapButton" Content="Map project"
+                                Style="{StaticResource Primary}" Padding="16,4"
+                                Click="MapClicked" />
+
+                        <!-- Moving blocks inside somebody's project, so it says what it would
+                             move and waits to be told before it moves anything. -->
+                        <Button x:Name="SyncButton" Content="Sync folders with core" Margin="8,0,0,0"
+                                Style="{StaticResource Quiet}" Padding="16,4"
+                                IsEnabled="False" Click="SyncClicked" />
                     </StackPanel>
 
-                    <!-- A tree on both sides, so the two panels read alike. The project's comes
-                         out of the map's own folder paths, which already start with TIA's name
-                         for the tree - `Program blocks`, `PLC data types` - under one root for
-                         the scope the map covers. -->
-                    <TreeView x:Name="ProjectTree" Grid.Row="1" Grid.Column="0" Margin="0,8,12,0" />
+                    <!-- =========================== the separator =========================== -->
 
-                    <GridSplitter Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Width="3"
-                                  HorizontalAlignment="Center" VerticalAlignment="Stretch"
-                                  Background="{StaticResource FieldEdge}" />
+                    <Border Grid.Row="0" Grid.RowSpan="4" Grid.Column="1" Width="1"
+                            HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                            Background="{StaticResource FieldEdge}" />
 
-                    <TreeView x:Name="RepositoryTree" Grid.Row="1" Grid.Column="2" Margin="12,8,0,0" />
+                    <!-- ========================== the repository =========================== -->
 
-                    <TextBlock x:Name="CompareProblems" Grid.Row="2" Grid.ColumnSpan="3"
-                               Margin="0,12,0,0" TextWrapping="Wrap"
-                               Foreground="{StaticResource InkWarn}" Visibility="Collapsed" />
+                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal"
+                                Margin="16,0,0,8">
+                        <TextBlock Text="Core tree" Style="{StaticResource FieldLabel}"
+                                   VerticalAlignment="Center" />
+
+                        <Button x:Name="RepoFilterButton" Content="Filter" Margin="12,0,0,0"
+                                Style="{StaticResource Primary}" Padding="12,2"
+                                Click="RepoFilterClicked"
+                                PreviewMouseLeftButtonDown="FilterPressed" />
+                    </StackPanel>
+
+                    <Border Grid.Row="1" Grid.Column="2" Margin="16,0,0,0"
+                            BorderBrush="{StaticResource FieldEdge}" BorderThickness="1" Padding="6">
+                        <TreeView x:Name="RepositoryTree" />
+                    </Border>
+
+                    <TextBlock x:Name="RepositoryStatus" Grid.Row="2" Grid.Column="2"
+                               Margin="16,10,0,0" TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource InkMuted}" />
+
+                    <StackPanel Grid.Row="3" Grid.Column="2" Orientation="Horizontal"
+                                Margin="16,10,0,0">
+                        <!-- Compare reads the map back off disk rather than using whatever is in
+                             memory, so it works on a window reopened tomorrow and so the round
+                             trip through repo\project.json is the one that gets exercised. -->
+                        <Button x:Name="CompareButton" Content="Compare with core"
+                                Style="{StaticResource Quiet}" Padding="16,4"
+                                IsEnabled="False" Click="CompareClicked" />
+
+                        <!-- It stays off until something is ticked, and what it would touch is
+                             worked out and shown before a single source is written. -->
+                        <Button x:Name="DownloadButton" Content="Download and import" Margin="8,0,0,0"
+                                Style="{StaticResource Quiet}" Padding="16,4"
+                                IsEnabled="False" Click="DownloadClicked" />
+                    </StackPanel>
                 </Grid>
+
+                <!-- Whatever a run had to say that will not fit on one caption: a folder that
+                     would not read, an object that would not export. Never left out - a map
+                     with holes that does not say where they are is the one thing a comparison
+                     must not be handed. -->
+                <TextBlock x:Name="ProblemsText" Grid.Row="2" Margin="0,12,0,0"
+                           TextWrapping="Wrap" MaxHeight="72"
+                           Foreground="{StaticResource InkWarn}" Visibility="Collapsed" />
+
+                <!-- ===================== what the two Filter buttons open ==================== -->
+
+                <!-- StaysOpen=False closes it on any click outside, which is what a popup like
+                     this should do; the button's own PreviewMouseLeftButtonDown is what stops
+                     that outside-click closing it only for the Click to reopen it. -->
+                <Popup x:Name="ProjectFilterPopup" PlacementTarget="{Binding ElementName=ProjectFilterButton}"
+                       Placement="Bottom" VerticalOffset="6" StaysOpen="False" AllowsTransparency="True">
+                    <Border Background="{StaticResource Surface}" BorderThickness="1"
+                            BorderBrush="{StaticResource FieldEdge}" Padding="14">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- What to map: one row per kind of object, and on that row the
+                                 languages found inside *that* kind. Both columns are built from
+                                 the counts the survey took out of this very PLC, never from a
+                                 list in the code - the language enum has twenty-nine values and
+                                 a project uses four or five, so a fixed list would be mostly
+                                 empty boxes. The day a GRAPH block arrives it appears on the row
+                                 it belongs to, with its count, and nothing here changes.
+
+                                 The rows are added from the code-behind, because how many there
+                                 are and what is on each is a property of the project rather than
+                                 of this file. Row 0 is the two headings and stays. -->
+                            <Grid x:Name="FilterPanel" Grid.Column="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal"
+                                            Margin="0,0,18,0">
+                                    <TextBlock Text="Objects" Style="{StaticResource FieldLabel}"
+                                               VerticalAlignment="Center" />
+                                    <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1"
+                                            Margin="10,0,0,0" Click="AllKinds" />
+                                    <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1"
+                                            Margin="4,0,0,0" Click="NoKinds" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
+                                    <TextBlock Text="Languages" Style="{StaticResource FieldLabel}"
+                                               VerticalAlignment="Center" />
+                                    <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1"
+                                            Margin="10,0,0,0" Click="AllLanguages" />
+                                    <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1"
+                                            Margin="4,0,0,0" Click="NoLanguages" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Grid.Column="1" Width="1" Margin="18,0"
+                                    Background="{StaticResource FieldEdge}" />
+
+                            <StackPanel Grid.Column="2">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Project" Style="{StaticResource FieldLabel}"
+                                               VerticalAlignment="Center" />
+                                    <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1"
+                                            Margin="10,0,0,0" Click="AllFindings" />
+                                    <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1"
+                                            Margin="4,0,0,0" Click="NoFindings" />
+                                </StackPanel>
+
+                                <!-- The counts are the filters, as in the coding-style report.
+                                     Tick boxes rather than chips because this popup already has
+                                     two columns of them, and one vocabulary in one place is
+                                     worth more than one more kind of control. -->
+                                <StackPanel x:Name="ChipsPanel" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Popup>
+
+                <Popup x:Name="RepoFilterPopup" PlacementTarget="{Binding ElementName=RepoFilterButton}"
+                       Placement="Bottom" VerticalOffset="6" StaysOpen="False" AllowsTransparency="True">
+                    <Border Background="{StaticResource Surface}" BorderThickness="1"
+                            BorderBrush="{StaticResource FieldEdge}" Padding="14">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Core" Style="{StaticResource FieldLabel}"
+                                           VerticalAlignment="Center" />
+                                <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1"
+                                        Margin="10,0,0,0" Click="AllStates" />
+                                <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1"
+                                        Margin="4,0,0,0" Click="NoStates" />
+                            </StackPanel>
+
+                            <!-- The same idea as the left, by state rather than by finding: with
+                                 both trees open this is how "show me what is missing" is asked. -->
+                            <StackPanel x:Name="RepoChipsPanel" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Border>
+                </Popup>
             </Grid>
 
             <!-- Scrolled, because the failure that matters most is the longest: when the

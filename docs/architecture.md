@@ -90,7 +90,9 @@ src/Core/
 │   ├── CoreRefresh.cs        config → repository → the copy → core.json, in one call
 │   ├── CoreComparison.cs     that core held against that map — metadata only, nothing written
 │   ├── DownloadPlan.cs       what a download would touch, and who else depends on it
-│   └── ImportReport.cs       what it actually did, object by object
+│   ├── ImportReport.cs       what it actually did, object by object
+│   ├── ConstantsWorkbook.cs  the core's .xlsx read back as objects, because Openness will not
+│   └── SyncPlan.cs           what is in the wrong folder, where it belongs, and how a move went
 ├── Places.cs                 "*" for the general program, spelled once for every reader
 ├── Secrets/
 │   ├── DotEnv.cs             the per-user .env: read, and written back surgically
@@ -217,7 +219,7 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
 
 | Layer | May depend on | Actual references |
 | --- | --- | --- |
-| `Core` | only what**every** consumer needs | `mscorlib`, `System`, `System.Core`, `System.Runtime.Serialization`, `System.Xml`, `System.Xml.Linq` |
+| `Core` | only what**every** consumer needs | `mscorlib`, `System`, `System.Core`, `System.Runtime.Serialization`, `System.Xml`, `System.Xml.Linq`, `System.IO.Compression(.FileSystem)` |
 | `AddIn.Shared` | `Core` + host types that are **not** Siemens | `+ PLC-Framework.Core`, `System.Drawing` |
 | `UI.Shared` | `Core` + WPF | `mscorlib`, `System` — see below |
 | `S7PlcWebserverApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |
@@ -234,6 +236,8 @@ That third column is read from the compiled assemblies, not from the `using` sta
 **Shared projects are named after the concern, not the consumer.** `UI.Shared` holds what anything with a window needs — the logo, the palette — regardless of whether that thing is a satellite or a command-line tool that shows a dialog. Calling it `Satellite.Shared` would have broken the rule above in the name itself. `AddIn.Shared` keeps a consumer-shaped name because its contents genuinely are Add-In vocabulary: a TIA notification, a PLC group tree.
 
 A useful consequence: **if a project references `UI.Shared`, it has a GUI.** The dependency states what a name prefix only suggests.
+
+**`System.IO.Compression` reaches `Core` and `DocumentFormat.OpenXml` still may not**, which is the same rule rather than an exception to it. `Core.Repo.ConstantsWorkbook` reads the core's `.xlsx` enumerations because Openness refuses to import one, and a `.xlsx` is a zip holding two XML documents — both of which TIA Portal's own process already has, since `Core` is loaded into it. The SDK is a package, and a package is what must not travel there. Writing a workbook would be a different matter entirely, which is why the exports keep the SDK: five XML parts whose only real test is whether Excel opens the file.
 
 **Why `System.Drawing` must not reach `Core`.** `Core` is loaded **inside TIA Portal's process**, and its dependencies are the *intersection* of what its consumers need, never the union. `Icons` turns an asset into a `System.Drawing.Icon` and a WPF consumer would want an `ImageSource` from the same bytes; putting either materialiser in `Core` would eventually drag `PresentationCore` and `WindowsBase` in behind the other. With `assets\` in `AddIn.Shared` nothing in `Core` pulls that way at all.
 

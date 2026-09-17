@@ -462,7 +462,7 @@ namespace Satellite.CoreUpdater.Tia
                 }
             }
 
-            string scratch = Workspace(report);
+            string scratch = Workspace(report.Add);
 
             if (scratch == null) return report;
 
@@ -524,24 +524,147 @@ namespace Satellite.CoreUpdater.Tia
         }
 
         /// <summary>
-        /// A tag table of constants, which the core keeps as <c>.xlsx</c>.
+        /// A tag table of constants, which the core keeps as <c>.xlsx</c> - **built object by
+        /// object, because Openness will not read the workbook.**
         ///
-        /// **Handed to TIA as it is.** `PlcTagTableComposition.Import` takes a `FileInfo` and no
-        /// format, and the maintainer's workbooks carry the destination path in a column of their
-        /// own - so where the table lands is the file's answer rather than this one's.
+        /// The first version handed the file straight to `PlcTagTableComposition.Import`, which
+        /// takes a `FileInfo` and no format and looked like the door. It is not: on the VM it
+        /// answered *"Invalid XML encountered while reading Simatic ML file: Data at the root
+        /// level is invalid. Line 1, position 1."* TIA Portal imports Excel from its own user
+        /// interface and Openness does not expose that path, so the table, its constants and its
+        /// tags are created one at a time - `Create(name)`, `Create(name, dataType, value)` and
+        /// `Create(name, dataType, logicalAddress)`, all of which the assembly does declare.
         ///
-        /// **Whether Openness accepts a workbook here is not something this machine can check**,
-        /// and it is written down rather than assumed: if TIA refuses, the refusal arrives in its
-        /// own words against the object's name, which is the shape every other unverifiable claim
-        /// in this project has been given until the VM answered it.
+        /// **The folder is the node's family, like every other object in this download**, and not
+        /// the workbook's own `TagTable Properties` sheet. That sheet names a TIA tree folder in
+        /// one plant's convention - `90_LIbrary\ADT\ADT` - which is where the table happens to
+        /// sit rather than where the core says it belongs; a table placed by it would land
+        /// somewhere *sync folders with core* then wants to move it out of.
+        ///
+        /// **A table already there is deleted and rebuilt**, which is what replacing means: an
+        /// enumeration that has dropped a constant must drop it here too, and creating over the
+        /// top would leave the retired one behind with nothing saying so.
+        ///
+        /// **A constant TIA refuses is named and the rest still go in.** Nothing is rolled back
+        /// in this window, so the honest outcome is the table as complete as the workbook allowed
+        /// with what would not go named - a constants table quietly three entries short is the
+        /// silent hole every other part of this feature is shaped to avoid.
         /// </summary>
         private static ImportedNode TagTable(PlcSoftware software, PlcUnitBase into, PlannedNode planned)
         {
+            ConstantsWorkbook workbook = ConstantsWorkbook.Of(planned.Source);
+
+            if (!workbook.Read) return ImportedNode.Refused(planned, workbook.Problem);
+
             PlcTagTableGroup root = into == null ? (PlcTagTableGroup)software.TagTableGroup : into.TagTableGroup;
+            PlcTagTableGroup group = Tables(root, planned.Folder);
 
-            root.TagTables.Import(new FileInfo(planned.Source), ImportOptions.Override);
+            PlcTagTable existing = group.TagTables.Find(workbook.Name);
 
-            return ImportedNode.Went(planned);
+            if (existing != null) existing.Delete();
+
+            PlcTagTable table = group.TagTables.Create(workbook.Name);
+            List<string> refused = new List<string>();
+
+            foreach (CoreConstant constant in workbook.Constants)
+            {
+                try
+                {
+                    Describe(
+                        table.UserConstants.Create(constant.Name, constant.DataType, constant.Value).Comment,
+                        constant.Comment);
+                }
+                catch (Exception exception)
+                {
+                    refused.Add(constant.Name + ": " + exception.Message);
+                }
+            }
+
+            foreach (CoreTag tag in workbook.Tags)
+            {
+                try
+                {
+                    Describe(Made(table, tag).Comment, tag.Comment);
+                }
+                catch (Exception exception)
+                {
+                    refused.Add(tag.Name + ": " + exception.Message);
+                }
+            }
+
+            return refused.Count == 0
+                ? ImportedNode.Went(planned)
+                : ImportedNode.Refused(
+                    planned, Named(refused, workbook.Constants.Count + workbook.Tags.Count));
+        }
+
+        /// <summary>
+        /// One tag. **A tag with no logical address loses its data type**, because Openness
+        /// offers `Create(name)` and `Create(name, dataType, logicalAddress)` and nothing in
+        /// between - so a type without an address cannot be expressed. Every tag in the core's
+        /// own tables carries one; this is the branch for a workbook that does not.
+        /// </summary>
+        private static PlcTag Made(PlcTagTable table, CoreTag tag) =>
+            string.IsNullOrEmpty(tag.Address)
+                ? table.Tags.Create(tag.Name)
+                : table.Tags.Create(tag.Name, tag.DataType, tag.Address);
+
+        /// <summary>
+        /// The folder <c>core/adt</c> under the tag table tree, made on the way down - the same
+        /// shape as the block and type trees, and found before created for the same reason: a
+        /// second download into one family must not make a second folder beside the first.
+        /// </summary>
+        private static PlcTagTableGroup Tables(PlcTagTableGroup root, string folder)
+        {
+            PlcTagTableGroup group = root;
+
+            foreach (string name in Segments(folder))
+            {
+                PlcTagTableUserGroupComposition groups = group.Groups;
+
+                group = groups.Find(name) ?? (PlcTagTableGroup)groups.Create(name);
+            }
+
+            return group;
+        }
+
+        /// <summary>
+        /// The workbook's comment onto every editing language the project has.
+        ///
+        /// **`MultilingualTextItemComposition` has no `Create`** - the items that exist are the
+        /// languages the project was set up with, so this writes into those and a project with
+        /// none simply keeps no comment. A comment is documentation, and failing an import over
+        /// one would be the wrong trade.
+        /// </summary>
+        private static void Describe(MultilingualText comment, string text)
+        {
+            if (comment == null || string.IsNullOrEmpty(text)) return;
+
+            try
+            {
+                foreach (MultilingualTextItem item in comment.Items) item.Text = text;
+            }
+            catch (Exception)
+            {
+                // Documentation, not the object. See above.
+            }
+        }
+
+        /// <summary>
+        /// What would not go in, **named rather than counted** - up to five, then a count. A
+        /// table three constants short has to say which three; one ninety short would otherwise
+        /// fill the report with a line each and bury every other object's outcome.
+        /// </summary>
+        private static string Named(IReadOnlyList<string> refused, int of)
+        {
+            string said = refused.Count + " of " + of + " entries would not go in: ";
+
+            for (int i = 0; i < refused.Count && i < 5; i++)
+                said += (i > 0 ? "; " : string.Empty) + refused[i];
+
+            return refused.Count > 5
+                ? said + "; and " + (refused.Count - 5) + " more."
+                : said + ".";
         }
 
         /// <summary>
@@ -669,13 +792,13 @@ namespace Satellite.CoreUpdater.Tia
         /// exists for exactly this. Inside the project rather than in %TEMP% for the reason the
         /// coding-style check already records - what is in these files is somebody's source code.
         /// </summary>
-        private string Workspace(ImportReport report)
+        private string Workspace(Action<string> problem)
         {
             string folder = RepoPaths.TmpFor(_project?.Path?.DirectoryName);
 
             if (folder == null)
             {
-                report.Add("This project has no folder, so there is nowhere to put a source.");
+                problem("This project has no folder, so there is nowhere to put a source.");
                 return null;
             }
 
@@ -686,7 +809,7 @@ namespace Satellite.CoreUpdater.Tia
             }
             catch (Exception exception)
             {
-                report.Add("The scratch folder could not be made: " + exception.Message);
+                problem("The scratch folder could not be made: " + exception.Message);
                 return null;
             }
         }
@@ -714,6 +837,288 @@ namespace Satellite.CoreUpdater.Tia
             {
                 // Empty by now; the next run reuses it.
             }
+        }
+
+        // ---- Moving an object into the folder its family names --------------------------------
+
+        /// <summary>
+        /// How deep a find will go looking for an object. A hand-built folder tree is three or
+        /// four deep; this is a guard against a cycle rather than a limit anybody meets.
+        /// </summary>
+        private const int FindDepth = 32;
+
+        /// <summary>
+        /// **Openness has no move.** All 2,269 types were searched for one - no `Move`, no `Cut`,
+        /// no `Reparent`, no `ChangeGroup`, no `Relocate` - so this exports the object, deletes
+        /// it, and imports it into the folder its family names. The order is forced rather than
+        /// chosen: an object's name is unique across a PLC's software, so the copy cannot go into
+        /// its new folder while the original is still in the old one.
+        ///
+        /// **The scratch folder is kept when anything was left stranded.** Between the delete and
+        /// the import the object exists only as a file, and clearing the folder after a refusal
+        /// would throw away the only copy. Every other run clears it, because what is in there is
+        /// somebody's source code.
+        /// </summary>
+        public SyncReport Sync(string plc, string unit, SyncPlan plan, Action<string> progress)
+        {
+            SyncReport report = new SyncReport();
+
+            if (plan == null || plan.Count == 0) return report;
+
+            PlcSoftware software = Find(plc);
+
+            if (software == null)
+            {
+                report.Add("This project holds no PLC called '" + plc + "'.");
+                return report;
+            }
+
+            string wanted = Places.UnitOrNull(unit);
+            PlcUnitBase into = null;
+
+            if (wanted != null)
+            {
+                into = UnitsOf(software)
+                    .FirstOrDefault(one => string.Equals(one.Name, wanted, StringComparison.OrdinalIgnoreCase));
+
+                if (into == null)
+                {
+                    report.Add("'" + plc + "' has no software unit called '" + wanted + "'.");
+                    return report;
+                }
+            }
+
+            string scratch = Workspace(report.Add);
+
+            if (scratch == null) return report;
+
+            int done = 0;
+
+            try
+            {
+                foreach (MisplacedObject one in plan.Objects)
+                {
+                    done++;
+
+                    progress?.Invoke("Moving " + done + " of " + plan.Count + " - " + one.Name);
+
+                    report.Add(Moved(software, into, one, scratch));
+                }
+            }
+            finally
+            {
+                if (report.Stranded == 0) Clear(scratch);
+            }
+
+            return report;
+        }
+
+        private MovedObject Moved(
+            PlcSoftware software, PlcUnitBase into, MisplacedObject planned, string scratch)
+        {
+            // Named after the object rather than reused like the map's read.xml: a file that is
+            // the only copy of something has to be recognisable in the folder it was left in.
+            string file = Path.Combine(scratch, "move-" + Core.Exports.ExportTree.Segment(planned.Name) + ".xml");
+
+            try
+            {
+                switch (For(planned.Kind))
+                {
+                    case Destination.Type:
+                        return MovedType(software, into, planned, file);
+
+                    case Destination.TagTable:
+                        return MovedTable(software, into, planned, file);
+
+                    default:
+                        return MovedBlock(software, into, planned, file);
+                }
+            }
+            catch (Exception exception)
+            {
+                // Everything past the delete is caught inside each of the three, so anything
+                // arriving here happened before it: the object is still where it was.
+                return MovedObject.Refused(planned, exception.Message);
+            }
+        }
+
+        private static MovedObject MovedBlock(
+            PlcSoftware software, PlcUnitBase into, MisplacedObject planned, string file)
+        {
+            PlcBlockGroup root = into == null ? (PlcBlockGroup)software.BlockGroup : into.BlockGroup;
+            PlcBlock block = FoundBlock(root, planned.Name);
+
+            if (block == null) return MovedObject.Refused(planned, "It is no longer in this PLC.");
+
+            PlcBlockUserGroup destination = Blocks(software, into, planned.Family);
+
+            if (destination == null)
+                return MovedObject.Refused(planned, "'" + planned.Family + "' is not a folder this can build.");
+
+            // WithDefaults, not None: this is the whole object on its way back in, where the
+            // coding-style check's throwaway export is read for one string and deleted.
+            block.Export(new FileInfo(file), ExportOptions.WithDefaults);
+            block.Delete();
+
+            try
+            {
+                destination.Blocks.Import(new FileInfo(file), ImportOptions.Override);
+            }
+            catch (Exception exception)
+            {
+                return MovedObject.Stranded(planned, exception.Message, file);
+            }
+
+            Drop(file);
+
+            return MovedObject.Went(planned);
+        }
+
+        private static MovedObject MovedType(
+            PlcSoftware software, PlcUnitBase into, MisplacedObject planned, string file)
+        {
+            PlcTypeGroup root = into == null ? (PlcTypeGroup)software.TypeGroup : into.TypeGroup;
+            PlcType type = FoundType(root, planned.Name);
+
+            if (type == null) return MovedObject.Refused(planned, "It is no longer in this PLC.");
+
+            PlcTypeUserGroup destination = Types(software, into, planned.Family);
+
+            if (destination == null)
+                return MovedObject.Refused(planned, "'" + planned.Family + "' is not a folder this can build.");
+
+            type.Export(new FileInfo(file), ExportOptions.WithDefaults);
+            type.Delete();
+
+            try
+            {
+                destination.Types.Import(new FileInfo(file), ImportOptions.Override);
+            }
+            catch (Exception exception)
+            {
+                return MovedObject.Stranded(planned, exception.Message, file);
+            }
+
+            Drop(file);
+
+            return MovedObject.Went(planned);
+        }
+
+        /// <summary>
+        /// A tag table moves the same way, **and here the SimaticML is the only door that
+        /// works**: `PlcTagTableComposition.Import` reads SimaticML and refuses the workbook the
+        /// core keeps, which is why a download builds a table object by object. What comes out of
+        /// a project is SimaticML, so a move needs none of that.
+        /// </summary>
+        private static MovedObject MovedTable(
+            PlcSoftware software, PlcUnitBase into, MisplacedObject planned, string file)
+        {
+            PlcTagTableGroup root = into == null ? (PlcTagTableGroup)software.TagTableGroup : into.TagTableGroup;
+            PlcTagTable table = FoundTable(root, planned.Name);
+
+            if (table == null) return MovedObject.Refused(planned, "It is no longer in this PLC.");
+
+            // TIA rebuilds the default table if it is deleted, and it never comes from the core.
+            if (table.IsDefault)
+                return MovedObject.Refused(planned, "It is the PLC's default tag table.");
+
+            PlcTagTableGroup destination = Tables(root, planned.Family);
+
+            table.Export(new FileInfo(file), ExportOptions.WithDefaults);
+            table.Delete();
+
+            try
+            {
+                destination.TagTables.Import(new FileInfo(file), ImportOptions.Override);
+            }
+            catch (Exception exception)
+            {
+                return MovedObject.Stranded(planned, exception.Message, file);
+            }
+
+            Drop(file);
+
+            return MovedObject.Went(planned);
+        }
+
+        /// <summary>
+        /// Which tree an object lives in, from the kind the map recorded.
+        ///
+        /// **From the kind, never from the folder the map wrote.** A folder begins with TIA's own
+        /// name for its tree, which follows the interface language; the kind is
+        /// `CodingStyleNames`' vocabulary, which is ours and is the same in every language.
+        ///
+        /// Everything that is not a data type or a tag table is a `PlcBlock` - an OB, an FC, an
+        /// FB, any of the data blocks, a technology object - so that is the default rather than a
+        /// list to keep in step with the object model.
+        /// </summary>
+        private static Destination For(string kind)
+        {
+            if (string.Equals(kind, CodingStyleNames.PlcStruct, StringComparison.OrdinalIgnoreCase))
+                return Destination.Type;
+
+            if (string.Equals(kind, CodingStyleNames.PlcTagTable, StringComparison.OrdinalIgnoreCase))
+                return Destination.TagTable;
+
+            return Destination.Block;
+        }
+
+        /// <summary>
+        /// The object, wherever in the tree it is. **By name**, which is exact: a name is unique
+        /// across a PLC's software, so this cannot find the wrong one.
+        /// </summary>
+        private static PlcBlock FoundBlock(PlcBlockGroup group, string name, int depth = 0)
+        {
+            if (group == null || depth > FindDepth) return null;
+
+            PlcBlock found = group.Blocks.Find(name);
+
+            if (found != null) return found;
+
+            foreach (PlcBlockUserGroup child in group.Groups)
+            {
+                found = FoundBlock(child, name, depth + 1);
+
+                if (found != null) return found;
+            }
+
+            return null;
+        }
+
+        private static PlcType FoundType(PlcTypeGroup group, string name, int depth = 0)
+        {
+            if (group == null || depth > FindDepth) return null;
+
+            PlcType found = group.Types.Find(name);
+
+            if (found != null) return found;
+
+            foreach (PlcTypeUserGroup child in group.Groups)
+            {
+                found = FoundType(child, name, depth + 1);
+
+                if (found != null) return found;
+            }
+
+            return null;
+        }
+
+        private static PlcTagTable FoundTable(PlcTagTableGroup group, string name, int depth = 0)
+        {
+            if (group == null || depth > FindDepth) return null;
+
+            PlcTagTable found = group.TagTables.Find(name);
+
+            if (found != null) return found;
+
+            foreach (PlcTagTableUserGroup child in group.Groups)
+            {
+                found = FoundTable(child, name, depth + 1);
+
+                if (found != null) return found;
+            }
+
+            return null;
         }
 
         // ---- The walk -----------------------------------------------------------------------

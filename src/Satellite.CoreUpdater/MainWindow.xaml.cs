@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -60,6 +62,15 @@ namespace Satellite.CoreUpdater
         /// beside a button that now works.
         /// </summary>
         private bool _complaining;
+
+        /// <summary>
+        /// Whether a whole column of tick boxes is being set at once, so the handler on each of
+        /// them does not rebuild a tree that is about to be rebuilt anyway.
+        /// </summary>
+        private bool _settling;
+
+        /// <summary>Whether the window has already done its one automatic map-and-compare.</summary>
+        private bool _started;
 
         public MainWindow()
         {
@@ -143,17 +154,78 @@ namespace Satellite.CoreUpdater
             // written into the project's own folder, and there is no folder to write into.
             if (!attachment.HasProjectFolder)
             {
-                MapText.Text = "This project has not been saved, so it has no folder - and the map is " +
-                               "written inside it. Save the project and open this window again.";
+                ProjectSays("This project has not been saved, so it has no folder - and the map is " +
+                     "written inside it. Save the project and open this window again.");
                 MapButton.IsEnabled = false;
                 StatusText.Text = "Attached, with nowhere to write.";
                 return;
             }
 
-            MapText.Text = attachment.ProjectDirectory;
+            ProjectSays(attachment.ProjectDirectory);
             StatusText.Text = "Reading the PLCs…";
 
             Plcs(plc, unit);
+        }
+
+        /// <summary>
+        /// One line under the project tree, with the whole of it on hover.
+        ///
+        /// **Each panel carries its own caption** (the maintainer's layout), which is what makes
+        /// a line read as that tree's own rather than as one sentence trying to describe both.
+        /// They are one line, so anything longer - a map's counts, kind by kind - is trimmed on
+        /// screen and whole in the tooltip, which is what this framework already does to a cell
+        /// it cannot fit.
+        /// </summary>
+        private void ProjectSays(string text)
+        {
+            ProjectStatus.Text = text ?? string.Empty;
+            ProjectStatus.ToolTip = string.IsNullOrEmpty(text) ? null : text;
+        }
+
+        /// <summary>The same, under the core tree.</summary>
+        private void RepositorySays(string text)
+        {
+            RepositoryStatus.Text = text ?? string.Empty;
+            RepositoryStatus.ToolTip = string.IsNullOrEmpty(text) ? null : text;
+        }
+
+        /// <summary>
+        /// What a run could not do, across the width of both panels.
+        ///
+        /// **Never folded into a caption.** A folder that would not read, an object that would
+        /// not export: a map with holes that does not say where they are reads as a whole one,
+        /// which is the single outcome this feature is shaped to avoid.
+        /// </summary>
+        private void Problems(string text)
+        {
+            ProblemsText.Text = text ?? string.Empty;
+            ProblemsText.ToolTip = string.IsNullOrEmpty(text) ? null : text;
+            ProblemsText.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        /// <summary>
+        /// The filters open from a button over each tree, because they are decided once per run
+        /// and as three columns of tick boxes they were taking a third of the window away from
+        /// the two trees somebody opened it to read.
+        ///
+        /// **`StaysOpen="False"` closes a popup on any click outside it - the button included -
+        /// and that click would then arrive here and open it again.** <see cref="FilterPressed"/>
+        /// swallows the press while a popup is open, so a second press closes it the way anybody
+        /// would expect it to.
+        /// </summary>
+        private void ProjectFilterClicked(object sender, RoutedEventArgs e)
+        {
+            ProjectFilterPopup.IsOpen = true;
+        }
+
+        private void RepoFilterClicked(object sender, RoutedEventArgs e)
+        {
+            RepoFilterPopup.IsOpen = true;
+        }
+
+        private void FilterPressed(object sender, MouseButtonEventArgs e)
+        {
+            if (ProjectFilterPopup.IsOpen || RepoFilterPopup.IsOpen) e.Handled = true;
         }
 
         private void Plcs(string plc, string unit)
@@ -255,6 +327,8 @@ namespace Satellite.CoreUpdater
                     StatusText.Text = survey == null || survey.Total == 0
                         ? "Nothing to map in this scope."
                         : "Ready — " + survey.Total + " objects.";
+
+                    Start();
                 },
                 exception =>
                 {
@@ -262,6 +336,56 @@ namespace Satellite.CoreUpdater
                     Working(false);
                     Failed(exception);
                 });
+        }
+
+        /// <summary>
+        /// What the window does by itself, once — compare, and map first when there is nothing
+        /// to compare from (the maintainer asked for it, with both buttons kept).
+        ///
+        /// **Because the two trees are the window.** Opening onto two empty panels and a row of
+        /// buttons makes somebody press one to see what they came to see, and the answer is the
+        /// same every time. A project that has been mapped before is compared in the time it
+        /// takes to copy a folder; one that has not is walked first.
+        ///
+        /// **It runs on the first survey and never again.** Changing the PLC or the unit is the
+        /// operator steering, and re-mapping several hundred objects under them because they
+        /// looked at another unit is the opposite of helpful.
+        ///
+        /// **The file is looked for rather than read.** Whether it parses, and whether its
+        /// format is one this version knows, is the comparison's own question and it already
+        /// answers it in a sentence; parsing a map of four thousand objects here, on the UI
+        /// thread, to learn only that it is there would be paying twice.
+        ///
+        /// **The whole scope, because nothing has been ticked yet.** The survey has just put
+        /// every box on, so the filter narrows nothing - which is the same "empty means
+        /// everything" the map itself runs on.
+        /// </summary>
+        private void Start()
+        {
+            if (_started || _busy || string.IsNullOrWhiteSpace(_projectDirectory)) return;
+
+            _started = true;
+
+            string plc = PlcBox.SelectedItem as string;
+
+            if (plc == null) return;
+
+            if (Mapped()) CompareClicked(null, null);
+            else Map(plc, UnitBox.SelectedItem as string, Chosen(), true);
+        }
+
+        private bool Mapped()
+        {
+            try
+            {
+                return File.Exists(RepoPaths.ProjectFor(_projectDirectory));
+            }
+            catch (Exception)
+            {
+                // A path this window cannot even ask about is one the comparison will report
+                // properly; guessing "yes" here would only send it looking.
+                return false;
+            }
         }
 
         /// <summary>
@@ -418,29 +542,48 @@ namespace Satellite.CoreUpdater
 
             MapFilter filter = Chosen();
 
+            Map(plc, unit, filter, false);
+        }
+
+        /// <summary>
+        /// The walk itself, shared by the button and by the first run of a project that has no
+        /// map yet — <paramref name="thenCompare"/> being the only difference between them.
+        /// </summary>
+        private void Map(string plc, string unit, MapFilter filter, bool thenCompare)
+        {
             Working(true);
             StatusText.Text = "Reading " + plc + "…";
 
             // A walk is about to replace whatever a comparison said, and the two describe
-            // different moments: leaving the panels side by side would show a comparison of the
-            // scope before this one.
-            ComparePanel.Visibility = Visibility.Collapsed;
-            ResultPanel.Visibility = Visibility.Visible;
+            // different moments: leaving the trees up would show a comparison of the scope
+            // before this one, with nothing saying so.
+            Empty(ProjectTree);
+            Empty(RepositoryTree);
 
-            MapHeading.Visibility = Visibility.Collapsed;
-            MapProblems.Visibility = Visibility.Collapsed;
-            MapText.Text = filter.Narrows
+            RepositorySays(string.Empty);
+            Problems(null);
+            ProjectSays(filter.Narrows
                 ? "Walking the project, keeping what is ticked."
-                : "Walking the project. A PLC of a few thousand objects takes a moment.";
+                : "Walking the project. A PLC of a few thousand objects takes a moment.");
 
             _worker.Post(
                 session => session.Map(plc, unit, filter, Say),
-                Mapped,
+                map =>
+                {
+                    Mapped(map);
+
+                    if (thenCompare && map != null) CompareClicked(null, null);
+                },
                 exception =>
                 {
                     Working(false);
                     Failed(exception);
                 });
+        }
+
+        private static void Empty(TreeView tree)
+        {
+            tree.Items.Clear();
         }
 
         /// <summary>
@@ -460,12 +603,8 @@ namespace Satellite.CoreUpdater
             Working(true);
             StatusText.Text = "Reading the core…";
 
-            ComparePanel.Visibility = Visibility.Collapsed;
-            ResultPanel.Visibility = Visibility.Visible;
-
-            MapHeading.Visibility = Visibility.Collapsed;
-            MapProblems.Visibility = Visibility.Collapsed;
-            MapText.Text = "Copying the core into the project and reading it back.";
+            Problems(null);
+            ProjectSays("Copying the core into the project and reading it back.");
 
             Dispatcher dispatcher = Dispatcher;
 
@@ -525,8 +664,8 @@ namespace Satellite.CoreUpdater
             _shown = done;
             _scope = done.Map?.Unit;
 
-            ProjectHeading.Text = Summary(done);
-            RepositoryHeading.Text = Offered(done.Result);
+            ProjectSays(Summary(done));
+            RepositorySays(Offered(done.Result));
 
             Chips(done.Result);
             Project(done.Result);
@@ -540,22 +679,35 @@ namespace Satellite.CoreUpdater
                 foreach (ValidationIssue issue in done.Core.Issues.Issues)
                     problems.Add(issue.Path + ": " + issue.Message);
 
-            CompareProblems.Text = problems.Count == 0 ? string.Empty : Listed(problems);
-            CompareProblems.Visibility = problems.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+            Problems(problems.Count == 0 ? null : Listed(problems));
 
-            ResultPanel.Visibility = Visibility.Collapsed;
-            ComparePanel.Visibility = Visibility.Visible;
+            // What *Sync folders with core* would act on is exactly what the comparison just
+            // found misplaced, so the button is decided here rather than kept in step by hand.
+            SyncButton.IsEnabled = !_busy && done.Result.Count(Finding.Misplaced) > 0;
 
             StatusText.Text = "Compared.";
         }
 
-        /// <summary>One sentence, in the panel a walk writes into — and the comparison put away.</summary>
+        /// <summary>
+        /// One sentence under the project tree, with both trees emptied.
+        ///
+        /// **A comparison that did not happen must not leave the last one on screen.** They
+        /// describe different moments, and two trees nobody can date is worse than none.
+        /// </summary>
         private void Told(string text, string status)
         {
-            ComparePanel.Visibility = Visibility.Collapsed;
-            ResultPanel.Visibility = Visibility.Visible;
+            Empty(ProjectTree);
+            Empty(RepositoryTree);
 
-            MapText.Text = text;
+            _compared = null;
+            _shown = null;
+
+            SyncButton.IsEnabled = false;
+            DownloadButton.IsEnabled = false;
+
+            RepositorySays(string.Empty);
+            ProjectSays(text);
+
             StatusText.Text = status;
         }
 
@@ -611,7 +763,11 @@ namespace Satellite.CoreUpdater
             Chip("Up to date", null, result.Clean, true);
             Chip("Outdated", Finding.Outdated, result.Count(Finding.Outdated), true);
             Chip("Unknown version", Finding.UnknownVersion, result.Count(Finding.UnknownVersion), true);
-            Chip("Split family", Finding.Misplaced, result.Count(Finding.Misplaced), true);
+            // "In the wrong folder", not "Split family": the finding stopped being about a family
+            // spanning two folders when it became an exact comparison against what the block's
+            // own TITLE says, and a tick box has to be spelled the way the rows it filters are -
+            // which here read "belongs in core/node".
+            Chip("In the wrong folder", Finding.Misplaced, result.Count(Finding.Misplaced), true);
             Chip("Disagreeing", Finding.Disagrees, result.Count(Finding.Disagrees), true);
             Chip("Not from the core", Finding.NotFromCore, result.Count(Finding.NotFromCore), false);
         }
@@ -638,7 +794,66 @@ namespace Satellite.CoreUpdater
 
         private void ChipChanged(object sender, RoutedEventArgs e)
         {
+            if (_settling) return;
+
             Project(_compared);
+        }
+
+        private void AllFindings(object sender, RoutedEventArgs e)
+        {
+            Findings(true);
+        }
+
+        private void NoFindings(object sender, RoutedEventArgs e)
+        {
+            Findings(false);
+        }
+
+        /// <summary>
+        /// **Every box is set before the tree is rebuilt, not one rebuild per box.** Each of
+        /// them redraws the whole tree on its own, so *All* over six findings would build a
+        /// few hundred objects into it six times over.
+        /// </summary>
+        private void Findings(bool ticked)
+        {
+            _settling = true;
+
+            try
+            {
+                foreach (CheckBox box in _chips) box.IsChecked = ticked;
+            }
+            finally
+            {
+                _settling = false;
+            }
+
+            Project(_compared);
+        }
+
+        private void AllStates(object sender, RoutedEventArgs e)
+        {
+            States(true);
+        }
+
+        private void NoStates(object sender, RoutedEventArgs e)
+        {
+            States(false);
+        }
+
+        private void States(bool ticked)
+        {
+            _settling = true;
+
+            try
+            {
+                foreach (CheckBox box in _repoChips) box.IsChecked = ticked;
+            }
+            finally
+            {
+                _settling = false;
+            }
+
+            Repository(_compared);
         }
 
         /// <summary>
@@ -1030,12 +1245,8 @@ namespace Satellite.CoreUpdater
             DownloadButton.IsEnabled = false;
             StatusText.Text = "Importing…";
 
-            ComparePanel.Visibility = Visibility.Collapsed;
-            ResultPanel.Visibility = Visibility.Visible;
-
-            MapHeading.Visibility = Visibility.Collapsed;
-            MapProblems.Visibility = Visibility.Collapsed;
-            MapText.Text = "Writing " + plan.Nodes.Count + " objects into the project.";
+            Problems(null);
+            ProjectSays("Writing " + plan.Nodes.Count + " objects into the project.");
 
             _worker.Post(
                 session => session.Import(plc, unit, plan, Say),
@@ -1093,39 +1304,144 @@ namespace Satellite.CoreUpdater
                 return;
             }
 
-            MapHeading.Visibility = Visibility.Visible;
-            MapHeading.Text = string.Format(
-                CultureInfo.CurrentCulture,
-                "{0} of {1} objects went in.", report.Imported, plan.Nodes.Count - report.Skipped);
-
-            List<string> lines = new List<string>
-            {
-                "    " + report.Imported + " imported",
-                "    " + report.Skipped + " already at the core's version, left alone",
-                "    " + report.Failed + " refused",
-                string.Empty,
-                "The project has changed. Map it again to compare against the core."
-            };
-
-            MapText.Text = string.Join(Environment.NewLine, lines);
+            // The comparison on screen described the project as it was a moment ago, and it no
+            // longer does. Told empties both trees, which is what says so.
+            Told(
+                string.Format(
+                    CultureInfo.CurrentCulture,
+                    "{0} of {1} went in, {2} were already at the core's version, {3} refused. " +
+                    "Map the project again to compare it.",
+                    report.Imported,
+                    plan.Nodes.Count - report.Skipped,
+                    report.Skipped,
+                    report.Failed),
+                report.Failed > 0 ? "Imported, with refusals." : "Imported.");
 
             List<string> problems = new List<string>(report.Problems);
 
             foreach (ImportedNode one in report.Results)
                 if (!one.Done) problems.Add(one.Name + ": " + one.Problem);
 
-            if (problems.Count > 0)
+            Problems(problems.Count == 0 ? null : Listed(problems));
+        }
+
+        // ---- Putting a misplaced object back where its family says ------------------------------
+
+        /// <summary>
+        /// Moves every object the comparison found in a folder its family does not name.
+        ///
+        /// **It acts on exactly the rows the panel above it shows as misplaced**, which is why
+        /// the plan comes out of the comparison rather than being worked out again: two answers
+        /// to one question would eventually move something the tree called correct.
+        ///
+        /// **It asks first, and it is the second prompt in this window.** A move is an export, a
+        /// delete and an import — Openness has no move at all — so for a moment the object exists
+        /// only as a file, and that is worth saying before it happens rather than afterwards.
+        /// </summary>
+        private void SyncClicked(object sender, RoutedEventArgs e)
+        {
+            if (_compared == null || _shown == null || _worker == null) return;
+
+            SyncPlan plan = SyncPlan.Of(_compared);
+
+            if (plan.Count == 0)
             {
-                MapProblems.Visibility = Visibility.Visible;
-                MapProblems.Text = Listed(problems);
+                Told("Nothing is in the wrong folder.", "Nothing to do.");
+                return;
             }
 
-            // The comparison on screen described the project as it was a moment ago, and it no
-            // longer does. Saying so beats leaving two panels that look current.
-            _shown = null;
-            _compared = null;
+            if (!Agreed(plan))
+            {
+                StatusText.Text = "Cancelled.";
+                return;
+            }
 
-            StatusText.Text = report.Failed > 0 ? "Imported, with refusals." : "Imported.";
+            string plc = _shown.Map?.Plc;
+            string unit = _shown.Map?.Unit;
+
+            Working(true);
+            SyncButton.IsEnabled = false;
+            StatusText.Text = "Moving…";
+
+            Problems(null);
+            ProjectSays("Moving " + plan.Count + " objects into the folders the core names.");
+
+            _worker.Post(
+                session => session.Sync(plc, unit, plan, Say),
+                report => { Working(false); Synced(report, plan); },
+                exception =>
+                {
+                    Working(false);
+                    Failed(exception);
+                });
+        }
+
+        /// <summary>
+        /// Says what would move, and says what a move is.
+        ///
+        /// **Every object is named, up to a point.** "12 objects will be moved" is not something
+        /// anybody can check; a list of names against their destinations is. Past twenty the
+        /// list stops being read, so it stops.
+        /// </summary>
+        private static bool Agreed(SyncPlan plan)
+        {
+            const int Most = 20;
+
+            List<string> lines = new List<string>
+            {
+                plan.Count == 1
+                    ? "One object is not in the folder its family names:"
+                    : plan.Count + " objects are not in the folders their families name:",
+                string.Empty
+            };
+
+            for (int i = 0; i < plan.Objects.Count && i < Most; i++)
+            {
+                MisplacedObject one = plan.Objects[i];
+
+                lines.Add("    " + one.Name + "   " + one.From + "  ->  " + one.Family);
+            }
+
+            if (plan.Count > Most) lines.Add("    …and " + (plan.Count - Most) + " more");
+
+            lines.Add(string.Empty);
+            lines.Add(
+                "Openness cannot move an object, so each one is exported, deleted and imported " +
+                "into its new folder. Anything that will not go back in is left as a file and " +
+                "named here afterwards.");
+
+            return MessageBox.Show(
+                string.Join(Environment.NewLine, lines),
+                Product.Title + " - Sync folders with core",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) == MessageBoxResult.OK;
+        }
+
+        private void Synced(SyncReport report, SyncPlan plan)
+        {
+            if (report == null)
+            {
+                Told("Nothing came back from the move.", "Not moved.");
+                return;
+            }
+
+            // The comparison described the project as it was a moment ago. Told empties both
+            // trees, which is what says so.
+            Told(
+                string.Format(
+                    CultureInfo.CurrentCulture,
+                    "{0} of {1} moved, {2} did not. Map the project again to compare it.",
+                    report.Moved, plan.Count, report.Failed),
+                report.Stranded > 0
+                    ? "Moved, and " + report.Stranded + " left as files."
+                    : report.Failed > 0 ? "Moved, with refusals." : "Moved.");
+
+            List<string> problems = new List<string>(report.Problems);
+
+            foreach (MovedObject one in report.Results)
+                if (!one.Done) problems.Add(one.Name + ": " + one.Problem);
+
+            Problems(problems.Count == 0 ? null : Listed(problems));
         }
 
         /// <summary>One comparison, and why there is none when there is not.</summary>
@@ -1285,26 +1601,24 @@ namespace Satellite.CoreUpdater
 
             if (map == null)
             {
-                MapText.Text = "Nothing came back from the walk.";
-                StatusText.Text = "Not mapped.";
+                Told("Nothing came back from the walk.", "Not mapped.");
                 return;
             }
 
             string problem = ProjectMapFile.Write(map, _projectDirectory);
 
-            MapHeading.Visibility = Visibility.Visible;
-            MapHeading.Text = Counted(map);
-
-            MapText.Text = problem ?? RepoPaths.ProjectFor(_projectDirectory);
+            ProjectSays(Counted(map));
             StatusText.Text = problem == null ? "Mapped." : "Mapped, but not written.";
 
-            // Whatever would not read while walking. Kept on screen rather than folded into
-            // the counts: a map with holes has to say where they are, or it reads as whole.
-            if (map.Problems != null && map.Problems.Count > 0)
-            {
-                MapProblems.Visibility = Visibility.Visible;
-                MapProblems.Text = Listed(map.Problems);
-            }
+            // Whatever would not read while walking, and whatever kept the file from being
+            // written. Never folded into the counts: a map with holes has to say where they
+            // are, or it reads as a whole one.
+            List<string> problems = new List<string>();
+
+            if (problem != null) problems.Add(problem);
+            if (map.Problems != null) problems.AddRange(map.Problems);
+
+            Problems(problems.Count == 0 ? null : Listed(problems));
         }
 
         /// <summary>
@@ -1392,6 +1706,10 @@ namespace Satellite.CoreUpdater
             CompareButton.IsEnabled = !busy && !string.IsNullOrWhiteSpace(_projectDirectory);
             DownloadButton.IsEnabled = !busy && Picked().Count > 0;
 
+            // Sync acts on what the comparison found misplaced, so it needs one on screen —
+            // and there is nothing to be found before the project has been compared.
+            SyncButton.IsEnabled = !busy && _compared != null && _compared.Count(Finding.Misplaced) > 0;
+
             // Never `IsEnabled = !busy` on its own: what is ticked decides it too, and coming
             // back from a run must not re-enable a button the tick boxes have disabled.
             Ready();
@@ -1399,13 +1717,9 @@ namespace Satellite.CoreUpdater
 
         private void Failed(Exception exception)
         {
-            // Into the text panel, which means putting the comparison away: a failure written
-            // under a table nobody can tell the age of is worse than one on its own.
-            ComparePanel.Visibility = Visibility.Collapsed;
-            ResultPanel.Visibility = Visibility.Visible;
-
-            StatusText.Text = "Failed.";
-            MapText.Text = exception == null ? "Something went wrong." : exception.Message;
+            // Through Told, which empties both trees: a failure written under a comparison
+            // nobody can tell the age of is worse than one standing on its own.
+            Told(exception == null ? "Something went wrong." : exception.Message, "Failed.");
         }
 
         /// <summary>

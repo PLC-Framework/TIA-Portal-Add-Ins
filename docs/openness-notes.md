@@ -253,6 +253,38 @@ Three API facts behind that table, each of which changes the code rather than on
 
 **A path is checked against the longest extension an object could produce, not the first file written.** `ExportTree.LongestExtension` is `.s7dcl`, so a name that fits a `.xml` and not its SD pair is refused whole rather than half-exported.
 
+### Importing: what the API takes, and what it does not
+
+Read off the assemblies and then measured in TIA Portal, which is the only order that settles anything here.
+
+| Family | In | |
+| --- | --- | --- |
+| Blocks | `PlcExternalSourceComposition.CreateFromFile(name, path)` then `PlcExternalSource.GenerateBlocksFromSource(PlcBlockUserGroup, GenerateBlockOption)` | the destination folder is an argument, so nothing has to be moved afterwards |
+| PLC data types | the same call, with the `PlcTypeUserGroup` overload | |
+| Blocks, types | `PlcBlockComposition.Import(FileInfo, ImportOptions)`, `PlcTypeComposition.Import(...)` | **SimaticML**, which is what an export writes |
+| Tag tables | `PlcTagTableComposition.Import(FileInfo, ImportOptions)` | **SimaticML only** — see below |
+| A tag table's contents | `PlcTagTableComposition.Create(name)`, `PlcUserConstantComposition.Create(name, dataTypeName, value)`, `PlcTagComposition.Create(name, dataTypeName, logicalAddress)` | one object at a time |
+
+**`PlcTagTableComposition.Import` will not read a workbook**, and its signature is what misleads: a bare `FileInfo` with no format argument, next to a product that plainly does import Excel. TIA Portal offers that from its own user interface; Openness does not expose it. Measured on the VM:
+
+```
+EPriorityQueueMethod: Error when calling method 'Import' of type
+'Siemens.Engineering.SW.Tags.PlcTagTableComposition'. Invalid XML encountered while reading
+Simatic ML file: Data at the root level is invalid. Line 1, position 1.
+```
+
+So a tag table that lives as `.xlsx` is built object by object, and `PlcUserConstantComposition.Create(name, dataTypeName, value)` is the three-argument overload that makes it possible. A tag has `Create(name)` and `Create(name, dataTypeName, logicalAddress)` and **nothing between**, so a tag with a type and no address cannot be expressed.
+
+**`GenerateBlockOption` is `None` or `KeepOnError` and nothing else** — there is no `Override` on the source route, so what TIA does when the block already exists is still unmeasured. `ImportOptions` is `None | Override | SkipInactiveCultures | ActivateInactiveCultures`, so the SimaticML route does have one.
+
+**A comment is a `MultilingualText`, and `MultilingualTextItemComposition` has no `Create`.** The items that exist are the project's editing languages, so writing a comment means writing into those; a project with none keeps no comment, and that is not a failure.
+
+### There is no move
+
+Searched across all 2,269 types of `Siemens.Engineering.AddIn.dll`: no `Move`, no `Cut`, no `Reparent`, no `ChangeGroup`, no `Relocate` anywhere under `Siemens.Engineering.SW.*`. `PlcBlock` has `Export`, `ExportAsDocuments`, `Delete` and `ShowInEditor`, and that is the whole of it.
+
+**So moving an object between folders is an export, a delete and an import, in that order**, and the order is forced rather than chosen: an object's name is unique across a PLC's software, so the copy cannot be created in its new folder while the original is still in the old one. Between the delete and the import the object exists only as a file on disk — which is why *sync folders with core* keeps that file and names it whenever the import does not happen.
+
 ### Saying "busy", and letting the operator stop
 
 A check of a whole PLC runs on TIA's own thread, so TIA is unresponsive for as long as it takes. What is available to say so, read off both versions on 2026-09-15:

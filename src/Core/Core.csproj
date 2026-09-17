@@ -9,9 +9,13 @@
     <AssemblyName>PLC-Framework.Core</AssemblyName>
   </PropertyGroup>
 
-  <!-- References -->
+  <!-- References. All framework assemblies TIA Portal's own process already holds: Core is
+       loaded inside it, so nothing here may bring a package with it. Compression reads the
+       core's .xlsx enumerations, which Openness refuses to import. -->
   <ItemGroup>
     <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
   </ItemGroup>
 
 </Project>
