@@ -911,7 +911,7 @@ namespace Satellite.CoreUpdater.Tia
         {
             if (string.IsNullOrEmpty(name)) return parent ?? string.Empty;
 
-            return string.IsNullOrEmpty(parent) ? name : parent + "/" + name;
+            return string.IsNullOrEmpty(parent) ? name : parent + Places.Separator + name;
         }
 
         private static string Why(int running, TiaWanted wanted)

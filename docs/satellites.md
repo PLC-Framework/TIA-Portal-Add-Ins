@@ -253,6 +253,34 @@ Objects   All  None        Languages   All  None
 - **A filtered map records its filter and says so.** `project.json` carries `filter` beside the scope — one entry per kind, each naming the languages wanted inside it — and the window's heading reads *"Of what was ticked, not of the whole scope"*. Without that, a map covering only FBs says the project has no FCs, the silent hole this whole design exists to avoid. **A map written before the shape changed is refused rather than half-read**, in both directions: its filter names members this version cannot see, so it would come back looking like a map of the whole PLC. Unlike a coding-style report, which is somebody's record of a moment, this file is a snapshot of the project right now and is rebuilt by one click.
 - **The survey and the map walk the same code.** Two copies would drift, and the pair is worth nothing the moment the counts an operator ticked against and the map they then asked for cover different folders. **`Core` does the counting**, through a builder the adapter feeds one object at a time — how many of a kind there are is not a TIA question, and two adapters keeping their own tallies is exactly how they come to disagree.
 
+### Holding the project against the core
+
+*Compare with core* reads `repo\project.json` back off disk, brings the project's copy of the core up to date, and holds one against the other. **Metadata only** — a version, a status and a family, never a line of code.
+
+```
+6 of 18 objects come from the core, held against 264 core nodes.
+
+    1 up to date
+    1 outdated
+    1 at a version the core does not define
+    2 in a family the project keeps in more than one folder
+    1 whose TITLE and VERSION header disagree
+    12 not from the core
+
+    241 current core nodes the project does not have
+```
+
+- **The core is always copied into the project first**, and read out of the copy. A comparison against a repository that moves on describes a core nobody can point at afterwards; with a copy, both halves are on disk side by side for as long as the project keeps them. Configuration, repository, mirror and `core.json` are one call, `CoreRefresh` — the copy has to happen before the catalogue is read out of it, and a caller that got that backwards would compare against whatever the last run left behind.
+- **A project that names no core is a normal state**, not a failure, and the status line says which: "no core" is a fact about the project, "not compared" is something to go and fix.
+- **A finding is a list, not a verdict.** A block can be outdated *and* sitting where its family does not otherwise live, and one word would lose half of what has to be fixed.
+- **The `TITLE` decides; TIA's `VERSION` header is what a block falls back on.** The TITLE is the contract the core's own generator writes, and a PLC data type has no header at all in either TIA version. **The two disagreeing is its own finding** — such a block is neither up to date nor outdated, it says two things, and what it needs is an edit rather than an import. `1.1` and `1.1.0` are one version, not two: they arrive from a hand-typed TITLE and from a `System.Version` rendered back to a string.
+- **Nothing compares one version as greater than another.** Outdated means the core marks *that* version `deprecated`, and it carries the replacement the core names. A version the graph does not list is reported with the versions it *does* list beside it — and with nothing beside it when the core has never heard of the name, which is what a block claiming a `core/` family it is not entitled to looks like. `core.json` is the source of truth, so that is the whole answer.
+- **A family is compared within one tree.** `core/node` holds a function block *and* the data type it works on, and TIA files those under `Program blocks\…` and `PLC data types\…` — two folders by construction, for every family that spans both. The first version reported every one of them as split. **It never names which copy is in the wrong place**: the core's `family` is a path in the repository and a project folder is whatever the hierarchy calls it, with no mapping between them, so what it says is that the family is not in one place.
+- **What the project is missing is only answered when the map covers everything.** On a filtered map it is not listed and the window says why, because "the project has no UDTs" and "this map did not look for them" are different facts.
+- **Nothing is written.** `project.json` is the durable half; the comparison is recomputed each time, which also means the format guard on that file is what stands between an old map and a comparison quietly reading it as complete.
+
+Checked against the real 264-node core rather than a fixture: each finding on names and versions the repository actually holds — `_mc_positioning1Axis` at v1.1 outdated behind the v2.0 its `deprecatedBy` names, `_dtlToString` at a version the core does not define with v1.2 and v1.3 offered beside it, a name the core has never heard of with nothing beside it, a UDT with no header judged by its TITLE alone, and a block outdated and split at once. The two directions: 247 current nodes, four bases held, 243 absent — and a base held at an *old* version counted as outdated rather than missing. On a filtered map, absent silent and the rest still judged. Then the whole chain from a `config.json` naming the real repository: 264 nodes copied into `.plc-framework\repo\core\`, read back out of the copy, validating clean, a node resolving to its own source file — and `coreSource: null`, a folder that is not there, and `remote` each answered in their own words. And rendered end to end on the real window.
+
 > **Three projects for one window.** `Satellite.CoreUpdater` is a library with the window and a port; `…V20.exe` and `…V21.exe` are thin shells around it. Openness is `Siemens.Engineering` in V17–V20 and `Siemens.Engineering.Base` in V21 — different assemblies with different public key tokens — so one binary cannot serve both, the same reason the Add-In exists twice. The library references no Siemens assembly at all, which is checkable from its metadata rather than promised in prose.
 
 > **An Openness client has to locate the assemblies at run time**, and the registry only half helps. On a station with both installed, `HKLM\SOFTWARE\Siemens\Automation\Openness\20.0\PublicAPI\` publishes `Siemens.Engineering` with its path for every API V20 serves — while **`21.0\PublicAPI\21.0.0.0` publishes `EngineeringVersion` and nothing else.** So V20 resolves by name and V21 has to derive: what V20 publishes is the *layout*, `…\Portal V20\PublicAPI\V20\`, and the same installation root with the version rewritten is where V21's are. The root comes from the machine rather than from a hardcoded `C:\Program Files`.

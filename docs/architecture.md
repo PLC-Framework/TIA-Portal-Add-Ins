@@ -86,7 +86,9 @@ src/Core/
 │   ├── ProjectSurvey.cs      what a PLC holds, counted per kind and per language inside it
 │   ├── MapFilter.cs          which kinds to map, and which languages inside each
 │   ├── ProjectMap.cs         what the TIA project holds — repo\project.json
-│   └── ProjectMapFile.cs     that map, written indented and read back
+│   ├── ProjectMapFile.cs     that map, written indented and read back
+│   ├── CoreRefresh.cs        config → repository → the copy → core.json, in one call
+│   └── CoreComparison.cs     that core held against that map — metadata only, nothing written
 ├── Places.cs                 "*" for the general program, spelled once for every reader
 ├── Secrets/
 │   ├── DotEnv.cs             the per-user .env: read, and written back surgically

@@ -2,11 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 using Core;
+using Core.Config.Validation;
 using Core.Repo;
 
 using Satellite.CoreUpdater.Tia;
@@ -423,6 +426,165 @@ namespace Satellite.CoreUpdater
         }
 
         /// <summary>
+        /// Holds the project's map against the core it is built on.
+        ///
+        /// **Not on the worker's thread**, and that is worth saying: `TiaWorker` owns the one
+        /// thread Openness objects belong to, and none of this touches TIA at all — it reads a
+        /// configuration, copies a folder and parses two JSON files. Putting it there would
+        /// queue a file copy behind a walk, or a walk behind it, for no reason but habit.
+        /// </summary>
+        private void CompareClicked(object sender, RoutedEventArgs e)
+        {
+            string directory = _projectDirectory;
+
+            if (string.IsNullOrWhiteSpace(directory)) return;
+
+            Working(true);
+            StatusText.Text = "Reading the core…";
+
+            MapHeading.Visibility = Visibility.Collapsed;
+            MapProblems.Visibility = Visibility.Collapsed;
+            MapText.Text = "Copying the core into the project and reading it back.";
+
+            Dispatcher dispatcher = Dispatcher;
+
+            Task.Run(() => Compared(directory)).ContinueWith(done =>
+                dispatcher.BeginInvoke(new Action(() =>
+                {
+                    Working(false);
+
+                    if (done.Exception != null) Failed(done.Exception.GetBaseException());
+                    else Show(done.Result);
+                })));
+        }
+
+        /// <summary>
+        /// The whole comparison, off the UI thread: the map as it was written, the core as the
+        /// project now holds it, and the one held against the other.
+        ///
+        /// **The map is read back off disk rather than kept from the last walk.** It makes
+        /// *Compare* work on a window reopened tomorrow, and it is what exercises the round trip
+        /// through `repo\project.json` — including its format guard, which is the one thing that
+        /// stands between an old map and a comparison that reads it as covering everything.
+        /// </summary>
+        private static Comparison Compared(string directory)
+        {
+            string problem;
+            ProjectMap map = ProjectMapFile.Read(directory, out problem);
+
+            if (map == null)
+                return Comparison.Failed(problem ?? "This project has no map yet. Press Map project first.");
+
+            CoreRefreshResult core = CoreRefresh.Run(directory);
+
+            if (!core.Ready) return Comparison.Without(core);
+
+            return Comparison.Of(core, CoreComparison.Of(core.Catalog, map));
+        }
+
+        private void Show(Comparison done)
+        {
+            if (done == null)
+            {
+                MapText.Text = "Nothing came back from the comparison.";
+                StatusText.Text = "Not compared.";
+                return;
+            }
+
+            if (done.Result == null)
+            {
+                // A project that names no core is a fact about the project; a repository that is
+                // not on this machine is something to go and fix. The two read alike in one line,
+                // so the status line is what tells them apart.
+                MapText.Text = done.Problem;
+                StatusText.Text = done.NamesCore ? "Not compared." : "No core.";
+                return;
+            }
+
+            MapHeading.Visibility = Visibility.Visible;
+            MapHeading.Text = Summary(done);
+            MapText.Text = Counted(done.Result);
+
+            List<string> problems = new List<string>();
+
+            if (done.Core.Issues != null)
+                foreach (ValidationIssue issue in done.Core.Issues.Issues)
+                    problems.Add(issue.Path + ": " + issue.Message);
+
+            if (problems.Count > 0)
+            {
+                MapProblems.Visibility = Visibility.Visible;
+                MapProblems.Text = Listed(problems);
+            }
+
+            StatusText.Text = "Compared.";
+        }
+
+        private static string Summary(Comparison done)
+        {
+            int all = done.Result.Objects.Count;
+            int foreign = done.Result.Count(Finding.NotFromCore);
+
+            return string.Format(
+                CultureInfo.CurrentCulture,
+                "{0} of {1} objects come from the core, held against {2} core nodes.",
+                all - foreign, all, done.Core.Catalog.Nodes.Count);
+        }
+
+        /// <summary>
+        /// The findings, one line each — and **every count is named, zeroes included**. "0
+        /// outdated" is the answer somebody pressed the button for; a line missing from a list
+        /// says nothing at all.
+        /// </summary>
+        private static string Counted(CoreComparison result)
+        {
+            List<string> lines = new List<string>
+            {
+                "    " + result.Clean + " up to date",
+                "    " + result.Count(Finding.Outdated) + " outdated",
+                "    " + result.Count(Finding.UnknownVersion) + " at a version the core does not define",
+                "    " + result.Count(Finding.Misplaced) + " in a family the project keeps in more than one folder",
+                "    " + result.Count(Finding.Disagrees) + " whose TITLE and VERSION header disagree",
+                "    " + result.Count(Finding.NotFromCore) + " not from the core",
+                string.Empty,
+                result.AbsentKnown
+                    ? "    " + result.Absent.Count + " current core nodes the project does not have"
+                    : "    the map was filtered, so what the project is missing cannot be read from it"
+            };
+
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        /// <summary>One comparison, and why there is none when there is not.</summary>
+        private sealed class Comparison
+        {
+            private Comparison(CoreRefreshResult core, CoreComparison result, string problem, bool names)
+            {
+                Core = core;
+                Result = result;
+                Problem = problem;
+                NamesCore = names;
+            }
+
+            public CoreRefreshResult Core { get; }
+
+            public CoreComparison Result { get; }
+
+            public string Problem { get; }
+
+            public bool NamesCore { get; }
+
+            public static Comparison Of(CoreRefreshResult core, CoreComparison result) =>
+                new Comparison(core, result, null, true);
+
+            public static Comparison Without(CoreRefreshResult core) =>
+                new Comparison(core, null, core.Problem, core.NamesCore);
+
+            public static Comparison Failed(string problem) =>
+                new Comparison(null, null, problem, true);
+        }
+
+        /// <summary>
         /// What the map is asked for, or **everything when every box is ticked** - which is the
         /// absence of a decision rather than a list of the whole project, and is what keeps a
         /// map of the whole PLC from recording a filter that narrows nothing.
@@ -647,6 +809,10 @@ namespace Satellite.CoreUpdater
             PlcBox.IsEnabled = !busy;
             UnitBox.IsEnabled = !busy;
             FilterPanel.IsEnabled = !busy;
+
+            // Compare needs a project folder and nothing else - not a PLC, not a tick box. It
+            // reads the map that is already on disk.
+            CompareButton.IsEnabled = !busy && !string.IsNullOrWhiteSpace(_projectDirectory);
 
             // Never `IsEnabled = !busy` on its own: what is ticked decides it too, and coming
             // back from a run must not re-enable a button the tick boxes have disabled.
