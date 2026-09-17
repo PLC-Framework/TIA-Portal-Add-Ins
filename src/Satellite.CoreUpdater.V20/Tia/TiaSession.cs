@@ -13,6 +13,7 @@ using Siemens.Engineering.HW;
 using Siemens.Engineering.HW.Features;
 using Siemens.Engineering.SW;
 using Siemens.Engineering.SW.Blocks;
+using Siemens.Engineering.SW.ExternalSources;
 using Siemens.Engineering.SW.Tags;
 using Siemens.Engineering.SW.TechnologicalObjects;
 using Siemens.Engineering.SW.Types;
@@ -418,6 +419,300 @@ namespace Satellite.CoreUpdater.Tia
             catch (Exception)
             {
                 return null;
+            }
+        }
+
+        // ---- Writing a plan into the project ------------------------------------------------
+
+        /// <summary>
+        /// Where a source lands, decided by the extension the core gave it: <c>.scl</c> is a
+        /// block, <c>.udt</c> a PLC data type, <c>.xlsx</c> a tag table of constants.
+        ///
+        /// **The extension is the core's own answer**, not a guess about content: the repository
+        /// writes one kind per extension, and `core.json` carries the file.
+        /// </summary>
+        private enum Destination { Block, Type, TagTable, Unknown }
+
+        public ImportReport Import(string plc, string unit, DownloadPlan plan, Action<string> progress)
+        {
+            ImportReport report = new ImportReport();
+
+            if (plan == null || plan.Nodes.Count == 0) return report;
+
+            PlcSoftware software = Find(plc);
+
+            if (software == null)
+            {
+                report.Add("This project holds no PLC called '" + plc + "'.");
+                return report;
+            }
+
+            string wanted = Places.UnitOrNull(unit);
+            PlcUnitBase into = null;
+
+            if (wanted != null)
+            {
+                into = UnitsOf(software)
+                    .FirstOrDefault(one => string.Equals(one.Name, wanted, StringComparison.OrdinalIgnoreCase));
+
+                if (into == null)
+                {
+                    report.Add("'" + plc + "' has no software unit called '" + wanted + "'.");
+                    return report;
+                }
+            }
+
+            string scratch = Workspace(report);
+
+            if (scratch == null) return report;
+
+            int done = 0;
+
+            try
+            {
+                foreach (PlannedNode one in plan.Nodes)
+                {
+                    done++;
+
+                    progress?.Invoke("Importing " + done + " of " + plan.Nodes.Count + " - " + one.Node.Base);
+
+                    // A dependency already at the version the core stands behind. Reported rather
+                    // than left out, so the counts can be read against what was asked for.
+                    if (one.Action == DownloadAction.Skip)
+                    {
+                        report.Add(ImportedNode.Left(one));
+                        continue;
+                    }
+
+                    report.Add(One(software, into, one, scratch));
+                }
+            }
+            finally
+            {
+                Clear(scratch);
+            }
+
+            return report;
+        }
+
+        private ImportedNode One(PlcSoftware software, PlcUnitBase into, PlannedNode planned, string scratch)
+        {
+            if (string.IsNullOrWhiteSpace(planned.Source) || !File.Exists(planned.Source))
+                return ImportedNode.Refused(planned, "Its source is not in the copied core: " + planned.Source);
+
+            try
+            {
+                switch (Where(planned.Source))
+                {
+                    case Destination.TagTable:
+                        return TagTable(software, into, planned);
+
+                    case Destination.Block:
+                    case Destination.Type:
+                        return FromSource(software, into, planned, scratch);
+                }
+
+                return ImportedNode.Refused(
+                    planned, "Nothing here knows what to do with a " + Path.GetExtension(planned.Source) + " file.");
+            }
+            catch (Exception exception)
+            {
+                // Know-how protected, in use, inconsistent, or a source TIA will not take. One
+                // object that would not go in, not the end of a download of thirty.
+                return ImportedNode.Refused(planned, exception.Message);
+            }
+        }
+
+        /// <summary>
+        /// A tag table of constants, which the core keeps as <c>.xlsx</c>.
+        ///
+        /// **Handed to TIA as it is.** `PlcTagTableComposition.Import` takes a `FileInfo` and no
+        /// format, and the maintainer's workbooks carry the destination path in a column of their
+        /// own - so where the table lands is the file's answer rather than this one's.
+        ///
+        /// **Whether Openness accepts a workbook here is not something this machine can check**,
+        /// and it is written down rather than assumed: if TIA refuses, the refusal arrives in its
+        /// own words against the object's name, which is the shape every other unverifiable claim
+        /// in this project has been given until the VM answered it.
+        /// </summary>
+        private static ImportedNode TagTable(PlcSoftware software, PlcUnitBase into, PlannedNode planned)
+        {
+            PlcTagTableGroup root = into == null ? (PlcTagTableGroup)software.TagTableGroup : into.TagTableGroup;
+
+            root.TagTables.Import(new FileInfo(planned.Source), ImportOptions.Override);
+
+            return ImportedNode.Went(planned);
+        }
+
+        /// <summary>
+        /// A block or a PLC data type, through the external source folder - the only way in for
+        /// an <c>.scl</c> or a <c>.udt</c>, and the mirror of how the export writes them out.
+        ///
+        /// **The external source is deleted again.** It is a step, not something the project
+        /// should keep: one per imported block would fill a folder nobody asked to fill, and the
+        /// next download would meet its own leftovers.
+        ///
+        /// **`KeepOnError`**, because a source that generates three blocks and fails on the
+        /// fourth has still produced three the project wants; the alternative throws away work
+        /// that is already correct.
+        /// </summary>
+        private static ImportedNode FromSource(
+            PlcSoftware software, PlcUnitBase into, PlannedNode planned, string scratch)
+        {
+            // Copied under the project's own repo\tmp\ first: CreateFromFile reads from where it
+            // is pointed, and pointing it at the copied core would leave TIA holding a file the
+            // next mirror wants to replace.
+            string path = Path.Combine(scratch, Path.GetFileName(planned.Source));
+
+            File.Copy(planned.Source, path, true);
+
+            PlcExternalSourceSystemGroup sources =
+                into == null ? software.ExternalSourceGroup : into.ExternalSourceGroup;
+
+            PlcExternalSource source = null;
+
+            try
+            {
+                source = sources.ExternalSources.CreateFromFile(Path.GetFileName(path), path);
+
+                if (Where(planned.Source) == Destination.Type)
+                {
+                    PlcTypeUserGroup group = Types(software, into, planned.Folder);
+
+                    if (group == null) source.GenerateBlocksFromSource(GenerateBlockOption.KeepOnError);
+                    else source.GenerateBlocksFromSource(group, GenerateBlockOption.KeepOnError);
+                }
+                else
+                {
+                    PlcBlockUserGroup group = Blocks(software, into, planned.Folder);
+
+                    if (group == null) source.GenerateBlocksFromSource(GenerateBlockOption.KeepOnError);
+                    else source.GenerateBlocksFromSource(group, GenerateBlockOption.KeepOnError);
+                }
+
+                return ImportedNode.Went(planned);
+            }
+            finally
+            {
+                Remove(source);
+                Drop(path);
+            }
+        }
+
+        private static void Remove(PlcExternalSource source)
+        {
+            try
+            {
+                source?.Delete();
+            }
+            catch (Exception)
+            {
+                // It is a step rather than something to keep; one that will not go is untidy and
+                // nothing more, and saying so would bury the object's own outcome.
+            }
+        }
+
+        /// <summary>
+        /// The folder <c>core/adt/queue</c> under the block tree, made on the way down.
+        ///
+        /// **Found before created**, so a second download into the same family does not make a
+        /// second folder beside the first.
+        /// </summary>
+        private static PlcBlockUserGroup Blocks(PlcSoftware software, PlcUnitBase into, string folder)
+        {
+            PlcBlockGroup root = into == null ? (PlcBlockGroup)software.BlockGroup : into.BlockGroup;
+            PlcBlockUserGroup group = null;
+
+            foreach (string name in Segments(folder))
+            {
+                PlcBlockUserGroupComposition groups = group == null ? root.Groups : group.Groups;
+
+                group = groups.Find(name) ?? groups.Create(name);
+            }
+
+            return group;
+        }
+
+        private static PlcTypeUserGroup Types(PlcSoftware software, PlcUnitBase into, string folder)
+        {
+            PlcTypeGroup root = into == null ? (PlcTypeGroup)software.TypeGroup : into.TypeGroup;
+            PlcTypeUserGroup group = null;
+
+            foreach (string name in Segments(folder))
+            {
+                PlcTypeUserGroupComposition groups = group == null ? root.Groups : group.Groups;
+
+                group = groups.Find(name) ?? groups.Create(name);
+            }
+
+            return group;
+        }
+
+        private static IEnumerable<string> Segments(string folder) =>
+            string.IsNullOrEmpty(folder)
+                ? new string[0]
+                : folder.Split(new[] { Places.Separator }, StringSplitOptions.RemoveEmptyEntries);
+
+        private static Destination Where(string source)
+        {
+            string extension = (Path.GetExtension(source) ?? string.Empty).ToLowerInvariant();
+
+            if (extension == ".udt") return Destination.Type;
+            if (extension == ".xlsx") return Destination.TagTable;
+            if (extension == ".scl" || extension == ".awl" || extension == ".db") return Destination.Block;
+
+            return Destination.Unknown;
+        }
+
+        /// <summary>
+        /// Where a source is put before TIA reads it: the project's own <c>repo\tmp\</c>, which
+        /// exists for exactly this. Inside the project rather than in %TEMP% for the reason the
+        /// coding-style check already records - what is in these files is somebody's source code.
+        /// </summary>
+        private string Workspace(ImportReport report)
+        {
+            string folder = RepoPaths.TmpFor(_project?.Path?.DirectoryName);
+
+            if (folder == null)
+            {
+                report.Add("This project has no folder, so there is nowhere to put a source.");
+                return null;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(folder);
+                return folder;
+            }
+            catch (Exception exception)
+            {
+                report.Add("The scratch folder could not be made: " + exception.Message);
+                return null;
+            }
+        }
+
+        private static void Drop(string path)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch (Exception)
+            {
+                // The folder goes at the end of the run, and a file TIA still holds is not a
+                // reason to report a successful import as a failure.
+            }
+        }
+
+        private static void Clear(string folder)
+        {
+            try
+            {
+                Directory.Delete(folder, true);
+            }
+            catch (Exception)
+            {
+                // Empty by now; the next run reuses it.
             }
         }
 

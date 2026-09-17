@@ -92,5 +92,19 @@ namespace Satellite.CoreUpdater.Tia
         /// Called on the worker's thread, so whatever is passed must marshal for itself.
         /// </param>
         ProjectMap Map(string plc, string unit, MapFilter filter, Action<string> progress);
+
+        /// <summary>
+        /// Writes a plan into the project: each source into the folder its family names.
+        ///
+        /// **The first thing in this framework that changes somebody's project**, which is why
+        /// the plan is made and shown first. By the time this is called the operator has seen
+        /// what it would touch and said yes.
+        ///
+        /// **Nothing is compiled and nothing is rolled back.** TIA refuses an inconsistent block
+        /// and compiling would change the project behind an operator who asked for an import;
+        /// Openness has no transaction, so a refusal half way through leaves what already went
+        /// in, named in the report rather than deleted.
+        /// </summary>
+        ImportReport Import(string plc, string unit, DownloadPlan plan, Action<string> progress);
     }
 }

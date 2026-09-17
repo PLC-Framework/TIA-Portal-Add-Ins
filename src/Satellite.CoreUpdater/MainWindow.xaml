@@ -69,9 +69,18 @@
                     <!-- Compare reads the map back off disk rather than using whatever is in
                          memory, so it works on a window reopened tomorrow and so the round
                          trip through repo\project.json is the one that gets exercised. -->
-                    <Button x:Name="CompareButton" Grid.Row="0" Grid.Column="2" Content="Compare with core"
-                            Style="{StaticResource Quiet}" Margin="10,0,0,0" Padding="16,4"
-                            IsEnabled="False" Click="CompareClicked" />
+                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0">
+                        <Button x:Name="CompareButton" Content="Compare with core"
+                                Style="{StaticResource Quiet}" Padding="16,4"
+                                IsEnabled="False" Click="CompareClicked" />
+
+                        <!-- The only button in this framework that changes somebody's project.
+                             It stays off until something is ticked, and what it would touch is
+                             worked out and shown before a single source is written. -->
+                        <Button x:Name="DownloadButton" Content="Download" Margin="8,0,0,0"
+                                Style="{StaticResource Primary}" Padding="16,4"
+                                IsEnabled="False" Click="DownloadClicked" />
+                    </StackPanel>
 
                     <Button x:Name="MapButton" Grid.Row="1" Grid.Column="2" Content="Map project"
                             Style="{StaticResource Primary}" Margin="10,10,0,0" Padding="16,4"

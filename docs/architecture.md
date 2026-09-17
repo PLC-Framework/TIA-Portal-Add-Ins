@@ -88,7 +88,9 @@ src/Core/
 │   ├── ProjectMap.cs         what the TIA project holds — repo\project.json
 │   ├── ProjectMapFile.cs     that map, written indented and read back
 │   ├── CoreRefresh.cs        config → repository → the copy → core.json, in one call
-│   └── CoreComparison.cs     that core held against that map — metadata only, nothing written
+│   ├── CoreComparison.cs     that core held against that map — metadata only, nothing written
+│   ├── DownloadPlan.cs       what a download would touch, and who else depends on it
+│   └── ImportReport.cs       what it actually did, object by object
 ├── Places.cs                 "*" for the general program, spelled once for every reader
 ├── Secrets/
 │   ├── DotEnv.cs             the per-user .env: read, and written back surgically

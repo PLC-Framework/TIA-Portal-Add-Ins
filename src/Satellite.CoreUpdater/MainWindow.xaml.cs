@@ -37,8 +37,12 @@ namespace Satellite.CoreUpdater
         private readonly List<KindRow> _rows = new List<KindRow>();
         private readonly List<CheckBox> _chips = new List<CheckBox>();
         private readonly List<CheckBox> _repoChips = new List<CheckBox>();
+        private readonly List<Pick> _picks = new List<Pick>();
 
         private CoreComparison _compared;
+
+        /// <summary>The comparison on screen, kept whole: a download needs its catalogue too.</summary>
+        private Comparison _shown;
 
         /// <summary>The unit the compared map covers, which names the project tree's root.</summary>
         private string _scope;
@@ -518,6 +522,7 @@ namespace Satellite.CoreUpdater
 
             // The scope the *map* covers, which is not always the one the combo boxes show: a
             // comparison is of the map on disk, and that may be yesterday's unit.
+            _shown = done;
             _scope = done.Map?.Unit;
 
             ProjectHeading.Text = Summary(done);
@@ -812,6 +817,8 @@ namespace Satellite.CoreUpdater
         private void Repository(CoreComparison result)
         {
             RepositoryTree.Items.Clear();
+            _picks.Clear();
+            DownloadButton.IsEnabled = false;
 
             if (result == null) return;
 
@@ -850,15 +857,60 @@ namespace Satellite.CoreUpdater
             return false;
         }
 
+        /// <summary>
+        /// One core node, with the tick box that decides whether a download takes it.
+        ///
+        /// **The box is on the node, not on the folder.** A folder tick would be a second thing
+        /// to keep in step with what is under it after every filter change; what a folder is for
+        /// here is reading, and the dependency closure is what saves the clicking — ticking one
+        /// block brings everything it needs with it.
+        /// </summary>
         private TreeViewItem Leaf(CoreNodeState one)
         {
             StackPanel header = new StackPanel { Orientation = Orientation.Horizontal };
+
+            CheckBox box = new CheckBox { Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+
+            box.Checked += PickChanged;
+            box.Unchecked += PickChanged;
+
+            header.Children.Add(box);
+            _picks.Add(new Pick(box, one));
 
             Say(header, one.Node.Base, "Ink");
             Say(header, "  v" + one.Node.Version, "Ink");
             Say(header, "   " + State(one), StateInk(one.State));
 
             return new TreeViewItem { Header = header, Tag = one };
+        }
+
+        private void PickChanged(object sender, RoutedEventArgs e)
+        {
+            DownloadButton.IsEnabled = !_busy && Picked().Count > 0;
+        }
+
+        private List<string> Picked()
+        {
+            List<string> ids = new List<string>();
+
+            foreach (Pick one in _picks)
+                if (one.Box.IsChecked == true && one.Node.Node?.Id != null) ids.Add(one.Node.Node.Id);
+
+            return ids;
+        }
+
+        /// <summary>One node in the repository panel and the box that chooses it.</summary>
+        private sealed class Pick
+        {
+            public Pick(CheckBox box, CoreNodeState node)
+            {
+                Box = box;
+                Node = node;
+            }
+
+            public CheckBox Box { get; }
+
+            public CoreNodeState Node { get; }
         }
 
         // ---- Both trees -------------------------------------------------------------------------
@@ -937,6 +989,143 @@ namespace Satellite.CoreUpdater
             if (state == NodeState.AtAnotherVersion) return "InkWarn";
 
             return "InkMuted";
+        }
+
+        // ---- Downloading ------------------------------------------------------------------------
+
+        /// <summary>
+        /// Works out what the ticked blocks would do to the project, asks when it would reach
+        /// past them, and only then writes.
+        ///
+        /// **The plan is made before anything is opened.** It is pure, so what the operator is
+        /// shown and what the import then does come from the same answer rather than from two
+        /// walks that could disagree.
+        /// </summary>
+        private void DownloadClicked(object sender, RoutedEventArgs e)
+        {
+            if (_shown?.Core?.Catalog == null || _compared == null || _worker == null) return;
+
+            List<string> chosen = Picked();
+
+            if (chosen.Count == 0) return;
+
+            DownloadPlan plan = DownloadPlan.Of(_shown.Core.Catalog, _compared, chosen);
+
+            if (plan.Nodes.Count == 0)
+            {
+                Told("Nothing to download: the core has none of what was ticked.", "Nothing to do.");
+                return;
+            }
+
+            if (plan.NeedsConfirming && !Confirmed(plan))
+            {
+                StatusText.Text = "Cancelled.";
+                return;
+            }
+
+            string plc = _shown.Map?.Plc;
+            string unit = _shown.Map?.Unit;
+
+            Working(true);
+            DownloadButton.IsEnabled = false;
+            StatusText.Text = "Importing…";
+
+            ComparePanel.Visibility = Visibility.Collapsed;
+            ResultPanel.Visibility = Visibility.Visible;
+
+            MapHeading.Visibility = Visibility.Collapsed;
+            MapProblems.Visibility = Visibility.Collapsed;
+            MapText.Text = "Writing " + plan.Nodes.Count + " objects into the project.";
+
+            _worker.Post(
+                session => session.Import(plc, unit, plan, Say),
+                report => { Working(false); Wrote(report, plan); },
+                exception =>
+                {
+                    Working(false);
+                    Failed(exception);
+                });
+        }
+
+        /// <summary>
+        /// Asks before changing something other blocks depend on.
+        ///
+        /// **The only prompt in this window, and it earns it**: replacing a dependency the
+        /// project already holds at another version changes the behaviour of blocks nobody
+        /// selected, which is the one way a download can break a project without anything
+        /// looking wrong afterwards.
+        ///
+        /// **It says what it cannot see.** The project's dependency lists come from each block's
+        /// TITLE, so blocks of the plant declare nothing and are not counted — an operator
+        /// reading a short list has to know it is a floor rather than a total.
+        /// </summary>
+        private static bool Confirmed(DownloadPlan plan)
+        {
+            List<string> lines = new List<string>
+            {
+                "This download would replace blocks that other blocks depend on:",
+                string.Empty
+            };
+
+            foreach (PlannedNode one in plan.Impact)
+            {
+                lines.Add("    " + one.Node.Base + ": v" + one.HeldVersion + " becomes v" + one.Node.Version);
+                lines.Add("        used by " + string.Join(", ", one.Users));
+            }
+
+            lines.Add(string.Empty);
+            lines.Add(
+                "Only blocks that carry the core's metadata declare what they depend on, so the " +
+                "plant's own blocks are not counted here. There may be more.");
+
+            return MessageBox.Show(
+                string.Join(Environment.NewLine, lines),
+                Product.Title + " - Download",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) == MessageBoxResult.OK;
+        }
+
+        private void Wrote(ImportReport report, DownloadPlan plan)
+        {
+            if (report == null)
+            {
+                Told("Nothing came back from the import.", "Not imported.");
+                return;
+            }
+
+            MapHeading.Visibility = Visibility.Visible;
+            MapHeading.Text = string.Format(
+                CultureInfo.CurrentCulture,
+                "{0} of {1} objects went in.", report.Imported, plan.Nodes.Count - report.Skipped);
+
+            List<string> lines = new List<string>
+            {
+                "    " + report.Imported + " imported",
+                "    " + report.Skipped + " already at the core's version, left alone",
+                "    " + report.Failed + " refused",
+                string.Empty,
+                "The project has changed. Map it again to compare against the core."
+            };
+
+            MapText.Text = string.Join(Environment.NewLine, lines);
+
+            List<string> problems = new List<string>(report.Problems);
+
+            foreach (ImportedNode one in report.Results)
+                if (!one.Done) problems.Add(one.Name + ": " + one.Problem);
+
+            if (problems.Count > 0)
+            {
+                MapProblems.Visibility = Visibility.Visible;
+                MapProblems.Text = Listed(problems);
+            }
+
+            // The comparison on screen described the project as it was a moment ago, and it no
+            // longer does. Saying so beats leaving two panels that look current.
+            _shown = null;
+            _compared = null;
+
+            StatusText.Text = report.Failed > 0 ? "Imported, with refusals." : "Imported.";
         }
 
         /// <summary>One comparison, and why there is none when there is not.</summary>
@@ -1201,6 +1390,7 @@ namespace Satellite.CoreUpdater
             // Compare needs a project folder and nothing else - not a PLC, not a tick box. It
             // reads the map that is already on disk.
             CompareButton.IsEnabled = !busy && !string.IsNullOrWhiteSpace(_projectDirectory);
+            DownloadButton.IsEnabled = !busy && Picked().Count > 0;
 
             // Never `IsEnabled = !busy` on its own: what is ticked decides it too, and coming
             // back from a run must not re-enable a button the tick boxes have disabled.
