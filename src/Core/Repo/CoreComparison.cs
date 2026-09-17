@@ -29,17 +29,14 @@ namespace Core.Repo
     {
         private static readonly ComparedObject[] NoObjects = new ComparedObject[0];
         private static readonly CoreNodeState[] NoStates = new CoreNodeState[0];
-        private static readonly SplitFamily[] NoFamilies = new SplitFamily[0];
 
         private CoreComparison(
             IReadOnlyList<ComparedObject> objects,
             IReadOnlyList<CoreNodeState> repository,
-            IReadOnlyList<SplitFamily> split,
             bool absentKnown)
         {
             Objects = objects;
             Repository = repository;
-            Split = split;
             AbsentKnown = absentKnown;
 
             List<Node> absent = new List<Node>();
@@ -78,11 +75,6 @@ namespace Core.Repo
         public IReadOnlyList<Node> Absent { get; }
 
         /// <summary>
-        /// Families the project keeps in more than one folder - see <see cref="Finding.Misplaced"/>.
-        /// </summary>
-        public IReadOnlyList<SplitFamily> Split { get; }
-
-        /// <summary>
         /// Whether <see cref="Absent"/> means anything.
         ///
         /// **False when the map was filtered, and then the list is empty rather than wrong.**
@@ -98,16 +90,16 @@ namespace Core.Repo
             List<ComparedObject> objects = new List<ComparedObject>();
 
             if (core == null || map == null || map.Objects == null)
-                return new CoreComparison(NoObjects, NoStates, NoFamilies, false);
+                return new CoreComparison(NoObjects, NoStates, false);
 
             foreach (ProjectObject found in map.Objects)
                 if (found != null) objects.Add(Compare(core, found));
 
-            IReadOnlyList<SplitFamily> split = MarkSplits(objects);
+            MarkMisplaced(objects);
 
             bool narrowed = map.Filter != null && map.Filter.Narrows;
 
-            return new CoreComparison(objects, Offered(core, objects, narrowed), split, !narrowed);
+            return new CoreComparison(objects, Offered(core, objects, narrowed), !narrowed);
         }
 
         /// <summary>How many entries carry one finding.</summary>
@@ -214,99 +206,37 @@ namespace Core.Repo
         /// folder's first segment, which is TIA's own word for the tree and is only ever compared
         /// with itself.
         /// </summary>
-        private static IReadOnlyList<SplitFamily> MarkSplits(IReadOnlyList<ComparedObject> objects)
+        private static void MarkMisplaced(IReadOnlyList<ComparedObject> objects)
         {
-            Dictionary<string, Group> groups = new Dictionary<string, Group>(StringComparer.OrdinalIgnoreCase);
-
             foreach (ComparedObject one in objects)
             {
-                string family = Family(one);
+                if (one.Found == null || !Some(one.Expected)) continue;
 
-                if (family == null) continue;
-
-                string folder = one.Found.Folder ?? string.Empty;
-                string key = Key(family, Tree(folder));
-
-                Group group;
-
-                if (!groups.TryGetValue(key, out group))
-                {
-                    group = new Group(family, Tree(folder));
-                    groups.Add(key, group);
-                }
-
-                if (!Holds(group.Folders, folder)) group.Folders.Add(folder);
+                if (!SamePath(Inside(one.Found.Folder), one.Expected)) one.Add(Finding.Misplaced);
             }
-
-            List<SplitFamily> split = new List<SplitFamily>();
-
-            foreach (KeyValuePair<string, Group> one in groups)
-                if (one.Value.Folders.Count > 1)
-                    split.Add(new SplitFamily(one.Value.Family, one.Value.Tree, one.Value.Folders));
-
-            if (split.Count == 0) return NoFamilies;
-
-            foreach (ComparedObject one in objects)
-            {
-                string family = Family(one);
-
-                if (family == null) continue;
-
-                Group group;
-
-                if (groups.TryGetValue(Key(family, Tree(one.Found.Folder ?? string.Empty)), out group) &&
-                    group.Folders.Count > 1)
-                    one.Add(Finding.Misplaced);
-            }
-
-            split.Sort((left, right) =>
-            {
-                int byFamily = string.Compare(left.Family, right.Family, StringComparison.Ordinal);
-
-                return byFamily != 0 ? byFamily : string.Compare(left.Tree, right.Tree, StringComparison.Ordinal);
-            });
-
-            return split;
-        }
-
-        private static string Family(ComparedObject one)
-        {
-            string family = one.Found == null ? null : one.Found.Family;
-
-            return Some(family) ? family.Trim() : null;
         }
 
         /// <summary>
-        /// The folder's first segment - <c>Program blocks</c>, <c>PLC data types</c> - which is
-        /// TIA's own name for the tree an object lives in. **Never held against a literal**: it
-        /// follows the interface language, and the only thing done with it is comparing it to
-        /// another object's.
+        /// A project folder with its TIA tree taken off: <c>Program blocks/core/adt/queue</c>
+        /// becomes <c>core/adt/queue</c>, which is the form a family is written in.
+        ///
+        /// **The tree is stripped, never compared.** `Program blocks` follows the interface
+        /// language, so holding it against a literal would make this wrong in German; only what
+        /// comes after it is held against a family the core wrote.
         /// </summary>
-        private static string Tree(string folder)
+        private static string Inside(string folder)
         {
             if (string.IsNullOrEmpty(folder)) return string.Empty;
 
             int slash = folder.IndexOf(Places.Separator, StringComparison.Ordinal);
 
-            return slash < 0 ? folder : folder.Substring(0, slash);
+            return slash < 0 ? string.Empty : folder.Substring(slash + 1);
         }
 
-        private static string Key(string family, string tree) => family + " " + tree;
-
-        private sealed class Group
-        {
-            public Group(string family, string tree)
-            {
-                Family = family;
-                Tree = tree;
-            }
-
-            public string Family { get; }
-
-            public string Tree { get; }
-
-            public List<string> Folders { get; } = new List<string>();
-        }
+        private static bool SamePath(string left, string right) =>
+            string.Equals(
+                (left ?? string.Empty).Trim('/'), (right ?? string.Empty).Trim('/'),
+                StringComparison.OrdinalIgnoreCase);
 
         // ---- What the project has not got ---------------------------------------------------
 
@@ -445,14 +375,6 @@ namespace Core.Repo
                 version.Build < 0 ? 0 : version.Build,
                 version.Revision < 0 ? 0 : version.Revision);
 
-        private static bool Holds(List<string> values, string value)
-        {
-            foreach (string one in values)
-                if (string.Equals(one, value, StringComparison.OrdinalIgnoreCase)) return true;
-
-            return false;
-        }
-
         private static string Trimmed(string value) => Some(value) ? value.Trim() : null;
 
         private static bool Some(string value) => !string.IsNullOrWhiteSpace(value);
@@ -484,9 +406,12 @@ namespace Core.Repo
         UnknownVersion,
 
         /// <summary>
-        /// This object's family is kept in more than one folder in the project. See
-        /// <see cref="CoreComparison.Split"/> for which folders, and why this does not name one
-        /// of them as the wrong one.
+        /// It is not in the folder its family names. <see cref="ComparedObject.Expected"/> says
+        /// where it should be — <c>core/adt/queue</c>, under whichever TIA tree it belongs to.
+        ///
+        /// **This became answerable when the destination of a download was settled.** Until
+        /// then the core's families and the project's folders had no correspondence, and the
+        /// most that could be said was that a family sat in more than one place.
         /// </summary>
         Misplaced,
 
@@ -553,6 +478,36 @@ namespace Core.Repo
 
         public string Name => Found?.Name;
 
+        /// <summary>
+        /// The folder its family names — <c>core/adt/queue</c> — which is where a download puts
+        /// it, under whichever TIA tree it belongs to. Null for an object claiming no family,
+        /// which is what a block of the plant looks like.
+        ///
+        /// **Read off the object, not off the matched node.** It therefore answers even for a
+        /// version the core does not define, which is exactly a block somebody edited and left
+        /// behind — one of the cases worth catching. The native `FAMILY` header stands in where
+        /// there is no TITLE, which in V17–V20 is every block whose export refused.
+        ///
+        /// **Only for an object that comes from the core**, and a header only when it is written
+        /// as a family. The first version read `FAMILY` off anything, so a block of the plant
+        /// whose header said `cyanezf` was reported as misplaced for not being in a folder called
+        /// `cyanezf` — a finding against every block somebody wrote. Found by a test.
+        /// </summary>
+        public string Expected
+        {
+            get
+            {
+                if (Found == null || !Found.FromCore) return null;
+
+                if (!string.IsNullOrWhiteSpace(Found.Family)) return Found.Family.Trim();
+
+                return Found.HeaderFamily != null &&
+                       Found.HeaderFamily.StartsWith("core/", StringComparison.OrdinalIgnoreCase)
+                    ? Found.HeaderFamily.Trim()
+                    : null;
+            }
+        }
+
         public bool Is(Finding finding) => _findings.Contains(finding);
 
         /// <summary>Whether the core has nothing to say against this one.</summary>
@@ -618,31 +573,5 @@ namespace Core.Repo
             Found == null ? null : (string.IsNullOrWhiteSpace(Found.Version) ? Found.HeaderVersion : Found.Version);
 
         public override string ToString() => Node.Base + " v" + Node.Version;
-    }
-
-    /// <summary>One family the project keeps in more than one folder of the same tree.</summary>
-    public sealed class SplitFamily
-    {
-        internal SplitFamily(string family, string tree, IReadOnlyList<string> folders)
-        {
-            Family = family;
-            Tree = tree;
-            Folders = folders;
-        }
-
-        /// <summary>As the TITLE writes it: <c>core/adt/node</c>.</summary>
-        public string Family { get; }
-
-        /// <summary>
-        /// The tree these folders are in, as TIA names it - <c>Program blocks</c>. A family
-        /// holding a block and the data type it works on is in two trees on purpose, so the
-        /// split is only ever reported within one.
-        /// </summary>
-        public string Tree { get; }
-
-        /// <summary>The project folders it is spread over, in the order they were met.</summary>
-        public IReadOnlyList<string> Folders { get; }
-
-        public override string ToString() => Family + " in " + Folders.Count + " folders of " + Tree;
     }
 }

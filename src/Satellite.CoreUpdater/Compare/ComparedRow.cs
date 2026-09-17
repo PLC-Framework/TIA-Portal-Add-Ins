@@ -90,7 +90,7 @@ namespace Satellite.CoreUpdater.Compare
                         : "the core has " + Versions(one);
 
                 case Finding.Misplaced:
-                    return "its family is in more than one folder";
+                    return "belongs in " + one.Expected;
 
                 case Finding.Disagrees:
                     return "TITLE says v" + one.Found.Version + ", the header says v" + one.Found.HeaderVersion;
