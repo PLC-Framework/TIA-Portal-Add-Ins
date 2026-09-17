@@ -54,6 +54,15 @@ namespace Satellite.CoreUpdater.Compare
             new ComparedRow(source, Words(source), ink);
 
         /// <summary>
+        /// What a line says about one object: its findings, or **"up to date" when it has none**.
+        ///
+        /// Every line says something, which is what makes the two panels read alike — the
+        /// repository side always has a state to give, and a core block with nothing against it
+        /// would otherwise be the one line on either side that trailed off into nothing.
+        /// </summary>
+        public static string Message(ComparedObject one) => one.Clean ? "up to date" : Words(one);
+
+        /// <summary>
         /// The findings of one object, spelled out. Empty for a row with nothing against it -
         /// **not "ok"**, which would be a word competing with the five that mean something.
         /// </summary>

@@ -154,31 +154,21 @@
                         <WrapPanel x:Name="ChipsPanel" Margin="0,4,0,0" />
                     </StackPanel>
 
-                    <TextBlock x:Name="RepositoryHeading" Grid.Row="0" Grid.Column="2"
-                               Style="{StaticResource FieldLabel}" TextWrapping="Wrap"
-                               Margin="12,0,0,0" VerticalAlignment="Top" />
+                    <StackPanel Grid.Row="0" Grid.Column="2" Margin="12,0,0,0">
+                        <TextBlock x:Name="RepositoryHeading" Style="{StaticResource FieldLabel}"
+                                   TextWrapping="Wrap" />
 
-                    <ListView x:Name="ProjectList" Grid.Row="1" Grid.Column="0" Margin="0,8,12,0">
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
-                                <Setter Property="Foreground" Value="{Binding Ink}" />
+                        <!-- The same idea as the left, by state rather than by finding: with
+                             both trees open this is how "show me what is missing" is asked, and
+                             it is the first thing importing will want. -->
+                        <WrapPanel x:Name="RepoChipsPanel" Margin="0,4,0,0" />
+                    </StackPanel>
 
-                                <!-- Says is the column the width runs out on, so the row hands
-                                     its own over. Null on a clean row rather than an empty
-                                     string: an empty tooltip is a small blank box. -->
-                                <Setter Property="ToolTip" Value="{Binding SaysTip}" />
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Name"    Width="150" DisplayMemberBinding="{Binding Name}" />
-                                <GridViewColumn Header="Kind"    Width="70"  DisplayMemberBinding="{Binding Kind}" />
-                                <GridViewColumn Header="Version" Width="52"  DisplayMemberBinding="{Binding Version}" />
-                                <GridViewColumn Header="Folder"  Width="160" DisplayMemberBinding="{Binding Folder}" />
-                                <GridViewColumn Header="Says"    Width="165" DisplayMemberBinding="{Binding Says}" />
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
+                    <!-- A tree on both sides, so the two panels read alike. The project's comes
+                         out of the map's own folder paths, which already start with TIA's name
+                         for the tree - `Program blocks`, `PLC data types` - under one root for
+                         the scope the map covers. -->
+                    <TreeView x:Name="ProjectTree" Grid.Row="1" Grid.Column="0" Margin="0,8,12,0" />
 
                     <GridSplitter Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Width="3"
                                   HorizontalAlignment="Center" VerticalAlignment="Stretch"

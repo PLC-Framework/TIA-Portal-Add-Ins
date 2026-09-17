@@ -36,8 +36,12 @@ namespace Satellite.CoreUpdater
 
         private readonly List<KindRow> _rows = new List<KindRow>();
         private readonly List<CheckBox> _chips = new List<CheckBox>();
+        private readonly List<CheckBox> _repoChips = new List<CheckBox>();
 
         private CoreComparison _compared;
+
+        /// <summary>The unit the compared map covers, which names the project tree's root.</summary>
+        private string _scope;
 
         private TiaWorker _worker;
         private string _projectDirectory;
@@ -492,7 +496,7 @@ namespace Satellite.CoreUpdater
 
             if (!core.Ready) return Comparison.Without(core);
 
-            return Comparison.Of(core, CoreComparison.Of(core.Catalog, map));
+            return Comparison.Of(map, core, CoreComparison.Of(core.Catalog, map));
         }
 
         private void Show(Comparison done)
@@ -512,12 +516,18 @@ namespace Satellite.CoreUpdater
                 return;
             }
 
+            // The scope the *map* covers, which is not always the one the combo boxes show: a
+            // comparison is of the map on disk, and that may be yesterday's unit.
+            _scope = done.Map?.Unit;
+
             ProjectHeading.Text = Summary(done);
             RepositoryHeading.Text = Offered(done.Result);
 
             Chips(done.Result);
-            Rows(done.Result);
-            Tree(done.Result);
+            Project(done.Result);
+
+            RepoChips(done.Result);
+            Repository(done.Result);
 
             List<string> problems = new List<string>();
 
@@ -623,20 +633,96 @@ namespace Satellite.CoreUpdater
 
         private void ChipChanged(object sender, RoutedEventArgs e)
         {
-            Rows(_compared);
+            Project(_compared);
         }
 
-        private void Rows(CoreComparison result)
+        /// <summary>
+        /// The project as a tree, so the two panels read alike (the maintainer asked for it).
+        ///
+        /// **The shape comes out of the map, not out of a rule here.** A mapped object's folder
+        /// already begins with TIA's own name for its tree — `Program blocks/03-ALL/adt`,
+        /// `PLC data types/node` — because the walk starts at the software's root groups. All
+        /// this adds is the one root the map covers: the software unit, or `*`.
+        ///
+        /// **A folder left empty by the tick boxes is not drawn.** Folders exist here only
+        /// because something is in them, so filtering to the outdated blocks shows the folders
+        /// that hold outdated blocks rather than the whole tree with four leaves in it.
+        /// </summary>
+        private void Project(CoreComparison result)
         {
             _compared = result;
 
-            List<ComparedRow> rows = new List<ComparedRow>();
+            ProjectTree.Items.Clear();
 
-            if (result != null)
-                foreach (ComparedObject one in result.Objects)
-                    if (Wanted(one)) rows.Add(ComparedRow.Of(one, TryFindResource(ComparedRow.InkKey(one)) as Brush));
+            if (result == null) return;
 
-            ProjectList.ItemsSource = rows;
+            TreeViewItem root = new TreeViewItem { Tag = Places.UnitOrGeneral(_scope) };
+
+            foreach (ComparedObject one in result.Objects)
+                if (Wanted(one)) Under(root, one.Found?.Folder).Items.Add(Leaf(one));
+
+            ProjectTree.Items.Add(root);
+
+            // A root holding nothing is a tree of one empty folder, which says less than an
+            // empty panel does.
+            if (Number(root) == 0) ProjectTree.Items.Clear();
+            else Open(ProjectTree.Items);
+        }
+
+        /// <summary>
+        /// The folder one object belongs in, made on the way down if it is not there yet. **A
+        /// folder the map never put anything in cannot appear at all** — the map records objects
+        /// with their paths, not folders, so an empty folder somebody created is invisible to
+        /// this window. Worth knowing before it is read as "there is no such folder".
+        /// </summary>
+        private static TreeViewItem Under(TreeViewItem root, string folder)
+        {
+            TreeViewItem parent = root;
+
+            if (string.IsNullOrEmpty(folder)) return parent;
+
+            foreach (string name in folder.Split(new[] { Places.Separator }, StringSplitOptions.RemoveEmptyEntries))
+                parent = Child(parent, name);
+
+            return parent;
+        }
+
+        private static TreeViewItem Child(TreeViewItem parent, string name)
+        {
+            foreach (object one in parent.Items)
+            {
+                TreeViewItem item = one as TreeViewItem;
+                string folder = item?.Tag as string;
+
+                if (folder != null && string.Equals(folder, name, StringComparison.OrdinalIgnoreCase)) return item;
+            }
+
+            TreeViewItem made = new TreeViewItem { Tag = name };
+
+            parent.Items.Add(made);
+
+            return made;
+        }
+
+        /// <summary>
+        /// One mapped object: <c>name v3.0 FB up to date</c>.
+        ///
+        /// **The kind is spelled as the map spells it** — `GlobalDB`, `InstanceDB`, `PlcStruct` —
+        /// which is `CodingStyleNames`' vocabulary, the same one `config.json`, the coding-style
+        /// report and the filter rows at the top of this very window use. `DB` would read faster
+        /// and would hide the difference between a global and an instance data block, which the
+        /// map does draw.
+        /// </summary>
+        private TreeViewItem Leaf(ComparedObject one)
+        {
+            StackPanel header = new StackPanel { Orientation = Orientation.Horizontal };
+
+            Say(header, one.Found?.Name, "Ink");
+            Say(header, string.IsNullOrWhiteSpace(one.Version) ? null : "  v" + one.Version, "Ink");
+            Say(header, string.IsNullOrWhiteSpace(one.Found?.Kind) ? null : "  " + one.Found.Kind, "InkMuted");
+            Say(header, "   " + ComparedRow.Message(one), ComparedRow.InkKey(one));
+
+            return new TreeViewItem { Header = header, Tag = one };
         }
 
         /// <summary>
@@ -665,70 +751,167 @@ namespace Satellite.CoreUpdater
         // ---- The repository panel -------------------------------------------------------------
 
         /// <summary>
-        /// The core as a tree of its own folders, each node saying what the project has of it.
+        /// One tick box per state — how "show me what is missing" gets asked with both trees
+        /// open, and the first thing importing will want.
         ///
-        /// **Collapsed, and it has to be**: 247 nodes in one open list is not something anybody
-        /// reads, and the folders are how the repository is laid out anyway.
+        /// **`Not covered` appears only when there is something in it.** It can only happen on a
+        /// filtered map, so on every other run it would be a box that never does anything.
         /// </summary>
-        private void Tree(CoreComparison result)
+        private void RepoChips(CoreComparison result)
+        {
+            RepoChipsPanel.Children.Clear();
+            _repoChips.Clear();
+
+            RepoChip("In the project", NodeState.Held, result);
+            RepoChip("At another version", NodeState.AtAnotherVersion, result);
+            RepoChip("Absent", NodeState.Absent, result);
+
+            if (Counted(result, NodeState.Unknown) > 0) RepoChip("Not covered", NodeState.Unknown, result);
+        }
+
+        private void RepoChip(string label, NodeState state, CoreComparison result)
+        {
+            CheckBox box = new CheckBox
+            {
+                IsChecked = true,
+                Tag = state,
+                Margin = new Thickness(0, 4, 14, 0),
+                Content = new TextBlock { Text = label + " (" + Counted(result, state) + ")" }
+            };
+
+            Brush ink = TryFindResource("Ink") as Brush;
+            if (ink != null) box.Foreground = ink;
+
+            box.Checked += RepoChipChanged;
+            box.Unchecked += RepoChipChanged;
+
+            _repoChips.Add(box);
+            RepoChipsPanel.Children.Add(box);
+        }
+
+        private static int Counted(CoreComparison result, NodeState state)
+        {
+            int found = 0;
+
+            foreach (CoreNodeState one in result.Repository)
+                if (one.State == state) found++;
+
+            return found;
+        }
+
+        private void RepoChipChanged(object sender, RoutedEventArgs e)
+        {
+            Repository(_compared);
+        }
+
+        /// <summary>
+        /// The core as a tree of its own folders, each node saying what the project has of it —
+        /// and **open**, which the maintainer asked for: both panels are read side by side, and
+        /// one of them folded away is one you have to go looking through.
+        /// </summary>
+        private void Repository(CoreComparison result)
         {
             RepositoryTree.Items.Clear();
 
+            if (result == null) return;
+
             string folder = null;
             TreeViewItem group = null;
-            int inside = 0;
 
             foreach (CoreNodeState one in result.Repository)
             {
+                if (!WantedNode(one)) continue;
+
+                // A folder is only made once something in it has passed, so one the tick boxes
+                // emptied never appears.
                 if (group == null || !string.Equals(one.Folder, folder, StringComparison.OrdinalIgnoreCase))
                 {
-                    Heading(group, inside);
-
                     folder = one.Folder;
-                    inside = 0;
                     group = new TreeViewItem { Tag = folder };
 
                     RepositoryTree.Items.Add(group);
                 }
 
                 group.Items.Add(Leaf(one));
-                inside++;
             }
 
-            Heading(group, inside);
+            foreach (object one in RepositoryTree.Items) Number((TreeViewItem)one);
+
+            Open(RepositoryTree.Items);
         }
 
-        /// <summary>A folder's header is written once its contents are known, so it can say how many.</summary>
-        private void Heading(TreeViewItem group, int inside)
+        private bool WantedNode(CoreNodeState one)
         {
-            if (group == null) return;
+            if (_repoChips.Count == 0) return true;
 
-            string folder = group.Tag as string;
+            foreach (CheckBox box in _repoChips)
+                if (box.IsChecked == true && (NodeState)box.Tag == one.State) return true;
 
-            group.Header = new TextBlock
-            {
-                Text = (string.IsNullOrEmpty(folder) ? "(root)" : folder) + "  (" + inside + ")",
-                Foreground = TryFindResource("Ink") as Brush
-            };
+            return false;
         }
 
         private TreeViewItem Leaf(CoreNodeState one)
         {
             StackPanel header = new StackPanel { Orientation = Orientation.Horizontal };
 
-            header.Children.Add(new TextBlock
-            {
-                Text = one.Node.Base + "  v" + one.Node.Version,
-                Foreground = TryFindResource("Ink") as Brush
-            });
-
-            header.Children.Add(new TextBlock
-            {
-                Text = "   " + State(one),
-                Foreground = TryFindResource(StateInk(one.State)) as Brush
-            });
+            Say(header, one.Node.Base, "Ink");
+            Say(header, "  v" + one.Node.Version, "Ink");
+            Say(header, "   " + State(one), StateInk(one.State));
 
             return new TreeViewItem { Header = header, Tag = one };
+        }
+
+        // ---- Both trees -------------------------------------------------------------------------
+
+        private void Say(StackPanel header, string text, string ink)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+
+            header.Children.Add(new TextBlock { Text = text, Foreground = TryFindResource(ink) as Brush });
+        }
+
+        /// <summary>
+        /// Writes each folder's header once its contents are known, so it can say how many, and
+        /// answers how many leaves are under it. **Counted rather than remembered**, because a
+        /// folder several levels up holds what its children hold.
+        /// </summary>
+        private int Number(TreeViewItem folder)
+        {
+            int leaves = 0;
+
+            foreach (object child in folder.Items)
+            {
+                TreeViewItem item = child as TreeViewItem;
+
+                if (item == null) continue;
+
+                leaves += item.Tag is string ? Number(item) : 1;
+            }
+
+            string name = folder.Tag as string;
+
+            folder.Header = new TextBlock
+            {
+                Text = (string.IsNullOrEmpty(name) ? "(root)" : name) + "  (" + leaves + ")",
+                Foreground = TryFindResource("Ink") as Brush
+            };
+
+            return leaves;
+        }
+
+        /// <summary>**Open, all of it**, which is what the maintainer asked for on both sides.</summary>
+        private static void Open(ItemCollection items)
+        {
+            foreach (object one in items)
+            {
+                TreeViewItem item = one as TreeViewItem;
+
+                if (item == null) continue;
+
+                item.IsExpanded = true;
+
+                Open(item.Items);
+            }
         }
 
         private static string State(CoreNodeState one)
@@ -759,13 +942,17 @@ namespace Satellite.CoreUpdater
         /// <summary>One comparison, and why there is none when there is not.</summary>
         private sealed class Comparison
         {
-            private Comparison(CoreRefreshResult core, CoreComparison result, string problem, bool names)
+            private Comparison(ProjectMap map, CoreRefreshResult core, CoreComparison result, string problem, bool names)
             {
+                Map = map;
                 Core = core;
                 Result = result;
                 Problem = problem;
                 NamesCore = names;
             }
+
+            /// <summary>The map as it was read back — which names the scope the panels are of.</summary>
+            public ProjectMap Map { get; }
 
             public CoreRefreshResult Core { get; }
 
@@ -775,14 +962,14 @@ namespace Satellite.CoreUpdater
 
             public bool NamesCore { get; }
 
-            public static Comparison Of(CoreRefreshResult core, CoreComparison result) =>
-                new Comparison(core, result, null, true);
+            public static Comparison Of(ProjectMap map, CoreRefreshResult core, CoreComparison result) =>
+                new Comparison(map, core, result, null, true);
 
             public static Comparison Without(CoreRefreshResult core) =>
-                new Comparison(core, null, core.Problem, core.NamesCore);
+                new Comparison(null, core, null, core.Problem, core.NamesCore);
 
             public static Comparison Failed(string problem) =>
-                new Comparison(null, null, problem, true);
+                new Comparison(null, null, null, problem, true);
         }
 
         /// <summary>

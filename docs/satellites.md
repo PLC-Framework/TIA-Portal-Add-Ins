@@ -281,32 +281,41 @@ Objects   All  None        Languages   All  None
 
 ### The two panels
 
-**The project on the left, the repository on the right** — the layout settled before any of this was built.
+**The project on the left, the repository on the right** — the layout settled before any of this was built. **Two trees, both open**, so the two sides read alike and neither has to be unfolded before it says anything.
 
 ```
-Project — 7 of 18 objects come from the core      Repository — 247 current nodes,
-[x] Up to date (1)  [x] Outdated (1)                5 in the project, 2 at another
-[x] Unknown version (1)  [x] Split family (2)        version, 240 absent
-[x] Disagreeing (1)  [ ] Not from the core (11)
-                                                   > adt  (1)
- Name        Kind       Ver   Folder      Says      > adt/queue  (4)
- nodeLink    PlcStruct  1.1   …/node      its fa…   v alarm  (6)
- _mc_posi…   FB         1.1   …/04-MC     outdat…       abstractAlarmData v2.0  absent
- _dtlToSt…   FC         9.9   …/str       the co…       _alarmBit v2.0  absent
- _backgro…   FB         4.1   …/03-ALL    TITLE …   > alarm/add-on  (7)
+Project — 7 of 10 come from the core        Repository — 247 current nodes, 4 in the
+[x] Up to date (2)   [x] Outdated (2)         project, 3 at another version, 240 absent
+[x] Unknown version (1)  [x] Split family (2)
+[x] Disagreeing (1)  [ ] Not from the core (3)  [x] In the project (4)
+                                                [x] At another version (3)  [ ] Absent (240)
+v *  (7)
+  v PLC data types  (2)                       v datetime  (1)
+    v node  (1)                                   _dtlToString v1.3  the project has v9.9
+        nodeLink v1.1 PlcStruct  its family…   v motion-control  (1)
+    v spare  (1)                                  _mc_positioning1Axis v2.0  the project has v1.1
+        nodeLinkDestToSource v1.1 PlcStruct…   v node  (2)
+  v Program blocks  (4)                           nodeLink v1.1  in the project
+    v 04-MC  (1)                                  nodeLinkDestToSource v1.2  the project has v1.1
+        _mc_positioning1Axis v1.1 FB  outda…
 ```
 
-- **The counts are the filters**, as in the coding-style report. **"Not from the core" starts off**: in a real project it is most of the rows and this window is about the core — the box stays on screen with its count, so nothing is hidden without saying how much. A row shows under **any** of its findings, so a block that is outdated *and* in a split family does not vanish when one box is cleared.
-- **The right panel holds the whole core, not only the gap.** What gets imported is not only what is missing: a block held at a retired version, or one sitting where its family does not otherwise live, is downloaded again too. Only what the core still stands behind, though — offering a retired version would be offering something the core has itself withdrawn.
-- **As a tree of the core's own folders**, closed, because 247 nodes in one open list is not a list. The folder comes from each node's own `file` in `core.json` rather than from a family written in a TITLE: the graph is the source of truth and it carries the path.
-- **What the project already has is what gets marked.** `absent` is muted — it is 240 of 247 rows — and `in the project` and `the project has v1.1` are the two worth picking out. On a filtered map a node the walk never covered reads *not covered by the map*, which is a fourth answer rather than a wrong one.
+- **The project tree comes out of the map, not out of a rule.** A mapped object's folder already begins with TIA's own name for its tree — `Program blocks/03-ALL/adt`, `PLC data types/node`, `PLC tags/enums` — because the walk starts at the software's root groups. All the window adds is one root for the scope the map covers: the software unit, or `*`.
+- **A line says the same things on both sides**: name, version, and what there is to say about it — with the object's kind on the project side. The kind is spelled as the map spells it, `GlobalDB` and `PlcStruct` rather than `DB` and `UDT`, which is `config.json`'s vocabulary and the one the filter rows at the top of this same window already use. `DB` would read faster and would hide the difference between a global and an instance data block.
+- **Every line says something.** A core block with nothing against it reads *up to date*, so no line on either side trails off into nothing.
+- **The counts are the filters**, as in the coding-style report, on both sides now: by finding on the left, by state on the right. **"Not from the core" starts off** — in a real project it is most of the rows and this window is about the core — and the box stays on screen with its count, so nothing is hidden without saying how much. A row shows under **any** of its findings, so a block that is outdated *and* in a split family does not vanish when one box is cleared.
+- **A folder the tick boxes empty is not drawn.** Folders exist in either tree only because something is in them, so filtering to the outdated blocks shows the folders that hold outdated blocks rather than the whole tree with two leaves in it.
+- **The right panel holds the whole core, not only the gap.** What gets imported is not only what is missing: a block held at a retired version, or one sitting where its family does not otherwise live, is downloaded again too. Only what the core still stands behind, though — offering a retired version would be offering something the core has itself withdrawn. The folder comes from each node's own `file` in `core.json` rather than from a family written in a TITLE: the graph is the source of truth and it carries the path.
+- **What the project already has is what gets marked.** `absent` is muted — it is 240 of 247 rows — and `in the project` and `the project has v1.1` are the two worth picking out. On a filtered map a node the walk never covered reads *not covered by the map*, a fourth state rather than a wrong one, and its tick box appears **only then**: on any other run it would be a box that never does anything.
 - **A walk and a comparison never share the screen.** They describe different moments, and leaving a map's counts under a comparison of another scope would be the kind of half-truth this window has spent four stages avoiding.
+
+> **An empty folder cannot appear in the project tree**, and that is worth knowing before it is read as "there is no such folder". `project.json` records objects with their paths, not folders, so a folder somebody made and left empty is invisible here. Nothing is lost that the comparison needs — a folder holding core blocks in the wrong place still holds them — but it is a limit of the map rather than of the tree.
 
 > The plain `ListView` and `TreeView` were the framework's last unthemed controls, and the evidence was already in the repo: three windows each set `BorderThickness="0" Background="Transparent" Foreground="Ink"` by hand on every one of them. A fourth that forgot got the stock **white**. Both are implicit in `Controls.xaml` now — see *Theming* in [architecture.md](architecture.md).
 
 Checked against the real 264-node core rather than a fixture: each finding on names and versions the repository actually holds — `_mc_positioning1Axis` at v1.1 outdated behind the v2.0 its `deprecatedBy` names, `_dtlToString` at a version the core does not define with v1.2 and v1.3 offered beside it, a name the core has never heard of with nothing beside it, a UDT with no header judged by its TITLE alone, and a block outdated and split at once. The two directions: 247 current nodes, four bases held, 243 absent — and a base held at an *old* version counted as outdated rather than missing. On a filtered map, absent silent and the rest still judged. Then the whole chain from a `config.json` naming the real repository: 264 nodes copied into `.plc-framework\repo\core\`, read back out of the copy, validating clean, a node resolving to its own source file — and `coreSource: null`, a folder that is not there, and `remote` each answered in their own words. And rendered end to end on the real window.
 
-The two panels were driven on that window with the same real core behind them: one tick box per finding carrying its count, "Not from the core" off at the start and the plant's blocks appearing when it is ticked, a row with two findings still shown under either of them, "Up to date" leaving only the clean one, and nothing ticked leaving nothing. The tree: a folder per folder of the core with its count, every one of the 247 nodes under one, all closed, and a leaf naming its version and what the project has of it — `in the project`, or `the project has v1.1`. And the words a row says, which are the same words the tick box that filters it carries: a clean row saying nothing and opening no tooltip, an outdated one naming the version to take, and an unknown version offering what the core does have.
+The two panels were driven on that window with the same real core behind them. The project tree: one root named for the scope, under it the three trees TIA names, and under those the folders the map's own paths carry, each counted by what is below it however deep. A line reading `nodeLink  v1.1  PlcStruct  its family is in more than one folder`, and a clean one reading `up to date`. Both trees open to the leaves. Filtering to the outdated left two leaves and **took the folders that no longer held any** — while the one that kept a leaf stayed — nothing ticked left no tree at all, and putting the boxes back rebuilt it. On the right: one tick box per state with its count, no fourth box on a map that cannot produce one, narrowing to `In the project` leaving three nodes in three folders and the rest still open — and on a *filtered* map, `Absent (0)` with `Not covered (242)` beside it, and the root taking the unit's name.
 
 > **Three projects for one window.** `Satellite.CoreUpdater` is a library with the window and a port; `…V20.exe` and `…V21.exe` are thin shells around it. Openness is `Siemens.Engineering` in V17–V20 and `Siemens.Engineering.Base` in V21 — different assemblies with different public key tokens — so one binary cannot serve both, the same reason the Add-In exists twice. The library references no Siemens assembly at all, which is checkable from its metadata rather than promised in prose.
 
