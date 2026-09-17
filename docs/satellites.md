@@ -279,7 +279,34 @@ Objects   All  None        Languages   All  None
 - **What the project is missing is only answered when the map covers everything.** On a filtered map it is not listed and the window says why, because "the project has no UDTs" and "this map did not look for them" are different facts.
 - **Nothing is written.** `project.json` is the durable half; the comparison is recomputed each time, which also means the format guard on that file is what stands between an old map and a comparison quietly reading it as complete.
 
+### The two panels
+
+**The project on the left, the repository on the right** — the layout settled before any of this was built.
+
+```
+Project — 7 of 18 objects come from the core      Repository — 247 current nodes,
+[x] Up to date (1)  [x] Outdated (1)                5 in the project, 2 at another
+[x] Unknown version (1)  [x] Split family (2)        version, 240 absent
+[x] Disagreeing (1)  [ ] Not from the core (11)
+                                                   > adt  (1)
+ Name        Kind       Ver   Folder      Says      > adt/queue  (4)
+ nodeLink    PlcStruct  1.1   …/node      its fa…   v alarm  (6)
+ _mc_posi…   FB         1.1   …/04-MC     outdat…       abstractAlarmData v2.0  absent
+ _dtlToSt…   FC         9.9   …/str       the co…       _alarmBit v2.0  absent
+ _backgro…   FB         4.1   …/03-ALL    TITLE …   > alarm/add-on  (7)
+```
+
+- **The counts are the filters**, as in the coding-style report. **"Not from the core" starts off**: in a real project it is most of the rows and this window is about the core — the box stays on screen with its count, so nothing is hidden without saying how much. A row shows under **any** of its findings, so a block that is outdated *and* in a split family does not vanish when one box is cleared.
+- **The right panel holds the whole core, not only the gap.** What gets imported is not only what is missing: a block held at a retired version, or one sitting where its family does not otherwise live, is downloaded again too. Only what the core still stands behind, though — offering a retired version would be offering something the core has itself withdrawn.
+- **As a tree of the core's own folders**, closed, because 247 nodes in one open list is not a list. The folder comes from each node's own `file` in `core.json` rather than from a family written in a TITLE: the graph is the source of truth and it carries the path.
+- **What the project already has is what gets marked.** `absent` is muted — it is 240 of 247 rows — and `in the project` and `the project has v1.1` are the two worth picking out. On a filtered map a node the walk never covered reads *not covered by the map*, which is a fourth answer rather than a wrong one.
+- **A walk and a comparison never share the screen.** They describe different moments, and leaving a map's counts under a comparison of another scope would be the kind of half-truth this window has spent four stages avoiding.
+
+> The plain `ListView` and `TreeView` were the framework's last unthemed controls, and the evidence was already in the repo: three windows each set `BorderThickness="0" Background="Transparent" Foreground="Ink"` by hand on every one of them. A fourth that forgot got the stock **white**. Both are implicit in `Controls.xaml` now — see *Theming* in [architecture.md](architecture.md).
+
 Checked against the real 264-node core rather than a fixture: each finding on names and versions the repository actually holds — `_mc_positioning1Axis` at v1.1 outdated behind the v2.0 its `deprecatedBy` names, `_dtlToString` at a version the core does not define with v1.2 and v1.3 offered beside it, a name the core has never heard of with nothing beside it, a UDT with no header judged by its TITLE alone, and a block outdated and split at once. The two directions: 247 current nodes, four bases held, 243 absent — and a base held at an *old* version counted as outdated rather than missing. On a filtered map, absent silent and the rest still judged. Then the whole chain from a `config.json` naming the real repository: 264 nodes copied into `.plc-framework\repo\core\`, read back out of the copy, validating clean, a node resolving to its own source file — and `coreSource: null`, a folder that is not there, and `remote` each answered in their own words. And rendered end to end on the real window.
+
+The two panels were driven on that window with the same real core behind them: one tick box per finding carrying its count, "Not from the core" off at the start and the plant's blocks appearing when it is ticked, a row with two findings still shown under either of them, "Up to date" leaving only the clean one, and nothing ticked leaving nothing. The tree: a folder per folder of the core with its count, every one of the 247 nodes under one, all closed, and a leaf naming its version and what the project has of it — `in the project`, or `the project has v1.1`. And the words a row says, which are the same words the tick box that filters it carries: a clean row saying nothing and opening no tooltip, an outdated one naming the version to take, and an unknown version offering what the core does have.
 
 > **Three projects for one window.** `Satellite.CoreUpdater` is a library with the window and a port; `…V20.exe` and `…V21.exe` are thin shells around it. Openness is `Siemens.Engineering` in V17–V20 and `Siemens.Engineering.Base` in V21 — different assemblies with different public key tokens — so one binary cannot serve both, the same reason the Add-In exists twice. The library references no Siemens assembly at all, which is checkable from its metadata rather than promised in prose.
 

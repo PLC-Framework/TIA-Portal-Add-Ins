@@ -12,6 +12,7 @@ using Core;
 using Core.Config.Validation;
 using Core.Repo;
 
+using Satellite.CoreUpdater.Compare;
 using Satellite.CoreUpdater.Tia;
 
 namespace Satellite.CoreUpdater
@@ -34,6 +35,9 @@ namespace Satellite.CoreUpdater
         private const int HeadingCount = 2;
 
         private readonly List<KindRow> _rows = new List<KindRow>();
+        private readonly List<CheckBox> _chips = new List<CheckBox>();
+
+        private CoreComparison _compared;
 
         private TiaWorker _worker;
         private string _projectDirectory;
@@ -409,6 +413,12 @@ namespace Satellite.CoreUpdater
             Working(true);
             StatusText.Text = "Reading " + plc + "…";
 
+            // A walk is about to replace whatever a comparison said, and the two describe
+            // different moments: leaving the panels side by side would show a comparison of the
+            // scope before this one.
+            ComparePanel.Visibility = Visibility.Collapsed;
+            ResultPanel.Visibility = Visibility.Visible;
+
             MapHeading.Visibility = Visibility.Collapsed;
             MapProblems.Visibility = Visibility.Collapsed;
             MapText.Text = filter.Narrows
@@ -441,6 +451,9 @@ namespace Satellite.CoreUpdater
 
             Working(true);
             StatusText.Text = "Reading the core…";
+
+            ComparePanel.Visibility = Visibility.Collapsed;
+            ResultPanel.Visibility = Visibility.Visible;
 
             MapHeading.Visibility = Visibility.Collapsed;
             MapProblems.Visibility = Visibility.Collapsed;
@@ -486,8 +499,7 @@ namespace Satellite.CoreUpdater
         {
             if (done == null)
             {
-                MapText.Text = "Nothing came back from the comparison.";
-                StatusText.Text = "Not compared.";
+                Told("Nothing came back from the comparison.", "Not compared.");
                 return;
             }
 
@@ -496,14 +508,16 @@ namespace Satellite.CoreUpdater
                 // A project that names no core is a fact about the project; a repository that is
                 // not on this machine is something to go and fix. The two read alike in one line,
                 // so the status line is what tells them apart.
-                MapText.Text = done.Problem;
-                StatusText.Text = done.NamesCore ? "Not compared." : "No core.";
+                Told(done.Problem, done.NamesCore ? "Not compared." : "No core.");
                 return;
             }
 
-            MapHeading.Visibility = Visibility.Visible;
-            MapHeading.Text = Summary(done);
-            MapText.Text = Counted(done.Result);
+            ProjectHeading.Text = Summary(done);
+            RepositoryHeading.Text = Offered(done.Result);
+
+            Chips(done.Result);
+            Rows(done.Result);
+            Tree(done.Result);
 
             List<string> problems = new List<string>();
 
@@ -511,13 +525,23 @@ namespace Satellite.CoreUpdater
                 foreach (ValidationIssue issue in done.Core.Issues.Issues)
                     problems.Add(issue.Path + ": " + issue.Message);
 
-            if (problems.Count > 0)
-            {
-                MapProblems.Visibility = Visibility.Visible;
-                MapProblems.Text = Listed(problems);
-            }
+            CompareProblems.Text = problems.Count == 0 ? string.Empty : Listed(problems);
+            CompareProblems.Visibility = problems.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+
+            ResultPanel.Visibility = Visibility.Collapsed;
+            ComparePanel.Visibility = Visibility.Visible;
 
             StatusText.Text = "Compared.";
+        }
+
+        /// <summary>One sentence, in the panel a walk writes into — and the comparison put away.</summary>
+        private void Told(string text, string status)
+        {
+            ComparePanel.Visibility = Visibility.Collapsed;
+            ResultPanel.Visibility = Visibility.Visible;
+
+            MapText.Text = text;
+            StatusText.Text = status;
         }
 
         private static string Summary(Comparison done)
@@ -527,32 +551,209 @@ namespace Satellite.CoreUpdater
 
             return string.Format(
                 CultureInfo.CurrentCulture,
-                "{0} of {1} objects come from the core, held against {2} core nodes.",
-                all - foreign, all, done.Core.Catalog.Nodes.Count);
+                "Project — {0} of {1} objects come from the core",
+                all - foreign, all);
+        }
+
+        private static string Offered(CoreComparison result)
+        {
+            int held = 0;
+            int other = 0;
+
+            foreach (CoreNodeState one in result.Repository)
+            {
+                if (one.State == NodeState.Held) held++;
+                else if (one.State == NodeState.AtAnotherVersion) other++;
+            }
+
+            string counts = string.Format(
+                CultureInfo.CurrentCulture,
+                "Repository — {0} current nodes, {1} in the project, {2} at another version",
+                result.Repository.Count, held, other);
+
+            // A filtered map cannot say what is missing, and a panel that quietly showed 241
+            // absent rows would be answering a question it was never asked.
+            return result.AbsentKnown
+                ? counts + ", " + result.Absent.Count + " absent"
+                : counts + Environment.NewLine + "(the map was filtered, so what is missing is not known from it)";
+        }
+
+        // ---- The project panel ----------------------------------------------------------------
+
+        /// <summary>
+        /// One tick box per finding, carrying its count — the counts *are* the filter, which is
+        /// the shape the coding-style report already settled on.
+        ///
+        /// **"Not from the core" starts off.** In a real project it is most of the rows, and this
+        /// window is about the core; the box stays on screen with its count, so nothing is hidden
+        /// without saying how much.
+        /// </summary>
+        private void Chips(CoreComparison result)
+        {
+            ChipsPanel.Children.Clear();
+            _chips.Clear();
+
+            Chip("Up to date", null, result.Clean, true);
+            Chip("Outdated", Finding.Outdated, result.Count(Finding.Outdated), true);
+            Chip("Unknown version", Finding.UnknownVersion, result.Count(Finding.UnknownVersion), true);
+            Chip("Split family", Finding.Misplaced, result.Count(Finding.Misplaced), true);
+            Chip("Disagreeing", Finding.Disagrees, result.Count(Finding.Disagrees), true);
+            Chip("Not from the core", Finding.NotFromCore, result.Count(Finding.NotFromCore), false);
+        }
+
+        private void Chip(string label, Finding? finding, int count, bool ticked)
+        {
+            CheckBox box = new CheckBox
+            {
+                IsChecked = ticked,
+                Tag = finding,
+                Margin = new Thickness(0, 4, 14, 0),
+                Content = new TextBlock { Text = label + " (" + count + ")" }
+            };
+
+            Brush ink = TryFindResource("Ink") as Brush;
+            if (ink != null) box.Foreground = ink;
+
+            box.Checked += ChipChanged;
+            box.Unchecked += ChipChanged;
+
+            _chips.Add(box);
+            ChipsPanel.Children.Add(box);
+        }
+
+        private void ChipChanged(object sender, RoutedEventArgs e)
+        {
+            Rows(_compared);
+        }
+
+        private void Rows(CoreComparison result)
+        {
+            _compared = result;
+
+            List<ComparedRow> rows = new List<ComparedRow>();
+
+            if (result != null)
+                foreach (ComparedObject one in result.Objects)
+                    if (Wanted(one)) rows.Add(ComparedRow.Of(one, TryFindResource(ComparedRow.InkKey(one)) as Brush));
+
+            ProjectList.ItemsSource = rows;
         }
 
         /// <summary>
-        /// The findings, one line each — and **every count is named, zeroes included**. "0
-        /// outdated" is the answer somebody pressed the button for; a line missing from a list
-        /// says nothing at all.
+        /// Whether a row passes the tick boxes. **Any of its findings ticked is enough**: a block
+        /// that is both outdated and split belongs under either, and hiding it unless *both* were
+        /// ticked would lose it from the one filter somebody opened.
         /// </summary>
-        private static string Counted(CoreComparison result)
+        private bool Wanted(ComparedObject one)
         {
-            List<string> lines = new List<string>
+            foreach (CheckBox box in _chips)
             {
-                "    " + result.Clean + " up to date",
-                "    " + result.Count(Finding.Outdated) + " outdated",
-                "    " + result.Count(Finding.UnknownVersion) + " at a version the core does not define",
-                "    " + result.Count(Finding.Misplaced) + " in a family the project keeps in more than one folder",
-                "    " + result.Count(Finding.Disagrees) + " whose TITLE and VERSION header disagree",
-                "    " + result.Count(Finding.NotFromCore) + " not from the core",
-                string.Empty,
-                result.AbsentKnown
-                    ? "    " + result.Absent.Count + " current core nodes the project does not have"
-                    : "    the map was filtered, so what the project is missing cannot be read from it"
-            };
+                if (box.IsChecked != true) continue;
 
-            return string.Join(Environment.NewLine, lines);
+                Finding? finding = box.Tag as Finding?;
+
+                if (finding == null)
+                {
+                    if (one.Clean) return true;
+                }
+                else if (one.Is(finding.Value)) return true;
+            }
+
+            return false;
+        }
+
+        // ---- The repository panel -------------------------------------------------------------
+
+        /// <summary>
+        /// The core as a tree of its own folders, each node saying what the project has of it.
+        ///
+        /// **Collapsed, and it has to be**: 247 nodes in one open list is not something anybody
+        /// reads, and the folders are how the repository is laid out anyway.
+        /// </summary>
+        private void Tree(CoreComparison result)
+        {
+            RepositoryTree.Items.Clear();
+
+            string folder = null;
+            TreeViewItem group = null;
+            int inside = 0;
+
+            foreach (CoreNodeState one in result.Repository)
+            {
+                if (group == null || !string.Equals(one.Folder, folder, StringComparison.OrdinalIgnoreCase))
+                {
+                    Heading(group, inside);
+
+                    folder = one.Folder;
+                    inside = 0;
+                    group = new TreeViewItem { Tag = folder };
+
+                    RepositoryTree.Items.Add(group);
+                }
+
+                group.Items.Add(Leaf(one));
+                inside++;
+            }
+
+            Heading(group, inside);
+        }
+
+        /// <summary>A folder's header is written once its contents are known, so it can say how many.</summary>
+        private void Heading(TreeViewItem group, int inside)
+        {
+            if (group == null) return;
+
+            string folder = group.Tag as string;
+
+            group.Header = new TextBlock
+            {
+                Text = (string.IsNullOrEmpty(folder) ? "(root)" : folder) + "  (" + inside + ")",
+                Foreground = TryFindResource("Ink") as Brush
+            };
+        }
+
+        private TreeViewItem Leaf(CoreNodeState one)
+        {
+            StackPanel header = new StackPanel { Orientation = Orientation.Horizontal };
+
+            header.Children.Add(new TextBlock
+            {
+                Text = one.Node.Base + "  v" + one.Node.Version,
+                Foreground = TryFindResource("Ink") as Brush
+            });
+
+            header.Children.Add(new TextBlock
+            {
+                Text = "   " + State(one),
+                Foreground = TryFindResource(StateInk(one.State)) as Brush
+            });
+
+            return new TreeViewItem { Header = header, Tag = one };
+        }
+
+        private static string State(CoreNodeState one)
+        {
+            switch (one.State)
+            {
+                case NodeState.Held: return "in the project";
+                case NodeState.AtAnotherVersion: return "the project has v" + one.HeldVersion;
+                case NodeState.Absent: return "absent";
+            }
+
+            return "not covered by the map";
+        }
+
+        /// <summary>
+        /// **Absent is muted, not marked.** It is 241 of 247 rows in a project that has taken a
+        /// handful of blocks, and colouring the majority says nothing; what is worth picking out
+        /// is what the project already has, and where it has something else.
+        /// </summary>
+        private static string StateInk(NodeState state)
+        {
+            if (state == NodeState.Held) return "InkGood";
+            if (state == NodeState.AtAnotherVersion) return "InkWarn";
+
+            return "InkMuted";
         }
 
         /// <summary>One comparison, and why there is none when there is not.</summary>
@@ -821,6 +1022,11 @@ namespace Satellite.CoreUpdater
 
         private void Failed(Exception exception)
         {
+            // Into the text panel, which means putting the comparison away: a failure written
+            // under a table nobody can tell the age of is worse than one on its own.
+            ComparePanel.Visibility = Visibility.Collapsed;
+            ResultPanel.Visibility = Visibility.Visible;
+
             StatusText.Text = "Failed.";
             MapText.Text = exception == null ? "Something went wrong." : exception.Message;
         }

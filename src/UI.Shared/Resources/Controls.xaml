@@ -293,6 +293,31 @@
     </Style>
 
     <!--
+        `ListView` and `TreeView` themselves, which had no style until 2026-09-17 - and the
+        evidence that they needed one was already in the repo: every consumer wrote the same
+        three attributes by hand, `BorderThickness="0" Background="Transparent"
+        Foreground="{StaticResource Ink}"`, in the data block snapshot, the coding-style report
+        and the config editor. A window that forgot them got the stock chrome, which paints
+        **white** - the same trap as the plain `ListBox` above and the `GridView` corner below.
+
+        Transparent rather than a surface colour, because that is what all three chose: the
+        list reads as part of the form and whatever divides it from the rest is put there
+        deliberately. The inline copies still win over this and are now redundant.
+    -->
+    <Style TargetType="ListView">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource Ink}" />
+    </Style>
+
+    <Style TargetType="TreeView">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource Ink}" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+    </Style>
+
+    <!--
         A plain list row. Same story as the tree node below, and it needs its own style
         because an implicit style matches the exact type: `ListViewItem` derives from
         `ListBoxItem` but does not inherit its style.

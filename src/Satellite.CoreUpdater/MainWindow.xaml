@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:UI.Shared.Controls;assembly=PLC-Framework.UI.Shared"
         Title="Core updater"
-        Height="480" Width="720"
-        MinHeight="360" MinWidth="560"
+        Height="640" Width="1000"
+        MinHeight="420" MinWidth="780"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Surface}"
         Icon="{StaticResource BrandLogo}">
@@ -114,7 +114,10 @@
                     </StackPanel>
                 </Grid>
 
-                <ScrollViewer Grid.Row="2" Margin="0,18,0,0"
+                <!-- One area, two things in it: what a walk had to say, or the comparison. They
+                     are never both true at once, and stacking them would leave a map's counts
+                     on screen under a comparison of a different scope. -->
+                <ScrollViewer x:Name="ResultPanel" Grid.Row="2" Margin="0,18,0,0"
                               VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
                         <TextBlock x:Name="MapHeading" FontSize="14" TextWrapping="Wrap"
@@ -125,6 +128,68 @@
                                    Foreground="{StaticResource InkWarn}" Visibility="Collapsed" />
                     </StackPanel>
                 </ScrollViewer>
+
+                <!-- The project on the left, the repository on the right (the maintainer's
+                     layout). The splitter between them is what lets one side be read in full
+                     without the window growing: a block's folder is long and a core node's name
+                     is not. -->
+                <Grid x:Name="ComparePanel" Grid.Row="2" Margin="0,18,0,0" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="4*" MinWidth="300" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="2*" MinWidth="230" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock x:Name="ProjectHeading" Style="{StaticResource FieldLabel}" TextWrapping="Wrap" />
+
+                        <!-- The counts are the filters, as in the coding-style report. They are
+                             tick boxes rather than chips because this window already has two
+                             rows of them and one vocabulary is worth more than one more control. -->
+                        <WrapPanel x:Name="ChipsPanel" Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <TextBlock x:Name="RepositoryHeading" Grid.Row="0" Grid.Column="2"
+                               Style="{StaticResource FieldLabel}" TextWrapping="Wrap"
+                               Margin="12,0,0,0" VerticalAlignment="Top" />
+
+                    <ListView x:Name="ProjectList" Grid.Row="1" Grid.Column="0" Margin="0,8,12,0">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem" BasedOn="{StaticResource {x:Type ListViewItem}}">
+                                <Setter Property="Foreground" Value="{Binding Ink}" />
+
+                                <!-- Says is the column the width runs out on, so the row hands
+                                     its own over. Null on a clean row rather than an empty
+                                     string: an empty tooltip is a small blank box. -->
+                                <Setter Property="ToolTip" Value="{Binding SaysTip}" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="Name"    Width="150" DisplayMemberBinding="{Binding Name}" />
+                                <GridViewColumn Header="Kind"    Width="70"  DisplayMemberBinding="{Binding Kind}" />
+                                <GridViewColumn Header="Version" Width="52"  DisplayMemberBinding="{Binding Version}" />
+                                <GridViewColumn Header="Folder"  Width="160" DisplayMemberBinding="{Binding Folder}" />
+                                <GridViewColumn Header="Says"    Width="165" DisplayMemberBinding="{Binding Says}" />
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+
+                    <GridSplitter Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Width="3"
+                                  HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                                  Background="{StaticResource FieldEdge}" />
+
+                    <TreeView x:Name="RepositoryTree" Grid.Row="1" Grid.Column="2" Margin="12,8,0,0" />
+
+                    <TextBlock x:Name="CompareProblems" Grid.Row="2" Grid.ColumnSpan="3"
+                               Margin="0,12,0,0" TextWrapping="Wrap"
+                               Foreground="{StaticResource InkWarn}" Visibility="Collapsed" />
+                </Grid>
             </Grid>
 
             <!-- Scrolled, because the failure that matters most is the longest: when the

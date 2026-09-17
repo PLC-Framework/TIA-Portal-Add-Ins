@@ -28,26 +28,48 @@ namespace Core.Repo
     public sealed class CoreComparison
     {
         private static readonly ComparedObject[] NoObjects = new ComparedObject[0];
-        private static readonly Node[] NoNodes = new Node[0];
+        private static readonly CoreNodeState[] NoStates = new CoreNodeState[0];
         private static readonly SplitFamily[] NoFamilies = new SplitFamily[0];
 
         private CoreComparison(
             IReadOnlyList<ComparedObject> objects,
-            IReadOnlyList<Node> absent,
+            IReadOnlyList<CoreNodeState> repository,
             IReadOnlyList<SplitFamily> split,
             bool absentKnown)
         {
             Objects = objects;
-            Absent = absent;
+            Repository = repository;
             Split = split;
             AbsentKnown = absentKnown;
+
+            List<Node> absent = new List<Node>();
+
+            foreach (CoreNodeState one in repository)
+                if (one.State == NodeState.Absent) absent.Add(one.Node);
+
+            Absent = absent;
         }
 
         /// <summary>One entry per mapped object, in the order the map lists them.</summary>
         public IReadOnlyList<ComparedObject> Objects { get; }
 
         /// <summary>
-        /// Every version the core still stands behind that the project does not have at all.
+        /// Every version the core still stands behind, and what the project has of it - in the
+        /// core's own folder order.
+        ///
+        /// **The whole core, not only the gap**, because what a window offers to import is not
+        /// only what is missing: a block held at a retired version, or one sitting where its
+        /// family does not otherwise live, is downloaded again too. A list of the absent alone
+        /// could not offer either.
+        ///
+        /// **Only what is current.** A retired version is not something to offer, and the one
+        /// place it still shows is beside the object that holds it, saying so.
+        /// </summary>
+        public IReadOnlyList<CoreNodeState> Repository { get; }
+
+        /// <summary>
+        /// Every version the core still stands behind that the project does not have at all -
+        /// <see cref="Repository"/> narrowed to <see cref="NodeState.Absent"/>.
         ///
         /// **A block you hold at an older version is not absent** - it is outdated, and it is in
         /// <see cref="Objects"/> saying so. This is the other question: what the core offers that
@@ -76,7 +98,7 @@ namespace Core.Repo
             List<ComparedObject> objects = new List<ComparedObject>();
 
             if (core == null || map == null || map.Objects == null)
-                return new CoreComparison(NoObjects, NoNodes, NoFamilies, false);
+                return new CoreComparison(NoObjects, NoStates, NoFamilies, false);
 
             foreach (ProjectObject found in map.Objects)
                 if (found != null) objects.Add(Compare(core, found));
@@ -85,11 +107,7 @@ namespace Core.Repo
 
             bool narrowed = map.Filter != null && map.Filter.Narrows;
 
-            return new CoreComparison(
-                objects,
-                narrowed ? NoNodes : Missing(core, objects),
-                split,
-                !narrowed);
+            return new CoreComparison(objects, Offered(core, objects, narrowed), split, !narrowed);
         }
 
         /// <summary>How many entries carry one finding.</summary>
@@ -129,14 +147,14 @@ namespace Core.Repo
             {
                 findings.Add(Finding.NotFromCore);
 
-                return new ComparedObject(found, null, null, null, NoNodes, findings);
+                return new ComparedObject(found, null, null, null, null, findings);
             }
 
             // **The TITLE decides and the native header is the fallback**, because the TITLE is
             // the contract the core's own generator writes - and because a PLC data type has no
             // header at all in either TIA version, so for 91 of the core's 249 sources there is
             // nothing else to read.
-            string version = Some(found.Version) ? found.Version.Trim() : Trimmed(found.HeaderVersion);
+            string version = Version(found);
 
             // The two disagreeing is its own answer. Reporting such a block as up to date, or as
             // outdated, would pick one of two things it says about itself and hide that it says
@@ -292,28 +310,89 @@ namespace Core.Repo
 
         // ---- What the project has not got ---------------------------------------------------
 
-        private static IReadOnlyList<Node> Missing(CoreCatalog core, IReadOnlyList<ComparedObject> objects)
+        /// <summary>
+        /// What the core still stands behind, each node saying what the project has of it.
+        ///
+        /// **A filtered map cannot answer "absent"**, so under one a node nothing matched is
+        /// <see cref="NodeState.Unknown"/> rather than missing. What the map *did* cover is still
+        /// answered - if a block is in there, it is in the project whatever else was skipped.
+        /// </summary>
+        private static IReadOnlyList<CoreNodeState> Offered(
+            CoreCatalog core, IReadOnlyList<ComparedObject> objects, bool narrowed)
         {
-            HashSet<string> held = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, ProjectObject> held =
+                new Dictionary<string, ProjectObject>(StringComparer.OrdinalIgnoreCase);
 
             foreach (ComparedObject one in objects)
-                if (one.Found != null && Some(one.Found.Name)) held.Add(one.Found.Name.Trim());
+            {
+                if (one.Found == null || !Some(one.Found.Name)) continue;
 
-            List<Node> absent = new List<Node>();
+                string name = one.Found.Name.Trim();
+
+                // The first wins: a project holding one name twice is a discrepancy of its own,
+                // and picking between them is not this list's question.
+                if (!held.ContainsKey(name)) held.Add(name, one.Found);
+            }
+
+            List<CoreNodeState> offered = new List<CoreNodeState>();
 
             foreach (Node node in core.Nodes)
             {
-                // Only what the core still stands behind. Listing a retired version as missing
-                // would offer to import something the core has itself withdrawn.
-                if (node == null || !CoreStatus.IsCurrent(node.Status)) continue;
+                // Only what the core still stands behind. Offering a retired version would be
+                // offering to import something the core has itself withdrawn.
+                if (node == null || !CoreStatus.IsCurrent(node.Status) || !Some(node.Base)) continue;
 
-                if (!Some(node.Base) || held.Contains(node.Base)) continue;
+                ProjectObject found;
+                NodeState state;
 
-                absent.Add(node);
+                if (!held.TryGetValue(node.Base, out found))
+                {
+                    found = null;
+                    state = narrowed ? NodeState.Unknown : NodeState.Absent;
+                }
+                else
+                {
+                    state = Same(Version(found), node.Version) ? NodeState.Held : NodeState.AtAnotherVersion;
+                }
+
+                offered.Add(new CoreNodeState(node, Folder(core, node), state, found));
             }
 
-            return absent;
+            offered.Sort((left, right) =>
+            {
+                int byFolder = string.Compare(left.Folder, right.Folder, StringComparison.OrdinalIgnoreCase);
+
+                return byFolder != 0
+                    ? byFolder
+                    : string.Compare(left.Node.Base, right.Node.Base, StringComparison.OrdinalIgnoreCase);
+            });
+
+            return offered;
         }
+
+        /// <summary>
+        /// The folder a node's source sits in, inside the core - <c>node</c>, <c>adt/queue</c>,
+        /// or empty at the root.
+        ///
+        /// **Taken from the node's own file, not from a family written in a TITLE.** `core.json`
+        /// is the source of truth and it carries the path; the family is what a *block* says
+        /// about itself, and the two agreeing on all 264 nodes is a fact about today's core
+        /// rather than something to depend on here.
+        /// </summary>
+        private static string Folder(CoreCatalog core, Node node)
+        {
+            string inside = core.InsideCore(node);
+
+            if (inside == null) return string.Empty;
+
+            int slash = inside.LastIndexOf(Places.Separator, StringComparison.Ordinal);
+
+            return slash < 0 ? string.Empty : inside.Substring(0, slash);
+        }
+
+        /// <summary>The version an object is judged by: its TITLE's, or TIA's header.</summary>
+        private static string Version(ProjectObject found) =>
+            Some(found.Version) ? found.Version.Trim() : Trimmed(found.HeaderVersion);
 
         // ---- Plumbing -------------------------------------------------------------------------
 
@@ -483,6 +562,62 @@ namespace Core.Repo
         {
             if (!_findings.Contains(finding)) _findings.Add(finding);
         }
+    }
+
+    /// <summary>What the project has of one version the core still stands behind.</summary>
+    public enum NodeState
+    {
+        /// <summary>The project holds this exact version.</summary>
+        Held,
+
+        /// <summary>
+        /// The project holds this name at some other version - which may be a retired one, or one
+        /// the core does not define at all. **Not called "older"**: nothing here compares one
+        /// version as greater than another, and a project can perfectly well be ahead.
+        /// </summary>
+        AtAnotherVersion,
+
+        /// <summary>The project has nothing of this name.</summary>
+        Absent,
+
+        /// <summary>
+        /// The map was filtered and did not cover this, so whether the project has it is not
+        /// something this map can answer. **A state of its own rather than "absent"**, because
+        /// reporting 91 data types as missing from a project holding every one is the silent hole
+        /// the filter was recorded to prevent.
+        /// </summary>
+        Unknown
+    }
+
+    /// <summary>One current core node, and what the project has of it.</summary>
+    public sealed class CoreNodeState
+    {
+        internal CoreNodeState(Node node, string folder, NodeState state, ProjectObject found)
+        {
+            Node = node;
+            Folder = folder ?? string.Empty;
+            State = state;
+            Found = found;
+        }
+
+        public Node Node { get; }
+
+        /// <summary>
+        /// Where its source sits inside the core - <c>node</c>, <c>adt/queue</c>, empty at the
+        /// root. The repository's own folders, which is what the panel is a tree of.
+        /// </summary>
+        public string Folder { get; }
+
+        public NodeState State { get; }
+
+        /// <summary>What the project holds of this name, or null when it holds nothing.</summary>
+        public ProjectObject Found { get; }
+
+        /// <summary>The version the project holds, when it holds another one.</summary>
+        public string HeldVersion =>
+            Found == null ? null : (string.IsNullOrWhiteSpace(Found.Version) ? Found.HeaderVersion : Found.Version);
+
+        public override string ToString() => Node.Base + " v" + Node.Version;
     }
 
     /// <summary>One family the project keeps in more than one folder of the same tree.</summary>
