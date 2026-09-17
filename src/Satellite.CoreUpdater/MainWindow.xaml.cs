@@ -27,6 +27,11 @@ namespace Satellite.CoreUpdater
     /// </summary>
     public partial class MainWindow : Window
     {
+        /// <summary>How many children of `FilterPanel` are its headings rather than its rows.</summary>
+        private const int HeadingCount = 2;
+
+        private readonly List<KindRow> _rows = new List<KindRow>();
+
         private TiaWorker _worker;
         private string _projectDirectory;
         private string _plc;
@@ -245,7 +250,8 @@ namespace Satellite.CoreUpdater
         }
 
         /// <summary>
-        /// The tick boxes, built from the counts this very PLC gave back.
+        /// The tick boxes, built from the counts this very PLC gave back: one row per kind,
+        /// and on that row the languages found inside it.
         ///
         /// **Everything starts ticked**, which is what the window did before there were any:
         /// somebody who ignores this panel gets the whole scope, and "empty means everything"
@@ -253,8 +259,7 @@ namespace Satellite.CoreUpdater
         /// </summary>
         private void Offer(ProjectSurvey survey)
         {
-            KindsPanel.Children.Clear();
-            LanguagesPanel.Children.Clear();
+            Clear();
 
             if (survey == null || survey.Total == 0)
             {
@@ -262,31 +267,83 @@ namespace Satellite.CoreUpdater
                 return;
             }
 
-            foreach (Counted one in survey.Kinds) KindsPanel.Children.Add(Box(one));
-            foreach (Counted one in survey.Languages) LanguagesPanel.Children.Add(Box(one));
+            foreach (SurveyedKind kind in survey.Kinds) Add(kind);
 
             FilterPanel.Visibility = Visibility.Visible;
         }
 
-        private CheckBox Box(Counted one)
+        /// <summary>
+        /// Takes the rows off, leaving the two headings that live in the XAML.
+        ///
+        /// **Counted from the front rather than remembered**, so a heading added to that file
+        /// later cannot be deleted here by a number that quietly stopped matching.
+        /// </summary>
+        private void Clear()
+        {
+            _rows.Clear();
+
+            while (FilterPanel.Children.Count > HeadingCount)
+                FilterPanel.Children.RemoveAt(FilterPanel.Children.Count - 1);
+
+            while (FilterPanel.RowDefinitions.Count > 1)
+                FilterPanel.RowDefinitions.RemoveAt(FilterPanel.RowDefinitions.Count - 1);
+        }
+
+        private void Add(SurveyedKind kind)
+        {
+            int row = FilterPanel.RowDefinitions.Count;
+
+            FilterPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            KindRow built = new KindRow { Kind = Box(kind.Name, kind.ToString()) };
+
+            built.Kind.Checked += KindChanged;
+            built.Kind.Unchecked += KindChanged;
+
+            Grid.SetRow(built.Kind, row);
+            Grid.SetColumn(built.Kind, 0);
+            FilterPanel.Children.Add(built.Kind);
+
+            // A WrapPanel rather than a row of columns: a kind can hold six languages and this
+            // window resizes from 560 upwards, where they have to drop to the next line rather
+            // than be cut off.
+            WrapPanel languages = new WrapPanel { Margin = new Thickness(18, 0, 0, 0) };
+
+            foreach (Counted one in kind.Languages)
+            {
+                CheckBox box = Box(one.Name, one.ToString());
+
+                box.Checked += TickChanged;
+                box.Unchecked += TickChanged;
+
+                built.Languages.Add(box);
+                languages.Children.Add(box);
+            }
+
+            Grid.SetRow(languages, row);
+            Grid.SetColumn(languages, 1);
+            FilterPanel.Children.Add(languages);
+
+            _rows.Add(built);
+        }
+
+        private CheckBox Box(string name, string label)
         {
             CheckBox box = new CheckBox
             {
                 IsChecked = true,
-                Tag = one.Name,
-                Margin = new Thickness(0, 4, 14, 0),
+                Tag = name,
+                Margin = new Thickness(0, 5, 14, 0),
+                VerticalAlignment = VerticalAlignment.Center,
 
                 // **A TextBlock, never a string in Content.** WPF reads an underscore as a
                 // keyboard accelerator and hides it, so `F_DB` would render as `FDB` and
                 // `Motion_DB` as `MotionDB` - and these are exact names out of the enum.
-                Content = new TextBlock { Text = one.ToString() }
+                Content = new TextBlock { Text = label }
             };
 
             Brush ink = TryFindResource("Ink") as Brush;
             if (ink != null) box.Foreground = ink;
-
-            box.Checked += TickChanged;
-            box.Unchecked += TickChanged;
 
             return box;
         }
@@ -296,29 +353,45 @@ namespace Satellite.CoreUpdater
             Ready();
         }
 
+        /// <summary>
+        /// A kind's own box also gates its languages: with the kind off, what it is written in
+        /// decides nothing, and leaving those boxes live invites the operator to set a filter
+        /// that has no effect.
+        /// </summary>
+        private void KindChanged(object sender, RoutedEventArgs e)
+        {
+            foreach (KindRow row in _rows)
+                foreach (CheckBox language in row.Languages)
+                    language.IsEnabled = row.Kind.IsChecked == true;
+
+            Ready();
+        }
+
         private void AllKinds(object sender, RoutedEventArgs e)
         {
-            Tick(KindsPanel, true);
+            foreach (KindRow row in _rows) row.Kind.IsChecked = true;
         }
 
         private void NoKinds(object sender, RoutedEventArgs e)
         {
-            Tick(KindsPanel, false);
+            foreach (KindRow row in _rows) row.Kind.IsChecked = false;
         }
 
         private void AllLanguages(object sender, RoutedEventArgs e)
         {
-            Tick(LanguagesPanel, true);
+            Tick(true);
         }
 
         private void NoLanguages(object sender, RoutedEventArgs e)
         {
-            Tick(LanguagesPanel, false);
+            Tick(false);
         }
 
-        private void Tick(Panel panel, bool ticked)
+        private void Tick(bool ticked)
         {
-            foreach (CheckBox box in panel.Children.OfType<CheckBox>()) box.IsChecked = ticked;
+            foreach (KindRow row in _rows)
+                foreach (CheckBox language in row.Languages)
+                    language.IsChecked = ticked;
         }
 
         private void MapClicked(object sender, RoutedEventArgs e)
@@ -328,7 +401,7 @@ namespace Satellite.CoreUpdater
 
             if (plc == null) return;
 
-            MapFilter filter = MapFilter.Of(Chosen(KindsPanel), Chosen(LanguagesPanel));
+            MapFilter filter = Chosen();
 
             Working(true);
             StatusText.Text = "Reading " + plc + "…";
@@ -350,23 +423,39 @@ namespace Satellite.CoreUpdater
         }
 
         /// <summary>
-        /// What one panel was asked for, or **null when every box in it is ticked** - which is
-        /// the absence of a decision rather than a list of everything, and is what keeps a map
-        /// of the whole PLC from recording a filter that narrows nothing.
+        /// What the map is asked for, or **everything when every box is ticked** - which is the
+        /// absence of a decision rather than a list of the whole project, and is what keeps a
+        /// map of the whole PLC from recording a filter that narrows nothing.
         /// </summary>
-        private static List<string> Chosen(Panel panel)
+        private MapFilter Chosen()
         {
-            List<string> ticked = new List<string>();
-            int offered = 0;
+            List<KindFilter> wanted = new List<KindFilter>();
+            bool narrows = false;
 
-            foreach (CheckBox box in panel.Children.OfType<CheckBox>())
+            foreach (KindRow row in _rows)
             {
-                offered++;
+                if (row.Kind.IsChecked != true)
+                {
+                    narrows = true;
+                    continue;
+                }
 
-                if (box.IsChecked == true) ticked.Add(box.Tag as string);
+                List<string> languages = new List<string>();
+
+                foreach (CheckBox one in row.Languages)
+                    if (one.IsChecked == true) languages.Add(one.Tag as string);
+
+                // A row with every language ticked says nothing about languages at all, which
+                // is what an empty list means inside a kind - and keeps the recorded filter
+                // about what was narrowed rather than about what was on screen.
+                bool all = languages.Count == row.Languages.Count;
+
+                if (!all) narrows = true;
+
+                wanted.Add(KindFilter.Of(row.Kind.Tag as string, all ? null : languages));
             }
 
-            return ticked.Count == offered ? null : ticked;
+            return narrows ? MapFilter.Of(wanted) : MapFilter.Everything;
         }
 
         /// <summary>
@@ -377,12 +466,15 @@ namespace Satellite.CoreUpdater
         /// and an operator who has just cleared a panel has very much made one. The two would
         /// contradict each other in the one place it matters, so the window does not let it
         /// through.
+        ///
+        /// **The same rule one level down**: a kind that is ticked with none of its languages
+        /// would map nothing, and it is named rather than silently skipped - a row asking for
+        /// FCs and producing none is exactly the hole this design refuses elsewhere.
         /// </summary>
         private void Ready()
         {
-            bool kinds = AnyTicked(KindsPanel);
-            bool languages = AnyTicked(LanguagesPanel);
-            bool enough = kinds && languages;
+            string empty = Empty();
+            bool enough = _rows.Count == 0 || (AnyKind() && empty == null);
 
             MapButton.IsEnabled = !_busy && PlcBox.SelectedItem != null && enough;
 
@@ -390,9 +482,9 @@ namespace Satellite.CoreUpdater
 
             if (!enough)
             {
-                StatusText.Text = kinds
-                    ? "Nothing is ticked under Languages, so there is nothing to map."
-                    : "Nothing is ticked under Objects, so there is nothing to map.";
+                StatusText.Text = empty == null
+                    ? "No object is ticked, so there is nothing to map."
+                    : empty + " is ticked with no language, so it would map nothing.";
 
                 _complaining = true;
                 return;
@@ -404,19 +496,38 @@ namespace Satellite.CoreUpdater
             _complaining = false;
         }
 
-        /// <summary>A panel with nothing in it narrows nothing, so it is never the objection.</summary>
-        private static bool AnyTicked(Panel panel)
+        private bool AnyKind()
         {
-            bool offered = false;
+            foreach (KindRow row in _rows)
+                if (row.Kind.IsChecked == true) return true;
 
-            foreach (CheckBox box in panel.Children.OfType<CheckBox>())
+            return false;
+        }
+
+        /// <summary>The first ticked kind that would match nothing, or null.</summary>
+        private string Empty()
+        {
+            foreach (KindRow row in _rows)
             {
-                offered = true;
+                if (row.Kind.IsChecked != true || row.Languages.Count == 0) continue;
 
-                if (box.IsChecked == true) return true;
+                bool any = false;
+
+                foreach (CheckBox one in row.Languages)
+                    if (one.IsChecked == true) any = true;
+
+                if (!any) return row.Kind.Tag as string;
             }
 
-            return !offered;
+            return null;
+        }
+
+        /// <summary>One kind on screen: its own box, and the boxes for its languages.</summary>
+        private sealed class KindRow
+        {
+            public CheckBox Kind;
+
+            public readonly List<CheckBox> Languages = new List<CheckBox>();
         }
 
         /// <summary>

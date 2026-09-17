@@ -23,10 +23,18 @@ namespace Core.Repo
     public sealed class ProjectMap
     {
         /// <summary>
-        /// What this document's shape is, so a reader meeting a newer one says so rather than
+        /// What this document's shape is, so a reader meeting another one says so rather than
         /// showing half of it. Same reason `StyleReport` carries one.
+        ///
+        /// **2** (2026-09-17): `filter` carries one entry per kind, each naming the languages
+        /// wanted inside it, where format 1 had two flat lists. A format 1 map's filter cannot
+        /// be read by this version at all - the members it names are gone - and reading such a
+        /// map as though it covered the whole PLC would be exactly the silent hole this
+        /// document exists not to have. So it is refused rather than half-read, which costs one
+        /// click: unlike a coding-style report, this file is a snapshot of the project right
+        /// now and is rebuilt by pressing *Map project* again.
         /// </summary>
-        public const int CurrentFormat = 1;
+        public const int CurrentFormat = 2;
 
         [DataMember(Name = "format", Order = 0)]
         public int Format { get; set; }

@@ -71,31 +71,32 @@
                             Click="MapClicked" />
                 </Grid>
 
-                <!-- What to map, offered as tick boxes built from the counts the survey took
-                     out of this very PLC - not from a list in the code. The language enum has
-                     twenty-nine values and a project uses four or five of them, so a fixed
-                     list would be mostly noise; "SCL (312)" tells the operator what is there.
+                <!-- What to map: one row per kind of object, and on that row the languages
+                     found inside *that* kind. Both columns are built from the counts the
+                     survey took out of this very PLC, never from a list in the code - the
+                     language enum has twenty-nine values and a project uses four or five, so a
+                     fixed list would be mostly empty boxes. The day a GRAPH block arrives it
+                     appears on the row it belongs to, with its count, and nothing here changes.
 
-                     Everything starts ticked, which is what the previous behaviour was, and
-                     `All` / `None` make narrowing to one kind two clicks rather than seven. -->
+                     The rows are added from the code-behind, because how many there are and
+                     what is on each is a property of the project rather than of this file.
+                     Row 0 is the two headings and stays. -->
                 <Grid x:Name="FilterPanel" Grid.Row="1" Margin="0,16,0,0" Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,14,0">
+                    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,18,0">
                         <TextBlock Text="Objects" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
                         <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1" Margin="10,0,0,0"
                                 Click="AllKinds" />
                         <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1" Margin="4,0,0,0"
                                 Click="NoKinds" />
                     </StackPanel>
-                    <WrapPanel x:Name="KindsPanel" Grid.Row="1" Grid.Column="0" Margin="0,6,14,0" />
 
                     <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
                         <TextBlock Text="Languages" Style="{StaticResource FieldLabel}" VerticalAlignment="Center" />
@@ -104,7 +105,6 @@
                         <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1" Margin="4,0,0,0"
                                 Click="NoLanguages" />
                     </StackPanel>
-                    <WrapPanel x:Name="LanguagesPanel" Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" />
                 </Grid>
 
                 <ScrollViewer Grid.Row="2" Margin="0,18,0,0"

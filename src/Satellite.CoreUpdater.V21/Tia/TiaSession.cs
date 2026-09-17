@@ -65,9 +65,12 @@ namespace Satellite.CoreUpdater.Tia
         private Action<PlcTagTable, string, ProjectMap> _onTable;
         private Action<PlcType, string, ProjectMap> _onType;
 
-        private Dictionary<string, int> _kinds;
-        private Dictionary<string, int> _languages;
-        private int _total;
+        /// <summary>
+        /// Counts what the survey walks. **Core's, not this adapter's**: how many of a kind
+        /// there are is not a TIA question, and two adapters keeping their own tallies would
+        /// drift the first time one learned a new rule.
+        /// </summary>
+        private ProjectSurvey.Builder _survey;
 
         public TiaAttachment Attach(TiaWanted wanted)
         {
@@ -253,9 +256,7 @@ namespace Satellite.CoreUpdater.Tia
 
         public ProjectSurvey Survey(string plc, string unit)
         {
-            _kinds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            _languages = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            _total = 0;
+            _survey = ProjectSurvey.Building();
 
             _filter = MapFilter.Everything;
             _progress = null;
@@ -270,7 +271,7 @@ namespace Satellite.CoreUpdater.Tia
             // rather than a sentence under a row of tick boxes.
             Walk(plc, unit, ProjectMap.Of(_project?.Name, plc, unit, null));
 
-            return ProjectSurvey.Of(_kinds, _languages, _total);
+            return _survey.Done();
         }
 
         public ProjectMap Map(string plc, string unit, MapFilter filter, Action<string> progress)
@@ -375,33 +376,13 @@ namespace Satellite.CoreUpdater.Tia
         }
 
         private void Counted(PlcBlock block, string folder, ProjectMap notes) =>
-            Count(Kind(block), Language(block));
+            _survey.Found(Kind(block), Language(block));
 
         private void Counted(PlcTagTable table, string folder, ProjectMap notes) =>
-            Count(CodingStyleNames.PlcTagTable, null);
+            _survey.Found(CodingStyleNames.PlcTagTable, null);
 
         private void Counted(PlcType type, string folder, ProjectMap notes) =>
-            Count(CodingStyleNames.PlcStruct, null);
-
-        private void Count(string kind, string language)
-        {
-            _total++;
-
-            Add(_kinds, kind);
-
-            // Only what has one. A PLC data type and a tag table are not counted here at all,
-            // which is the same rule the filter reads by - null passes the language half.
-            if (language != null) Add(_languages, language);
-        }
-
-        private static void Add(IDictionary<string, int> counted, string name)
-        {
-            if (string.IsNullOrEmpty(name)) return;
-
-            int found;
-
-            counted[name] = counted.TryGetValue(name, out found) ? found + 1 : 1;
-        }
+            _survey.Found(CodingStyleNames.PlcStruct, null);
 
         /// <summary>
         /// A block's programming language as the enum spells it - <c>SCL</c>, <c>LAD</c>,

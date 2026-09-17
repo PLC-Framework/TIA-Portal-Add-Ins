@@ -85,9 +85,22 @@ namespace Core.Repo
                         return null;
                     }
 
+                    // **Both directions are refused, which a report's reader does not do.**
+                    // A coding-style report is somebody's record of a moment and is read for
+                    // years, so it is worth reading an older one with its missing columns
+                    // empty. This is a snapshot of what the project holds right now, rebuilt
+                    // by one click - and an older one carries a `filter` in a shape this
+                    // version cannot see, which would read back as "the whole PLC".
                     if (map.Format > ProjectMap.CurrentFormat)
                     {
                         problem = "'" + path + "' was written by a newer version of the framework.";
+                        return null;
+                    }
+
+                    if (map.Format < ProjectMap.CurrentFormat)
+                    {
+                        problem = "'" + path + "' was written by an older version of the framework. " +
+                                  "Map the project again.";
                         return null;
                     }
 

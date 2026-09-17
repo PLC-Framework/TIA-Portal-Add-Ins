@@ -83,6 +83,8 @@ src/Core/
 │   ├── CoreValidator.cs      what is wrong with one that loaded — as ValidationIssues
 │   ├── BlockMetadata.cs      the JSON a core block carries on its TITLE line
 │   ├── SimaticMlTitle.cs     that title read back out of an export — the only way in V17-V20
+│   ├── ProjectSurvey.cs      what a PLC holds, counted per kind and per language inside it
+│   ├── MapFilter.cs          which kinds to map, and which languages inside each
 │   ├── ProjectMap.cs         what the TIA project holds — repo\project.json
 │   └── ProjectMapFile.cs     that map, written indented and read back
 ├── Places.cs                 "*" for the general program, spelled once for every reader
