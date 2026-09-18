@@ -371,7 +371,7 @@ namespace Satellite.CoreUpdater
             if (plc == null) return;
 
             if (Mapped()) CompareClicked(null, null);
-            else Map(plc, UnitBox.SelectedItem as string, Chosen(), true);
+            else Map(plc, UnitBox.SelectedItem as string, Chosen());
         }
 
         private bool Mapped()
@@ -542,14 +542,24 @@ namespace Satellite.CoreUpdater
 
             MapFilter filter = Chosen();
 
-            Map(plc, unit, filter, false);
+            Map(plc, unit, filter);
         }
 
         /// <summary>
-        /// The walk itself, shared by the button and by the first run of a project that has no
-        /// map yet — <paramref name="thenCompare"/> being the only difference between them.
+        /// The walk, and then the comparison that reads what it just wrote.
+        ///
+        /// **A map on its own leaves nothing on screen, and that is why it always compares.**
+        /// The trees are drawn from a comparison, and a walk has to empty them because they
+        /// described the project a moment ago; so *Map project* by itself took the window apart
+        /// and handed the operator a second button to press to put it back — the same two clicks
+        /// every time, with no state in between anybody would want to look at. The comparison is
+        /// a folder copy and two JSON files, next to a walk that can take minutes.
+        ///
+        /// **Both buttons stay** all the same: *Compare with core* re-reads the map on disk
+        /// without walking anything, which is what a window reopened tomorrow needs and what
+        /// picks up a core the repository has moved on.
         /// </summary>
-        private void Map(string plc, string unit, MapFilter filter, bool thenCompare)
+        private void Map(string plc, string unit, MapFilter filter)
         {
             Working(true);
             StatusText.Text = "Reading " + plc + "…";
@@ -572,7 +582,10 @@ namespace Satellite.CoreUpdater
                 {
                     Mapped(map);
 
-                    if (thenCompare && map != null) CompareClicked(null, null);
+                    // Only when there is something to compare against: a walk that came back
+                    // with nothing has already said so, and comparing would replace that
+                    // sentence with one about a map file this run never wrote.
+                    if (map != null) CompareClicked(null, null);
                 },
                 exception =>
                 {
@@ -603,8 +616,10 @@ namespace Satellite.CoreUpdater
             Working(true);
             StatusText.Text = "Reading the core…";
 
-            Problems(null);
-            ProjectSays("Copying the core into the project and reading it back.");
+            // On the repository caption, because that is what is being read - and because a map
+            // now always compares, so the left caption is holding the counts that walk just
+            // produced and this would be the second thing in a row to wipe them.
+            RepositorySays("Copying the core into the project and reading it back.");
 
             Dispatcher dispatcher = Dispatcher;
 
@@ -655,7 +670,7 @@ namespace Satellite.CoreUpdater
                 // A project that names no core is a fact about the project; a repository that is
                 // not on this machine is something to go and fix. The two read alike in one line,
                 // so the status line is what tells them apart.
-                Told(done.Problem, done.NamesCore ? "Not compared." : "No core.");
+                NoCore(done.Problem, done.NamesCore ? "Not compared." : "No core.");
                 return;
             }
 
@@ -673,7 +688,13 @@ namespace Satellite.CoreUpdater
             RepoChips(done.Result);
             Repository(done.Result);
 
+            // The map's own problems belong here as much as the core's. A comparison is *of* the
+            // map on disk, so a folder that would not read while it was walked is a hole in what
+            // is on screen right now - and a map always compares, so a comparison that showed
+            // only the core's issues would have wiped the walk's a second later.
             List<string> problems = new List<string>();
+
+            if (done.Map?.Problems != null) problems.AddRange(done.Map.Problems);
 
             if (done.Core.Issues != null)
                 foreach (ValidationIssue issue in done.Core.Issues.Issues)
@@ -707,6 +728,44 @@ namespace Satellite.CoreUpdater
 
             RepositorySays(string.Empty);
             ProjectSays(text);
+
+            // The caption carries the whole of it here, so anything still under the panels came
+            // from a run that is now gone. Callers that do have something to list - an import,
+            // a move - set it straight after this returns.
+            Problems(null);
+
+            StatusText.Text = status;
+        }
+
+        /// <summary>
+        /// There is no comparison, and why — **on the repository caption, not the project's.**
+        ///
+        /// It is a fact about the core: the project names none, the repository is not on this
+        /// machine, `remote` is not wired up. Written on the left it would overwrite the counts a
+        /// walk had just put there, which are still perfectly true — and since a map now always
+        /// compares, that is what an operator mapping a project with no core would see instead of
+        /// the answer they asked for.
+        ///
+        /// **Both trees still go.** They are drawn from a comparison, so with none there is
+        /// nothing to draw on either side; only the sentence has a side.
+        ///
+        /// **What is under the panels is left alone**, unlike <see cref="Told"/>: a walk that
+        /// just ran may have left real holes there, and "a map with holes says where they are" is
+        /// the rule this whole feature is built on. Everything else that writes that line puts a
+        /// caption up first, so nothing stale can reach here from another run.
+        /// </summary>
+        private void NoCore(string reason, string status)
+        {
+            Empty(ProjectTree);
+            Empty(RepositoryTree);
+
+            _compared = null;
+            _shown = null;
+
+            SyncButton.IsEnabled = false;
+            DownloadButton.IsEnabled = false;
+
+            RepositorySays(reason);
 
             StatusText.Text = status;
         }
