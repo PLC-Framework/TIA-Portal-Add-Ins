@@ -5,9 +5,41 @@
         Title="Core updater"
         Height="860" Width="1180"
         MinHeight="560" MinWidth="880"
-        WindowStartupLocation="CenterScreen"
-        Background="{StaticResource DarkThemeGradientBrush}"
-        Icon="{StaticResource BrandLogo}">
+        WindowStartupLocation="CenterScreen">
+
+    <!-- Merged on the window rather than on an application, because this project has none:
+         no `App.xaml` is what lets one library serve the V20 and V21 executables, and an
+         `ApplicationDefinition` would generate a `Main` that has to live in one assembly.
+
+         `UI.Shared/Controls/BrandHeader.xaml` already does exactly this for the same reason,
+         so the pattern is the repository's rather than a new one. The URI carries the
+         **assembly** name, and `Controls.xaml` pulls `Theme.xaml` in itself.
+
+         It is also what makes the XAML designer work. Visual Studio builds the design-time
+         `Application.Resources` out of `App.xaml`; with none, every `{StaticResource}` in this
+         file came back as XDG-0001 and the designer rendered nothing - forty errors against a
+         window that compiled and ran perfectly well, because WPF resolves these at load time
+         rather than at compile time. -->
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/Controls.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/BrandLogo.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <!-- Property elements, below `Window.Resources`, and not attributes on the start tag:
+         an attribute is set as the parser reads that tag, before it has reached the
+         dictionary declared underneath, so `Background="{StaticResource …}"` up there cannot
+         see what is down here. Every other use in this file is on a child element, where the
+         lookup walks up to the window and finds it. -->
+    <Window.Background>
+        <StaticResource ResourceKey="DarkThemeGradientBrush" />
+    </Window.Background>
+    <Window.Icon>
+        <StaticResource ResourceKey="BrandLogo" />
+    </Window.Icon>
 
     <Grid Margin="20">
         <Grid.RowDefinitions>

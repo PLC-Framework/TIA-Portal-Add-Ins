@@ -133,6 +133,8 @@ src/UI.Shared/
 
 > **Merging `Controls.xaml` is enough.** It pulls `Theme.xaml` in, so a consumer cannot get the order wrong or take half of it. Listing both would just load the palette twice. `Satellite.About` merges `Theme.xaml` alone, because it has no form.
 
+> **Where a consumer merges them decides whether the XAML designer works.** Four satellites do it in `App.xaml`, which is also where Visual Studio reads the design-time `Application.Resources` from. `Satellite.CoreUpdater` has no `App.xaml` — that is what lets one library serve two executables — so its window merges them in its own `Window.Resources`, exactly as `BrandHeader.xaml` does one level down. Merging into `Application.Resources` from code works at run time and leaves the designer resolving nothing: every `{StaticResource}` comes back as `XDG-0001` on a window that compiles and runs, because WPF resolves them at load time rather than at compile time. Two consequences: a property on the `Window` **start tag** has to become a property element below `Window.Resources`, since an attribute is set before the parser reaches the dictionary; and the designer needs `UI.Shared` **built**, because it resolves `pack://application:,,,/PLC-Framework.UI.Shared;component/…` out of the compiled assembly.
+
 ```
 src/Satellite.ConfigEditor/
 ├── Satellite.ConfigEditor.csproj   references Core, UI.Shared; Newtonsoft.Json

@@ -11,8 +11,16 @@ namespace Satellite.CoreUpdater
     ///
     /// **No `App.xaml`**, and that is what makes one application serve two executables: an
     /// `ApplicationDefinition` generates a `Main`, which would have to live in one assembly.
-    /// The dictionaries are merged here instead, by the same pack URIs - which carry the
-    /// *assembly* name, `PLC-Framework.UI.Shared`, not the project name.
+    ///
+    /// **The brand dictionaries are merged by the window, not here.** They were merged into
+    /// `Application.Resources` in this constructor until 2026-09-18, which worked at run time
+    /// and left the XAML designer with nothing at all to resolve against: Visual Studio builds
+    /// its design-time `Application.Resources` out of `App.xaml`, so every `{StaticResource}`
+    /// in `MainWindow.xaml` came back as XDG-0001 on a window that compiled and ran. A window
+    /// that declares the dictionaries it needs is the pattern
+    /// `UI.Shared/Controls/BrandHeader.xaml` already uses, for the same reason one level down -
+    /// and it is the more honest place, since knowing which resources one particular window
+    /// wants was never the application's business.
     ///
     /// **No single-instance guard yet.** The config editor takes one per TIA Portal because
     /// two windows over one document lose each other's changes, and this window will want the
@@ -36,9 +44,6 @@ namespace Satellite.CoreUpdater
             _whereItLooked = whereItLooked;
             _requested = requested;
             _tiaVersion = tiaVersion;
-
-            Resources.MergedDictionaries.Add(Dictionary("Controls.xaml"));
-            Resources.MergedDictionaries.Add(Dictionary("BrandLogo.xaml"));
         }
 
         /// <summary>
