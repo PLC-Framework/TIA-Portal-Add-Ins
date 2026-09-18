@@ -72,6 +72,17 @@ namespace Satellite.CoreUpdater
         /// <summary>Whether the window has already done its one automatic map-and-compare.</summary>
         private bool _started;
 
+        /// <summary>
+        /// What the last import or move did, kept above whatever else is under the panels.
+        ///
+        /// **Because a write is followed by a reload that replaces everything else on screen.**
+        /// It has to — the project is not what the comparison described any more — so without
+        /// this the one thing the operator most needs to read, what went in and what refused,
+        /// would be the first thing to go. Cleared when the next write starts, or by a Reload
+        /// somebody asked for themselves.
+        /// </summary>
+        private string _notice = string.Empty;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -190,7 +201,8 @@ namespace Satellite.CoreUpdater
         }
 
         /// <summary>
-        /// What a run could not do, across the width of both panels.
+        /// What a run could not do, across the width of both panels — under whatever the last
+        /// import or move had to say, which outlives the reload that follows it.
         ///
         /// **Never folded into a caption.** A folder that would not read, an object that would
         /// not export: a map with holes that does not say where they are reads as a whole one,
@@ -198,9 +210,16 @@ namespace Satellite.CoreUpdater
         /// </summary>
         private void Problems(string text)
         {
-            ProblemsText.Text = text ?? string.Empty;
-            ProblemsText.ToolTip = string.IsNullOrEmpty(text) ? null : text;
-            ProblemsText.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+            string all = _notice;
+
+            if (!string.IsNullOrEmpty(text))
+                all = all.Length == 0
+                    ? text
+                    : all + Environment.NewLine + Environment.NewLine + text;
+
+            ProblemsText.Text = all;
+            ProblemsText.ToolTip = all.Length == 0 ? null : all;
+            ProblemsText.Visibility = all.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         }
 
         /// <summary>
@@ -562,9 +581,29 @@ namespace Satellite.CoreUpdater
 
             if (plc == null) return;
 
-            MapFilter filter = Chosen();
+            // A reload somebody asked for themselves is not about the last import.
+            _notice = string.Empty;
 
-            Map(plc, unit, filter);
+            Map(plc, unit, Chosen());
+        }
+
+        /// <summary>
+        /// The same reload, run because something just changed the project rather than because
+        /// anybody pressed the button.
+        ///
+        /// **The window used to stop at "Map the project again".** The comparison had to go — it
+        /// described a project that no longer existed — but leaving two empty trees and a
+        /// sentence asking for a click is the same defect the walk itself had one step earlier,
+        /// and what was just written is the whole reason for looking.
+        ///
+        /// **What the write had to say survives it**, in <see cref="_notice"/>: the reload
+        /// replaces every caption and the status line, so that is the only place it could.
+        /// </summary>
+        private void Again(string plc, string unit)
+        {
+            if (plc == null) return;
+
+            Map(plc, unit, Chosen());
         }
 
         /// <summary>
@@ -1330,12 +1369,13 @@ namespace Satellite.CoreUpdater
             DownloadButton.IsEnabled = false;
             StatusText.Text = "Importing…";
 
+            _notice = string.Empty;
             Problems(null);
             ProjectSays("Writing " + plan.Nodes.Count + " objects into the project.");
 
             _worker.Post(
                 session => session.Import(plc, unit, plan, Say),
-                report => { Working(false); Wrote(report, plan); },
+                report => { Working(false); Wrote(report, plan, plc, unit); },
                 exception =>
                 {
                     Working(false);
@@ -1381,7 +1421,7 @@ namespace Satellite.CoreUpdater
                 MessageBoxImage.Warning) == MessageBoxResult.OK;
         }
 
-        private void Wrote(ImportReport report, DownloadPlan plan)
+        private void Wrote(ImportReport report, DownloadPlan plan, string plc, string unit)
         {
             if (report == null)
             {
@@ -1389,25 +1429,29 @@ namespace Satellite.CoreUpdater
                 return;
             }
 
-            // The comparison on screen described the project as it was a moment ago, and it no
-            // longer does. Told empties both trees, which is what says so.
-            Told(
-                string.Format(
-                    CultureInfo.CurrentCulture,
-                    "{0} of {1} went in, {2} were already at the core's version, {3} refused. " +
-                    "Map the project again to compare it.",
-                    report.Imported,
-                    plan.Nodes.Count - report.Skipped,
-                    report.Skipped,
-                    report.Failed),
-                report.Failed > 0 ? "Imported, with refusals." : "Imported.");
+            string summary = string.Format(
+                CultureInfo.CurrentCulture,
+                "{0} of {1} went in, {2} were already at the core's version, {3} refused.",
+                report.Imported,
+                plan.Nodes.Count - report.Skipped,
+                report.Skipped,
+                report.Failed);
 
-            List<string> problems = new List<string>(report.Problems);
+            List<string> lines = new List<string> { summary };
+
+            foreach (string problem in report.Problems) lines.Add("    " + problem);
 
             foreach (ImportedNode one in report.Results)
-                if (!one.Done) problems.Add(one.Name + ": " + one.Problem);
+                if (!one.Done) lines.Add("    " + one.Name + ": " + one.Problem);
 
-            Problems(problems.Count == 0 ? null : Listed(problems));
+            _notice = string.Join(Environment.NewLine, lines);
+
+            // The comparison on screen described the project as it was a moment ago, and it no
+            // longer does. Told empties both trees; the reload straight after fills them from
+            // the project as it is now.
+            Told(summary, report.Failed > 0 ? "Imported, with refusals." : "Imported.");
+
+            Again(plc, unit);
         }
 
         // ---- Putting a misplaced object back where its family says ------------------------------
@@ -1448,12 +1492,13 @@ namespace Satellite.CoreUpdater
             SyncButton.IsEnabled = false;
             StatusText.Text = "Moving…";
 
+            _notice = string.Empty;
             Problems(null);
             ProjectSays("Moving " + plan.Count + " objects into the folders the core names.");
 
             _worker.Post(
                 session => session.Sync(plc, unit, plan, Say),
-                report => { Working(false); Synced(report, plan); },
+                report => { Working(false); Synced(report, plan, plc, unit); },
                 exception =>
                 {
                     Working(false);
@@ -1502,7 +1547,7 @@ namespace Satellite.CoreUpdater
                 MessageBoxImage.Warning) == MessageBoxResult.OK;
         }
 
-        private void Synced(SyncReport report, SyncPlan plan)
+        private void Synced(SyncReport report, SyncPlan plan, string plc, string unit)
         {
             if (report == null)
             {
@@ -1510,23 +1555,26 @@ namespace Satellite.CoreUpdater
                 return;
             }
 
-            // The comparison described the project as it was a moment ago. Told empties both
-            // trees, which is what says so.
+            string summary = string.Format(
+                CultureInfo.CurrentCulture,
+                "{0} of {1} moved, {2} did not.", report.Moved, plan.Count, report.Failed);
+
+            List<string> lines = new List<string> { summary };
+
+            foreach (string problem in report.Problems) lines.Add("    " + problem);
+
+            foreach (MovedObject one in report.Results)
+                if (!one.Done) lines.Add("    " + one.Name + ": " + one.Problem);
+
+            _notice = string.Join(Environment.NewLine, lines);
+
             Told(
-                string.Format(
-                    CultureInfo.CurrentCulture,
-                    "{0} of {1} moved, {2} did not. Map the project again to compare it.",
-                    report.Moved, plan.Count, report.Failed),
+                summary,
                 report.Stranded > 0
                     ? "Moved, and " + report.Stranded + " left as files."
                     : report.Failed > 0 ? "Moved, with refusals." : "Moved.");
 
-            List<string> problems = new List<string>(report.Problems);
-
-            foreach (MovedObject one in report.Results)
-                if (!one.Done) problems.Add(one.Name + ": " + one.Problem);
-
-            Problems(problems.Count == 0 ? null : Listed(problems));
+            Again(plc, unit);
         }
 
         /// <summary>One comparison, and why there is none when there is not.</summary>

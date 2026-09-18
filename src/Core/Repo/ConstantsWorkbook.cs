@@ -78,6 +78,12 @@ namespace Core.Repo
         /// </summary>
         public string Title { get; }
 
+        /// <summary>
+        /// Every user constant, **the table's own marker included**. The first row of the sheet
+        /// is both: it names the table and carries its TITLE, and it is a real constant that has
+        /// to be created like the rest — it is the only place a `PlcTagTable`'s metadata can
+        /// live, since the type itself has a `Name` and nothing more.
+        /// </summary>
         public IReadOnlyList<CoreConstant> Constants { get; }
 
         public IReadOnlyList<CoreTag> Tags { get; }
@@ -128,8 +134,7 @@ namespace Core.Repo
             if (rows.Count == 0)
                 return Failed("'" + named + "' names no tag table on its '" + ConstantsSheet + "' sheet.");
 
-            // The first row of the sheet is the table itself: its name, a placeholder value, and
-            // the TITLE line in its comment. Every row after it is a constant of that table.
+            // The first row names the table and carries the TITLE line in its comment.
             Row table = rows[0];
 
             string name = Trimmed(table["Name"]);
@@ -137,9 +142,16 @@ namespace Core.Repo
             if (name.Length == 0)
                 return Failed("'" + named + "' does not name its tag table.");
 
+            // **And it is a constant like any other, which the first version got wrong.** It
+            // was read for the name and the title and then skipped, so an imported table came
+            // out without the one constant that says where it came from - and a project mapped
+            // afterwards could not tell a core enumeration from one of the plant's. The marker
+            // is not metadata TIA keeps somewhere else: `PlcTagTable` has a `Name` and nothing
+            // more, so the comment of the constant named after the table is the only place the
+            // TITLE can live, which is why the workbook puts it there.
             List<CoreConstant> held = new List<CoreConstant>();
 
-            for (int i = 1; i < rows.Count; i++)
+            for (int i = 0; i < rows.Count; i++)
                 held.Add(new CoreConstant(
                     Trimmed(rows[i]["Name"]),
                     Trimmed(rows[i]["Data Type"]),
