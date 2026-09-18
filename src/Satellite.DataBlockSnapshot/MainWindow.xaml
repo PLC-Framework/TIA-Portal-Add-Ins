@@ -152,10 +152,10 @@
                      pair of buttons, so these two sit flush with those rather than floating
                      in the middle of it. -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button x:Name="AddBlockButton" Content="+" Width="32" Padding="0,4"
+                    <Button x:Name="AddBlockButton" Content="+" Width="32"
                             FontSize="15" Margin="8,0,0,0" Style="{StaticResource Quiet}"
                             ToolTip="Add this data block to the list" Click="OnAddBlock" />
-                    <Button x:Name="RemoveBlockButton" Content="✕" Width="32" Padding="0,4"
+                    <Button x:Name="RemoveBlockButton" Content="✕" Width="32"
                             Margin="8,0,0,0" Style="{StaticResource Destructive}"
                             IsEnabled="False"
                             ToolTip="Remove the selected data block from the list"
@@ -176,13 +176,13 @@
             <TextBox   Grid.Column="1" x:Name="FolderBox" />
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="BrowseButton" Content="..." Width="34"
-                        Margin="8,0,0,0" Padding="0,4" Style="{StaticResource Quiet}"
+                <Button x:Name="BrowseButton" Content="..." Width="32"
+                        Margin="8,0,0,0" Style="{StaticResource Quiet}"
                         Click="OnBrowseFolder" />
                 <!-- Stays enabled during a capture: it only looks, and watching the files
                      appear is exactly when an operator wants it. -->
                 <Button x:Name="OpenFolderButton" Content="Open" Width="70"
-                        Margin="8,0,0,0" Padding="0,4" Style="{StaticResource Quiet}"
+                        Margin="8,0,0,0" Style="{StaticResource Quiet}"
                         ToolTip="Open the destination folder in Explorer"
                         Click="OnOpenFolder" />
             </StackPanel>
@@ -190,14 +190,13 @@
 
         <!-- Actions -->
         <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-            <Button x:Name="CancelButton" Content="Cancel" Width="130" Padding="0,7"
+            <Button x:Name="CancelButton" Content="Cancel" Width="130"
                     Margin="0,0,10,0" IsEnabled="False"
                     Style="{StaticResource Quiet}" Click="OnCancel" />
-            <Button x:Name="CaptureButton" Content="Capture" Width="130" Padding="0,7"
+            <Button x:Name="CaptureButton" Content="Capture" Width="130"
                     Style="{StaticResource Primary}" Click="OnCapture" />
         </StackPanel>
 
-        <TextBlock Grid.Row="6" x:Name="StatusLine" Margin="0,14,0,0"
-                   TextWrapping="Wrap" Foreground="{StaticResource Ink}" />
+        <ui:StatusBar Grid.Row="6" x:Name="StatusLine" Margin="0,14,0,0" />
     </Grid>
 </Window>

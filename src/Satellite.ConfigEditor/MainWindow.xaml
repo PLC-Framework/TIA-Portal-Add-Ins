@@ -263,8 +263,7 @@
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Repository" Style="{StaticResource FieldLabel}" />
                                 <TextBox   Grid.Row="0" Grid.Column="1" x:Name="LocalRepositoryBox" TextChanged="OnFieldChanged" />
-                                <Button    Grid.Row="0" Grid.Column="2" Content="..." Width="34" Margin="8,0,0,0"
-                                           Padding="0,4" Style="{StaticResource Quiet}" Click="OnBrowseLocalRepository" />
+                                <Button    Grid.Row="0" Grid.Column="2" Content="..." Width="32" Margin="8,0,0,0" Style="{StaticResource Quiet}" Click="OnBrowseLocalRepository" />
 
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Folder" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
                                 <TextBox   Grid.Row="1" Grid.Column="1" x:Name="LocalFolderBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
@@ -392,10 +391,10 @@
                                 </Border>
 
                                 <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Margin="0,8,0,0">
-                                    <Button x:Name="AddRuleButton" Content="+" Width="32" Padding="0,4"
+                                    <Button x:Name="AddRuleButton" Content="+" Width="32"
                                             FontSize="15" Style="{StaticResource Quiet}"
                                             ToolTip="Add a rule" Click="OnAddRule" />
-                                    <Button x:Name="RemoveRuleButton" Content="✕" Width="32" Padding="0,4"
+                                    <Button x:Name="RemoveRuleButton" Content="✕" Width="32"
                                             Margin="8,0,0,0" Style="{StaticResource Destructive}"
                                             ToolTip="Remove the selected rule, and every reference to it"
                                             Click="OnRemoveRule" />
@@ -483,8 +482,7 @@
                                                    Text="a section not listed is not checked"
                                                    ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
 
-                                        <Button Grid.Column="2" x:Name="AddSectionButton" Content="Add section" Width="100"
-                                                Padding="0,3" Margin="0,0,0,6" VerticalAlignment="Bottom"
+                                        <Button Grid.Column="2" x:Name="AddSectionButton" Content="Add section" Width="100" Margin="0,0,0,6" VerticalAlignment="Bottom"
                                                 Style="{StaticResource Quiet}"
                                                 ToolTipService.ShowOnDisabled="True"
                                                 Click="OnAddSection" />
@@ -536,12 +534,12 @@
 
                                                                 <StackPanel Grid.Column="1" Orientation="Horizontal"
                                                                             Margin="8,0,0,0" VerticalAlignment="Top">
-                                                                    <Button Content="+" Width="26" Padding="0,2"
+                                                                    <Button Content="+" Width="32"
                                                                             Style="{StaticResource Quiet}"
                                                                             IsEnabled="{Binding CanAddRule}"
                                                                             ToolTip="Answer to another interface rule"
                                                                             Tag="{Binding}" Click="OnAddRuleToType" />
-                                                                    <Button Content="✕" Width="26" Padding="0,2"
+                                                                    <Button Content="✕" Width="32"
                                                                             Margin="6,0,0,0"
                                                                             Style="{StaticResource Destructive}"
                                                                             ToolTip="Remove this section: its names stop being checked"
@@ -629,12 +627,12 @@
 
                                                                 <StackPanel Grid.Column="2" Orientation="Horizontal"
                                                                             VerticalAlignment="Top">
-                                                                    <Button Content="+" Width="26" Padding="0,2"
+                                                                    <Button Content="+" Width="32"
                                                                             Style="{StaticResource Quiet}"
                                                                             IsEnabled="{Binding CanAddRule}"
                                                                             ToolTip="Implement another rule"
                                                                             Tag="{Binding}" Click="OnAddRuleToType" />
-                                                                    <Button Content="✕" Width="26" Padding="0,2"
+                                                                    <Button Content="✕" Width="32"
                                                                             Margin="6,0,0,0"
                                                                             Style="{StaticResource Destructive}"
                                                                             ToolTip="Remove this type"
@@ -649,7 +647,7 @@
                                             <!-- Disabled once every type of the closed set has a
                                                  row: there is nothing left that could be added
                                                  without duplicating a pairing that already exists. -->
-                                            <Button Content="Add type" Width="100" Padding="0,5"
+                                            <Button Content="Add type" Width="100"
                                                     HorizontalAlignment="Left" Style="{StaticResource Quiet}"
                                                     IsEnabled="{Binding CanAdd}"
                                                     ToolTip="Add one of the types this section still has free"
@@ -700,7 +698,7 @@
                                                  Style="{StaticResource Tab}" Checked="OnUnitConcernChanged" />
                                 </StackPanel>
 
-                                <Button x:Name="UnitsToggle" HorizontalAlignment="Right" Width="150" Padding="0,5"
+                                <Button x:Name="UnitsToggle" HorizontalAlignment="Right" Width="150"
                                         Style="{StaticResource Quiet}" Click="OnToggleUnits" />
                             </Grid>
 
@@ -755,15 +753,15 @@
                                 </Border>
 
                                 <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Margin="0,8,0,0">
-                                    <Button x:Name="AddRootButton" Content="+ Folder" Width="90" Padding="0,5"
+                                    <Button x:Name="AddRootButton" Content="+ Folder" Width="90"
                                             Style="{StaticResource Quiet}"
                                             ToolTip="Add a folder at the top of this list"
                                             Click="OnAddRootGroup" />
-                                    <Button x:Name="AddChildButton" Content="+ Sub-folder" Width="110" Padding="0,5"
+                                    <Button x:Name="AddChildButton" Content="+ Sub-folder" Width="110"
                                             Margin="8,0,0,0" Style="{StaticResource Quiet}"
                                             ToolTip="Add a folder inside the selected one"
                                             Click="OnAddChildGroup" />
-                                    <Button x:Name="RemoveGroupButton" Content="✕" Width="32" Padding="0,5"
+                                    <Button x:Name="RemoveGroupButton" Content="✕" Width="32"
                                             Margin="8,0,0,0" Style="{StaticResource Destructive}"
                                             ToolTip="Remove the selected folder and everything inside it"
                                             Click="OnRemoveGroup" />
@@ -805,16 +803,16 @@
                                  always shown, and disabled when there is no such file, so where it
                                  would come from is visible even before it exists. -->
                             <StackPanel x:Name="CreateButtons" HorizontalAlignment="Center" Margin="0,20,0,0">
-                                <Button x:Name="CreateSystemButton" Content="Create from system template" Width="240" Padding="0,8"
+                                <Button x:Name="CreateSystemButton" Content="Create from system template" Width="240"
                                         HorizontalAlignment="Center"
                                         Style="{StaticResource Primary}" Click="OnCreateFromSystemTemplate"
                                         ToolTip="The template built into this editor - the current contract" />
-                                <Button x:Name="CreateUserButton" Content="Create from user template" Width="240" Padding="0,7"
+                                <Button x:Name="CreateUserButton" Content="Create from user template" Width="240"
                                         Margin="0,10,0,0" HorizontalAlignment="Center"
                                         Style="{StaticResource Quiet}" Click="OnCreateFromUserTemplate"
                                         ToolTipService.ShowOnDisabled="True" />
                             </StackPanel>
-                            <Button x:Name="ChooseButton" Content="Choose a project folder..." Width="240" Padding="0,7"
+                            <Button x:Name="ChooseButton" Content="Choose a project folder..." Width="240"
                                     Margin="0,10,0,0" HorizontalAlignment="Center"
                                     Style="{StaticResource Quiet}" Click="OnChooseProject" />
                         </StackPanel>
@@ -829,13 +827,12 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" x:Name="StatusLine" VerticalAlignment="Center"
-                       TextWrapping="Wrap" Foreground="{StaticResource Ink}" />
+            <ui:StatusBar Grid.Column="0" x:Name="StatusLine" VerticalAlignment="Center" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <Button x:Name="RevertButton" Content="Revert" Width="110" Padding="0,7"
+                <Button x:Name="RevertButton" Content="Revert" Width="110"
                         Margin="0,0,10,0" Style="{StaticResource Quiet}" Click="OnRevert" />
-                <Button x:Name="SaveButton" Content="Save" Width="130" Padding="0,7"
+                <Button x:Name="SaveButton" Content="Save" Width="130"
                         Style="{StaticResource Primary}" Click="OnSave" />
             </StackPanel>
         </Grid>

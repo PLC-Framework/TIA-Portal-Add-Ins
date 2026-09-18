@@ -4,6 +4,10 @@ A satellite is a WPF application the Add-In launches from the TIA menu. This pag
 
 **Every satellite with a form wears the same header**: the logo at 38 pixels, the window's name at 18 SemiBold in the brand ink, and a line under it at 11 in the muted one saying what it is working on. It comes from `UI.Shared/Controls/BrandHeader.xaml`, so it cannot drift again — which it had, into three sizes and two spellings of the same grey, before the four of them were pulled onto one control. `Satellite.About` is the exception and stays one: it has no form, and the logo *is* its content.
 
+**And every one of them ends in the same status bar**, from `UI.Shared/Controls/StatusBar.xaml` — the same height, the same ink, the same place. It had drifted the same way: three margins above it and two inks across four windows. **It is there whether the window has anything to say or not**, so nothing above it moves the first time it does, and it trims rather than wraps for the same reason. `Satellite.About` *is* a consumer of this one although it is not of the header: a window that never has a status is precisely the case "even when there is no status" names.
+
+**And a button is one size everywhere**, because the size lives in `Controls.xaml` rather than in each window — they had drifted through seven vertical paddings between them. A button still stretches to a row that is taller, which is what makes a `...` line up with the box beside it; what never differs is two buttons in the same row. The details are under *Theming* in [architecture.md](architecture.md).
+
 ## Capturing a data block
 
 `Satellite.DataBlockSnapshot` writes one workbook per block, `<ip>-<DB>-snapshot-<timestamp>.xlsx`, into `<TIA project>\.plc-framework\exports\` by default. The rules it follows are all about the file being trustworthy later:

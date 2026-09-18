@@ -1,0 +1,33 @@
+<UserControl x:Class="UI.Shared.Controls.StatusBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Merged here rather than taken from the application, exactly as BrandHeader does: a
+        UserControl's own XAML is parsed before it is attached to anything, so a StaticResource
+        inside it cannot see a window's dictionaries. The URI carries the assembly name.
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/Theme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!--
+        MinHeight rather than a row that collapses: the bar is there whether there is anything
+        to say or not, so a window does not shift the first time it says something. That is the
+        whole of "a status bar even when there is no status".
+    -->
+    <Grid MinHeight="20">
+        <!--
+            Trimmed with the whole of it on hover, not wrapped. A status bar that grows to two
+            lines moves everything above it, and this framework already answers "longer than
+            the space it has" with a tooltip everywhere else.
+        -->
+        <TextBlock x:Name="Line" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"
+                   Foreground="{StaticResource Ink}" />
+    </Grid>
+</UserControl>

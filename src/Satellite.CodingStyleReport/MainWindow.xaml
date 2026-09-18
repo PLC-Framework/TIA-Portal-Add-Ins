@@ -76,7 +76,7 @@
 
             <!-- Only when TIA Portal sent nothing: a window opened from the menu is that run's
                  report, and another workbook over it would contradict its own header. -->
-            <Button Grid.Column="1" x:Name="ImportButton" Content="Import .xlsx..." Width="130" Padding="0,6"
+            <Button Grid.Column="1" x:Name="ImportButton" Content="Import .xlsx..." Width="130"
                     VerticalAlignment="Center" Style="{StaticResource Quiet}"
                     ToolTip="Open a coding-style report exported earlier"
                     Click="OnImport" />
@@ -287,22 +287,21 @@
             <TextBox   Grid.Column="1" x:Name="FolderBox" />
 
             <StackPanel Grid.Column="2" Orientation="Horizontal">
-                <Button x:Name="BrowseButton" Content="..." Width="34" Margin="8,0,0,0" Padding="0,4"
+                <Button x:Name="BrowseButton" Content="..." Width="32" Margin="8,0,0,0"
                         Style="{StaticResource Quiet}" ToolTip="Choose where the workbook is written"
                         Click="OnBrowseFolder" />
-                <Button x:Name="OpenFolderButton" Content="Open" Width="70" Margin="8,0,0,0" Padding="0,4"
+                <Button x:Name="OpenFolderButton" Content="Open" Width="70" Margin="8,0,0,0"
                         Style="{StaticResource Quiet}" ToolTip="Open the folder in Explorer"
                         Click="OnOpenFolder" />
                 <!-- Every row, whatever the filters show: a workbook of the failures alone would
                      read as a clean report to whoever opens it next. -->
-                <Button x:Name="ExportButton" Content="Export .xlsx" Width="130" Margin="16,0,0,0" Padding="0,6"
+                <Button x:Name="ExportButton" Content="Export .xlsx" Width="130" Margin="16,0,0,0"
                         Style="{StaticResource Primary}"
                         ToolTip="Write every row of the report, whatever the filters show, with its rules and provenance"
                         Click="OnExport" />
             </StackPanel>
         </Grid>
 
-        <TextBlock Grid.Row="5" x:Name="StatusLine" Margin="0,12,0,0"
-                   TextWrapping="Wrap" Foreground="{StaticResource Ink}" />
+        <ui:StatusBar Grid.Row="5" x:Name="StatusLine" Margin="0,14,0,0" />
     </Grid>
 </Window>

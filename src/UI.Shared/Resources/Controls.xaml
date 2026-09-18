@@ -660,11 +660,30 @@
         </Setter>
     </Style>
 
-    <!-- Flat, so the stock grey gradient does not reappear in the middle of a dark form. -->
+    <!--
+        Flat, so the stock grey gradient does not reappear in the middle of a dark form.
+
+        **The size lives here, not in the windows** (2026-09-18, the maintainer asking for one
+        look across every UI). Each window had been setting its own `Padding="0,N"` and the four
+        of them had drifted through 2, 3, 4, 5, 6, 7 and 8 - seven heights for one kind of
+        control, which is how a row of buttons ends up looking assembled rather than designed.
+
+        **`MinHeight` rather than padding is what makes them one height.** Padding decides a
+        button's height only until something else does, so a fixed `Width` with a long label and
+        a fixed `Width` with a glyph came out differently however carefully the padding was
+        matched. With a floor, every button is that tall whatever is in it.
+
+        **The horizontal padding is small on purpose.** Most buttons in this framework carry an
+        explicit `Width`, and padding eats into it: a `✕` in a 32-pixel button has nothing to
+        spare. Auto-width buttons get their breathing room from the padding, which is why it is
+        not zero.
+    -->
     <Style TargetType="Button" x:Key="Quiet">
         <Setter Property="Foreground" Value="{StaticResource Ink}" />
         <Setter Property="Background" Value="{StaticResource Field}" />
         <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="10,0" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -707,6 +726,13 @@
         <Setter Property="Foreground" Value="{StaticResource Ink}" />
         <Setter Property="Background" Value="{StaticResource Field}" />
         <Setter Property="BorderBrush" Value="{StaticResource FieldEdge}" />
+
+        <!-- Repeated rather than inherited, for the reason the template below is: this style
+             cannot use BasedOn, so every setter Quiet has, it has to have too. A remove button
+             that came out a different height from the add button beside it would be the exact
+             drift this was extracted to end. -->
+        <Setter Property="MinHeight" Value="28" />
+        <Setter Property="Padding" Value="10,0" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">

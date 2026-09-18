@@ -131,15 +131,23 @@
                              and as three columns of tick boxes they were taking a third of the
                              window for the rest of it. -->
                         <Button x:Name="ProjectFilterButton" Content="Filter" Margin="12,0,0,0"
-                                Style="{StaticResource Primary}" Padding="12,2"
+                                Style="{StaticResource Primary}"
                                 Click="ProjectFilterClicked"
                                 PreviewMouseLeftButtonDown="FilterPressed" />
                     </StackPanel>
 
                     <!-- A visible edge on each container (asked for): with two trees side by
                          side and both scrolling, where one ends and the other begins is
-                         otherwise only the gap between them. -->
+                         otherwise only the gap between them.
+
+                         **`Surface`, the same background every table in the framework sits
+                         on** - the coding-style report's rows and the snapshot's block list
+                         both. With no background of their own these two showed the window's
+                         gradient through, which is the one thing in the framework that reads as
+                         a panel and a container at the same time. The tree itself stays
+                         transparent, as the implicit style leaves it. -->
                     <Border Grid.Row="1" Grid.Column="0" Margin="0,0,16,0"
+                            Background="{StaticResource Surface}"
                             BorderBrush="{StaticResource FieldEdge}" BorderThickness="1" Padding="6">
                         <TreeView x:Name="ProjectTree" />
                     </Border>
@@ -162,7 +170,7 @@
                             <!-- Moving blocks inside somebody's project, so it says what it
                                  would move and waits to be told before it moves anything. -->
                             <Button x:Name="SyncButton" Content="Sync folders with core"
-                                    Style="{StaticResource Quiet}" Padding="12,4" MinWidth="152"
+                                    Style="{StaticResource Quiet}" MinWidth="152"
                                     IsEnabled="False" Click="SyncClicked" />
 
                             <!-- The arrow is the direction: out of the core, into the project.
@@ -170,7 +178,7 @@
                                  is worked out and shown before a single source is written. -->
                             <Button x:Name="DownloadButton" Content="&lt;&lt; Download &amp; Import"
                                     Margin="0,8,0,0"
-                                    Style="{StaticResource Primary}" Padding="12,4" MinWidth="152"
+                                    Style="{StaticResource Primary}" MinWidth="152"
                                     IsEnabled="False" Click="DownloadClicked" />
                         </StackPanel>
 
@@ -179,7 +187,7 @@
                              was tried on paper and dropped as the same work under two names -
                              a comparison is only worth anything with both sides current. -->
                         <Button x:Name="ReloadButton" Grid.Row="1" Content="Reload"
-                                Style="{StaticResource Primary}" Padding="12,4" MinWidth="152"
+                                Style="{StaticResource Primary}" MinWidth="152"
                                 Click="ReloadClicked" />
                     </Grid>
 
@@ -191,12 +199,13 @@
                                    VerticalAlignment="Center" />
 
                         <Button x:Name="RepoFilterButton" Content="Filter" Margin="12,0,0,0"
-                                Style="{StaticResource Primary}" Padding="12,2"
+                                Style="{StaticResource Primary}"
                                 Click="RepoFilterClicked"
                                 PreviewMouseLeftButtonDown="FilterPressed" />
                     </StackPanel>
 
                     <Border Grid.Row="1" Grid.Column="2" Margin="16,0,0,0"
+                            Background="{StaticResource Surface}"
                             BorderBrush="{StaticResource FieldEdge}" BorderThickness="1" Padding="6">
                         <TreeView x:Name="RepositoryTree" />
                     </Border>
@@ -254,18 +263,18 @@
                                             Margin="0,0,18,0">
                                     <TextBlock Text="Objects" Style="{StaticResource FieldLabel}"
                                                VerticalAlignment="Center" />
-                                    <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1"
+                                    <Button Content="All" Style="{StaticResource Quiet}"
                                             Margin="10,0,0,0" Click="AllKinds" />
-                                    <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1"
+                                    <Button Content="None" Style="{StaticResource Quiet}"
                                             Margin="4,0,0,0" Click="NoKinds" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
                                     <TextBlock Text="Languages" Style="{StaticResource FieldLabel}"
                                                VerticalAlignment="Center" />
-                                    <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1"
+                                    <Button Content="All" Style="{StaticResource Quiet}"
                                             Margin="10,0,0,0" Click="AllLanguages" />
-                                    <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1"
+                                    <Button Content="None" Style="{StaticResource Quiet}"
                                             Margin="4,0,0,0" Click="NoLanguages" />
                                 </StackPanel>
                             </Grid>
@@ -277,9 +286,9 @@
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="Project" Style="{StaticResource FieldLabel}"
                                                VerticalAlignment="Center" />
-                                    <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1"
+                                    <Button Content="All" Style="{StaticResource Quiet}"
                                             Margin="10,0,0,0" Click="AllFindings" />
-                                    <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1"
+                                    <Button Content="None" Style="{StaticResource Quiet}"
                                             Margin="4,0,0,0" Click="NoFindings" />
                                 </StackPanel>
 
@@ -301,9 +310,9 @@
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Core" Style="{StaticResource FieldLabel}"
                                            VerticalAlignment="Center" />
-                                <Button Content="All" Style="{StaticResource Quiet}" Padding="8,1"
+                                <Button Content="All" Style="{StaticResource Quiet}"
                                         Margin="10,0,0,0" Click="AllStates" />
-                                <Button Content="None" Style="{StaticResource Quiet}" Padding="8,1"
+                                <Button Content="None" Style="{StaticResource Quiet}"
                                         Margin="4,0,0,0" Click="NoStates" />
                             </StackPanel>
 
@@ -337,15 +346,13 @@
                              SelectionChanged="ChoiceChanged" />
                     <Button x:Name="AttachButton" Content="Attach" Visibility="Collapsed"
                             Style="{StaticResource Primary}" IsEnabled="False"
-                            HorizontalAlignment="Left" Margin="0,12,0,0" Padding="16,4"
+                            HorizontalAlignment="Left" Margin="0,12,0,0"
                             Click="AttachClicked" />
                 </StackPanel>
             </ScrollViewer>
 
         </Grid>
 
-        <TextBlock x:Name="StatusText" Grid.Row="2" Margin="0,16,0,0"
-                   TextTrimming="CharacterEllipsis"
-                   Foreground="{StaticResource InkMuted}" />
+        <ui:StatusBar x:Name="StatusText" Grid.Row="2" Margin="0,14,0,0" />
     </Grid>
 </Window>
