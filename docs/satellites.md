@@ -193,7 +193,7 @@ The scroll bars were light grey in every satellite until this window, whose tabl
 - **It attaches to the TIA Portal that has the Add-In's project open**, which the Add-In names on the command line. With only one running there is nothing to choose between; when nothing identifies one it **refuses rather than guesses**, because guessing would attach to somebody else's project and then offer to change it — and hands the list to the operator instead.
 - **Either way it lists what was running.** "No TIA Portal is open" and "two are, and neither is the one that started this" look identical from the window and want opposite answers.
 - **A project that was never saved is attached and still unusable**, and the window says so: the core is copied into the project's own folder, and there is no folder yet.
-- **It maps the PLC you picked.** The Add-In sends the PLC that was right-clicked and `*` for the general program; the window offers that PLC's software units so the star is a starting point rather than a decision. *Map project* walks blocks, PLC data types, tag tables and every folder, reads what each says about itself, and writes `repo\project.json`.
+- **It maps the PLC you picked.** The Add-In sends the PLC that was right-clicked and `*` for the general program; the window offers that PLC's software units so the star is a starting point rather than a decision. *Reload* walks blocks, PLC data types, tag tables and every folder, reads what each says about itself, writes `repo\project.json` and compares it with the core.
 - **Everything, not only what looks like the core.** A block downloaded into the wrong folder, and a folder built by hand that holds core blocks, are two of the three discrepancies this exists to find — and neither is visible from a list of core blocks alone.
 - **What a block says about itself travels with it**: the `TITLE` line carries the core's metadata, and its `family` names the folder the block belongs in. Held against where it actually sits, a misplaced block shows up **without the repository being reachable at all**.
 - **In TIA V17-V20 every block and type is exported to read its title**, because those versions expose no `Title` at all - measured on the VM, where even the untyped escape hatch refuses it. A block would still have its native `VERSION` and `FAMILY`; a PLC data type has neither in any version, so without the export a core UDT is indistinguishable from one of the plant's. It costs one export per object, so the window counts as it goes, and the files are written, read and deleted one at a time under the project's own `repo\tmp\`. **V21 needs none of it** and reads the property directly.
@@ -249,13 +249,13 @@ Objects   All  None        Languages   All  None
 - **A row with no languages is an ordinary row.** A PLC data type and a tag table have no programming language at all, so `PlcStruct` and `PlcTagTable` carry a kind box and nothing beside it — and ticking `SCL` on another row cannot touch them. Getting that wrong would delete all 91 UDTs, and 91 of the core's 249 sources *are* data types. Null and empty both mean "has none"; the first version of the rule only handled null and a test found it.
 - **Everything starts ticked**, which is what this window did before there were any boxes. `All` / `None` act on a whole column, so narrowing to one kind is two clicks rather than eight.
 - **A kind's own box gates its languages.** With the kind off, what it is written in decides nothing, so those boxes go dead rather than inviting a filter that has no effect.
-- **Nothing ticked is refused, not read as everything.** An empty filter means the whole scope — the safe reading of a decision nobody made — and an operator who has just cleared a column has very much made one. So *Map project* switches off and says so. **The same rule one row down**: a kind ticked with none of its languages would map nothing, and the row is named rather than silently skipped.
+- **Nothing ticked is refused, not read as everything.** An empty filter means the whole scope — the safe reading of a decision nobody made — and an operator who has just cleared a column has very much made one. So *Reload* switches off and says so. **The same rule one row down**: a kind ticked with none of its languages would map nothing, and the row is named rather than silently skipped.
 - **A filtered map records its filter and says so.** `project.json` carries `filter` beside the scope — one entry per kind, each naming the languages wanted inside it — and the window's heading reads *"Of what was ticked, not of the whole scope"*. Without that, a map covering only FBs says the project has no FCs, the silent hole this whole design exists to avoid. **A map written before the shape changed is refused rather than half-read**, in both directions: its filter names members this version cannot see, so it would come back looking like a map of the whole PLC. Unlike a coding-style report, which is somebody's record of a moment, this file is a snapshot of the project right now and is rebuilt by one click.
 - **The survey and the map walk the same code.** Two copies would drift, and the pair is worth nothing the moment the counts an operator ticked against and the map they then asked for cover different folders. **`Core` does the counting**, through a builder the adapter feeds one object at a time — how many of a kind there are is not a TIA question, and two adapters keeping their own tallies is exactly how they come to disagree.
 
 ### Holding the project against the core
 
-*Compare with core* reads `repo\project.json` back off disk, brings the project's copy of the core up to date, and holds one against the other. **Metadata only** — a version, a status and a family, never a line of code.
+The comparison reads `repo\project.json` back off disk, brings the project's copy of the core up to date, and holds one against the other. It is the second half of what **Reload** does, and of what the window does by itself when it opens. **Metadata only** — a version, a status and a family, never a line of code.
 
 ```
 6 of 18 objects come from the core, held against 264 core nodes.
@@ -284,30 +284,29 @@ Objects   All  None        Languages   All  None
 **The project on the left, the repository on the right** — the layout settled before any of this was built, and drawn out in full by the maintainer once both halves worked. **Two trees, both open**, so the two sides read alike and neither has to be unfolded before it says anything.
 
 ```
-PLC  [KF1022            v]   Software unit  [*                          v]
+PLC  [A100              v]   Software unit  [*                          v]
 
-Project tree  [Filter]        |  Core tree  [Filter]
-+---------------------------+ | +---------------------------------------+
-| v *  (6)                  | | | v adt  (1)                            |
-|   v Program blocks  (3)   | | |     [ ] EAdtConstants v1.1   absent    |
-|     v core  (2)           | | | v adt/queue  (4)                      |
-|       v adt/queue  (1)    | | |     [ ] EQueueMethod v3.0  in the …   |
-|           _queue v3.0 FC  | | |     [ ] EQueueStatus v3.0  absent     |
-|             up to date    | | |                                       |
-+---------------------------+ | +---------------------------------------+
-Project - 6 of 8 objects …    |  Repository - 249 current nodes, 5 in …
-[Map project] [Sync folders…] |  [Compare with core] [Download and import]
+Project tree  [Filter]                        Core tree  [Filter]
++---------------------------+               +-------------------------------+
+| v *  (28)                 |               | v adt  (1)                    |
+|   v Program blocks  (15)  |               |   [ ] EAdtConstants v1.1      |
+|     v core  (15)          |               | v adt/queue  (4)              |
+|       v alarm  (10)       |               |   [ ] EQueueMethod v3.0       |
+|           _alarmBit v2.0  |  [ Sync folders with core ]   [ ] EQueueStatus |
+|             up to date    |  [ << Download & Import  ]    [ ] _queue v3.0  |
+|                           |               |                               |
+|                           |     [ Reload ]|                               |
++---------------------------+               +-------------------------------+
+Project - 28 of 35 objects …                  Repository - 249 current nodes …
 
 Compared.
 ```
 
-- **Each side owns its filter, its caption and its buttons.** What a control acts on is the panel it sits under, rather than something to remember.
+- **Each side owns what belongs to it alone**: its filter, its tree, its caption. What sits *between* them is what crosses between them — importing the core into the project, and putting the project's own blocks back where the core says they go — which is why the arrow on **<< Download & Import** says which way, and why neither button hangs under either tree.
 - **The filters open from a button over each tree.** As three columns of tick boxes they were taking a third of the window for decisions taken once per run, above the two trees somebody opened it to read. The left popup holds the map filter — kinds, and the languages inside each — beside the finding boxes; the right one holds the core's states. Both have `All` and `None`.
-- **The line between the two is fixed and centred**, a one-pixel border rather than a splitter: the trees exist to be read against each other, and a divider one operator dragged is a layout the next one has to put back.
 - **The caption is under its tree, one line, with the whole of it on hover** — a map's counts kind by kind do not fit a line, and trimming with a tooltip is what this framework already does to a cell it cannot fit.
-- **It compares by itself when it opens, mapping first if there is no map**, and then never again on its own: changing the PLC or the unit is the operator steering, and re-walking several hundred objects under them would be the opposite of helpful.
-- **Map project compares too, every time.** The trees are drawn from a comparison, so a walk has to empty them — and a *Map project* that stopped there took the window apart and left you to press the other button to put it back, which was the same two clicks every time with nothing worth looking at in between. The comparison is a folder copy and two JSON files, next to a walk that can take minutes.
-- **Compare with core stays, and does something the other does not**: it re-reads the map already on disk without walking anything. That is what a window reopened tomorrow needs, and what picks up a core the repository has moved on since.
+- **One Reload, and it does the whole thing**: walk the project, bring the project's copy of the core up to date, compare the two. It was drawn as *Reload Project* and *Reload Core* and dropped before it was built — a core reload that did not re-walk TIA still had to re-read the map and compare, and one that did re-walk was the project reload under another name, which in V17–V20 costs one export per object. A comparison is only worth anything with both sides current.
+- **The window does exactly that by itself when it opens**, mapping first only when there is no map at all, and then never again on its own: changing the PLC or the unit is the operator steering, and re-walking several hundred objects under them would be the opposite of helpful. One pipeline, whether you pressed the button or not.
 - **A comparison that cannot happen says so on the right.** "This project names no core" is a fact about the core, not about the project's contents — so it goes under the core tree, and the counts the walk just put under the project tree stay where they are. The line under both panels carries the map's own holes as well as the core's problems, because a comparison is *of* that map.
 
 ```
@@ -393,7 +392,7 @@ The way it recognises its own TIA Portal was checked apart from TIA: the command
 
 The chooser was driven on the real window with a stand-in session behind the real worker: two instances offered as rows naming their projects, **nothing preselected and *Attach* off** until one is picked, the click reaching the session with that instance's id and the failure panel giving way to the project, one instance still offered as a choice, and the two states that are not a choice at all — nothing running, and nothing having looked, which must not claim that no TIA Portal was running.
 
-The grid was driven on the real window, shown and laid out: six rows in the order a PLC reads, an unlisted kind falling in after them, each row carrying its own languages and a UDT row carrying none, a label keeping its underscore — in `Content` it would have rendered `SomethingNew` as `SomethingNew` but `F_DB` as `FDB` — everything ticked asking for no filter at all, one language unticked narrowing *that row only* while an FC in the same language still maps, a kind unticked killing its language boxes and leaving the filter, a row ticked with no language switching *Map project* off **by name**, `All` and `None` on either column, and an empty scope taking the rows away and leaving the headings. The filter and the survey were checked apart from the window, including the two cases that would be silently wrong: a UDT surviving a language filter, asked with a real null and with an empty string, and `SCL` counted twice over — 22 under FB and 12 under FC — rather than once across the map. And the map file: a format 2 filter written, read back and still narrowing the same, with an older and a newer one each refused in its own words.
+The grid was driven on the real window, shown and laid out: six rows in the order a PLC reads, an unlisted kind falling in after them, each row carrying its own languages and a UDT row carrying none, a label keeping its underscore — in `Content` it would have rendered `SomethingNew` as `SomethingNew` but `F_DB` as `FDB` — everything ticked asking for no filter at all, one language unticked narrowing *that row only* while an FC in the same language still maps, a kind unticked killing its language boxes and leaving the filter, a row ticked with no language switching *Reload* off **by name**, `All` and `None` on either column, and an empty scope taking the rows away and leaving the headings. The filter and the survey were checked apart from the window, including the two cases that would be silently wrong: a UDT surviving a language filter, asked with a real null and with an empty string, and `SCL` counted twice over — 22 under FB and 12 under FC — rather than once across the map. And the map file: a format 2 filter written, read back and still narrowing the same, with an older and a newer one each refused in its own words.
 
 **And attached for real, in TIA Portal V20 and V21 on the VM** (2026-09-16), which is what settles the two things no test without TIA can reach: that the resolver finds the assemblies in both versions, and that attaching leaves the engineer's session alone. The second cost a wrong assumption to learn — see the note about disposing, above.
 

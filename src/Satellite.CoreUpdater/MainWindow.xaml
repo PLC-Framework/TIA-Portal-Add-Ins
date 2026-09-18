@@ -97,23 +97,26 @@
                 </Grid>
 
                 <!-- The project on the left, the repository on the right (the maintainer's
-                     layout, settled before any of this was built). Each side owns its own
-                     filter, its own caption and its own buttons, so what a control acts on is
-                     the panel it sits under rather than something to remember.
+                     layout, settled before any of this was built), and **a middle column that
+                     is the actions rather than a divider** (2026-09-18, laid out by the
+                     maintainer "por acciones y dominios").
 
-                     The line between them is a fixed 1-pixel Border rather than a GridSplitter:
-                     the two trees exist to be read against each other, and a divider one
-                     operator dragged is a layout the next one has to put back. -->
+                     Each side owns what belongs to it alone: its filter, its tree, its caption.
+                     What sits between them is what *crosses* between them - importing the core
+                     into the project, and putting the project's own blocks back where the core
+                     says they go - so the arrow on Download & Import says which way, and
+                     neither belongs under either tree. `Reload` is one button because it brings
+                     both halves up to date at once; two of them was the same work twice under
+                     different names. -->
                 <Grid Grid.Row="1" Margin="0,16,0,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" MinWidth="320" />
+                        <ColumnDefinition Width="*" MinWidth="300" />
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" MinWidth="320" />
+                        <ColumnDefinition Width="*" MinWidth="300" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
@@ -145,24 +148,40 @@
                                Margin="0,10,16,0" TextTrimming="CharacterEllipsis"
                                Foreground="{StaticResource InkMuted}" />
 
-                    <StackPanel Grid.Row="3" Grid.Column="0" Orientation="Horizontal"
-                                Margin="0,10,16,0">
-                        <Button x:Name="MapButton" Content="Map project"
-                                Style="{StaticResource Primary}" Padding="16,4"
-                                Click="MapClicked" />
+                    <!-- ============================ the actions ============================ -->
 
-                        <!-- Moving blocks inside somebody's project, so it says what it would
-                             move and waits to be told before it moves anything. -->
-                        <Button x:Name="SyncButton" Content="Sync folders with core" Margin="8,0,0,0"
-                                Style="{StaticResource Quiet}" Padding="16,4"
-                                IsEnabled="False" Click="SyncClicked" />
-                    </StackPanel>
+                    <!-- Between the two panels because that is what they act across, and only
+                         in the tree's own row: the captions below belong to a tree each. -->
+                    <Grid Grid.Row="1" Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                    <!-- =========================== the separator =========================== -->
+                        <StackPanel Grid.Row="0" VerticalAlignment="Center">
+                            <!-- Moving blocks inside somebody's project, so it says what it
+                                 would move and waits to be told before it moves anything. -->
+                            <Button x:Name="SyncButton" Content="Sync folders with core"
+                                    Style="{StaticResource Quiet}" Padding="12,4" MinWidth="152"
+                                    IsEnabled="False" Click="SyncClicked" />
 
-                    <Border Grid.Row="0" Grid.RowSpan="4" Grid.Column="1" Width="1"
-                            HorizontalAlignment="Center" VerticalAlignment="Stretch"
-                            Background="{StaticResource FieldEdge}" />
+                            <!-- The arrow is the direction: out of the core, into the project.
+                                 It stays off until something is ticked, and what it would touch
+                                 is worked out and shown before a single source is written. -->
+                            <Button x:Name="DownloadButton" Content="&lt;&lt; Download &amp; Import"
+                                    Margin="0,8,0,0"
+                                    Style="{StaticResource Primary}" Padding="12,4" MinWidth="152"
+                                    IsEnabled="False" Click="DownloadClicked" />
+                        </StackPanel>
+
+                        <!-- One button for both halves: it walks the project again, brings the
+                             core's copy up to date and compares the two. Splitting it in two
+                             was tried on paper and dropped as the same work under two names -
+                             a comparison is only worth anything with both sides current. -->
+                        <Button x:Name="ReloadButton" Grid.Row="1" Content="Reload"
+                                Style="{StaticResource Primary}" Padding="12,4" MinWidth="152"
+                                Click="ReloadClicked" />
+                    </Grid>
 
                     <!-- ========================== the repository =========================== -->
 
@@ -185,22 +204,6 @@
                     <TextBlock x:Name="RepositoryStatus" Grid.Row="2" Grid.Column="2"
                                Margin="16,10,0,0" TextTrimming="CharacterEllipsis"
                                Foreground="{StaticResource InkMuted}" />
-
-                    <StackPanel Grid.Row="3" Grid.Column="2" Orientation="Horizontal"
-                                Margin="16,10,0,0">
-                        <!-- Compare reads the map back off disk rather than using whatever is in
-                             memory, so it works on a window reopened tomorrow and so the round
-                             trip through repo\project.json is the one that gets exercised. -->
-                        <Button x:Name="CompareButton" Content="Compare with core"
-                                Style="{StaticResource Quiet}" Padding="16,4"
-                                IsEnabled="False" Click="CompareClicked" />
-
-                        <!-- It stays off until something is ticked, and what it would touch is
-                             worked out and shown before a single source is written. -->
-                        <Button x:Name="DownloadButton" Content="Download and import" Margin="8,0,0,0"
-                                Style="{StaticResource Quiet}" Padding="16,4"
-                                IsEnabled="False" Click="DownloadClicked" />
-                    </StackPanel>
                 </Grid>
 
                 <!-- Whatever a run had to say that will not fit on one caption: a folder that

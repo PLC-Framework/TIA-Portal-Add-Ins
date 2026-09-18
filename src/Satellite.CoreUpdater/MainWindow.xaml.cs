@@ -156,7 +156,7 @@ namespace Satellite.CoreUpdater
             {
                 ProjectSays("This project has not been saved, so it has no folder - and the map is " +
                      "written inside it. Save the project and open this window again.");
-                MapButton.IsEnabled = false;
+                ReloadButton.IsEnabled = false;
                 StatusText.Text = "Attached, with nowhere to write.";
                 return;
             }
@@ -311,6 +311,10 @@ namespace Satellite.CoreUpdater
             {
                 Offer(null);
                 Ready();
+
+                // A project with no PLC still gets its one automatic run: there may be a map
+                // from before, and nothing else would ever ask for it to be compared.
+                Start();
                 return;
             }
 
@@ -366,12 +370,19 @@ namespace Satellite.CoreUpdater
 
             _started = true;
 
+            // A map already on disk is worth comparing whatever the combo boxes hold, and since
+            // *Reload* became the only button there is nothing else that would: it may even
+            // cover a PLC this project no longer has, which is a thing worth seeing rather than
+            // a reason to show nothing.
+            if (Mapped())
+            {
+                Compare();
+                return;
+            }
+
             string plc = PlcBox.SelectedItem as string;
 
-            if (plc == null) return;
-
-            if (Mapped()) CompareClicked(null, null);
-            else Map(plc, UnitBox.SelectedItem as string, Chosen());
+            if (plc != null) Map(plc, UnitBox.SelectedItem as string, Chosen());
         }
 
         private bool Mapped()
@@ -533,7 +544,18 @@ namespace Satellite.CoreUpdater
                     language.IsChecked = ticked;
         }
 
-        private void MapClicked(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// **One button for both halves** (the maintainer's layout, 2026-09-18): it walks the
+        /// project again, brings the project's copy of the core up to date, and compares the two.
+        ///
+        /// It was drawn as two — *Reload Project* and *Reload Core* — and dropped before it was
+        /// built, because a reload of the core that did not re-walk TIA would still have had to
+        /// re-read the map and compare, and one that did re-walk was *Reload Project* under
+        /// another name. In V17-V20 that second reading costs one export per object, which is a
+        /// price nobody should pay for wanting a repository change picked up. A comparison is
+        /// only worth anything with both sides current, so one button brings both.
+        /// </summary>
+        private void ReloadClicked(object sender, RoutedEventArgs e)
         {
             string plc = PlcBox.SelectedItem as string;
             string unit = UnitBox.SelectedItem as string;
@@ -550,14 +572,10 @@ namespace Satellite.CoreUpdater
         ///
         /// **A map on its own leaves nothing on screen, and that is why it always compares.**
         /// The trees are drawn from a comparison, and a walk has to empty them because they
-        /// described the project a moment ago; so *Map project* by itself took the window apart
-        /// and handed the operator a second button to press to put it back — the same two clicks
-        /// every time, with no state in between anybody would want to look at. The comparison is
-        /// a folder copy and two JSON files, next to a walk that can take minutes.
-        ///
-        /// **Both buttons stay** all the same: *Compare with core* re-reads the map on disk
-        /// without walking anything, which is what a window reopened tomorrow needs and what
-        /// picks up a core the repository has moved on.
+        /// described the project a moment ago; so a walk that stopped there took the window
+        /// apart and left somebody to put it back, which is the bug this pairing fixed before
+        /// the two buttons became one. The comparison is a folder copy and two JSON files, next
+        /// to a walk that can take minutes.
         /// </summary>
         private void Map(string plc, string unit, MapFilter filter)
         {
@@ -585,7 +603,7 @@ namespace Satellite.CoreUpdater
                     // Only when there is something to compare against: a walk that came back
                     // with nothing has already said so, and comparing would replace that
                     // sentence with one about a map file this run never wrote.
-                    if (map != null) CompareClicked(null, null);
+                    if (map != null) Compare();
                 },
                 exception =>
                 {
@@ -600,14 +618,22 @@ namespace Satellite.CoreUpdater
         }
 
         /// <summary>
-        /// Holds the project's map against the core it is built on.
+        /// Brings the core up to date and holds the project's map against it — the second half
+        /// of what both the automatic start and *Reload* do, and **no longer a button of its
+        /// own**: with one Reload there is nothing that wants only this half.
+        ///
+        /// **The map is read back off disk rather than kept from the last walk.** It is what
+        /// lets the window compare a map written yesterday without walking anything, and it is
+        /// what exercises the round trip through `repo\project.json` — including its format
+        /// guard, which is the one thing standing between an old map and a comparison that reads
+        /// it as covering everything.
         ///
         /// **Not on the worker's thread**, and that is worth saying: `TiaWorker` owns the one
         /// thread Openness objects belong to, and none of this touches TIA at all — it reads a
         /// configuration, copies a folder and parses two JSON files. Putting it there would
         /// queue a file copy behind a walk, or a walk behind it, for no reason but habit.
         /// </summary>
-        private void CompareClicked(object sender, RoutedEventArgs e)
+        private void Compare()
         {
             string directory = _projectDirectory;
 
@@ -1590,7 +1616,7 @@ namespace Satellite.CoreUpdater
             string empty = Empty();
             bool enough = _rows.Count == 0 || (AnyKind() && empty == null);
 
-            MapButton.IsEnabled = !_busy && PlcBox.SelectedItem != null && enough;
+            ReloadButton.IsEnabled = !_busy && PlcBox.SelectedItem != null && enough;
 
             if (_busy) return;
 
@@ -1760,9 +1786,6 @@ namespace Satellite.CoreUpdater
             UnitBox.IsEnabled = !busy;
             FilterPanel.IsEnabled = !busy;
 
-            // Compare needs a project folder and nothing else - not a PLC, not a tick box. It
-            // reads the map that is already on disk.
-            CompareButton.IsEnabled = !busy && !string.IsNullOrWhiteSpace(_projectDirectory);
             DownloadButton.IsEnabled = !busy && Picked().Count > 0;
 
             // Sync acts on what the comparison found misplaced, so it needs one on screen —
