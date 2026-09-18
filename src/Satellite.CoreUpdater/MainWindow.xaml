@@ -6,7 +6,7 @@
         Height="860" Width="1180"
         MinHeight="560" MinWidth="880"
         WindowStartupLocation="CenterScreen"
-        Background="{StaticResource Surface}"
+        Background="{StaticResource DarkThemeGradientBrush}"
         Icon="{StaticResource BrandLogo}">
 
     <Grid Margin="20">
