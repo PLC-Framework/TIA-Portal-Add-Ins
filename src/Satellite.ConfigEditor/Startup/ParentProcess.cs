@@ -51,33 +51,15 @@ namespace Satellite.ConfigEditor.Startup
 
         /// <summary>
         /// A mutex-safe identifier for this editor: the TIA instance when there is one,
-        /// otherwise the file being edited.
-        ///
-        /// **Hashed, and that is not decoration.** SingleInstance builds
-        /// <c>Local\&lt;Product&gt;.&lt;id&gt;</c>, and a backslash *separates the mutex
-        /// namespace* - a raw path in there does not name what you think it names, and on
-        /// some paths it fails outright.
+        /// otherwise the file being edited — hashed by <see cref="UI.Shared.SingleInstance.PathKey"/>,
+        /// which is where the reason for hashing it at all is written down.
         /// </summary>
         public static string InstanceKey(string configPath)
         {
             int? parent = Id();
             if (parent.HasValue) return "tia-" + parent.Value;
 
-            return "file-" + Hash(configPath ?? string.Empty);
-        }
-
-        private static string Hash(string value)
-        {
-            using (System.Security.Cryptography.SHA256 sha =
-                   System.Security.Cryptography.SHA256.Create())
-            {
-                byte[] digest = sha.ComputeHash(
-                    System.Text.Encoding.UTF8.GetBytes(value.ToLowerInvariant()));
-
-                // Eight hex characters is plenty to keep two open projects apart, and it
-                // keeps the mutex name readable in Process Explorer.
-                return BitConverter.ToString(digest, 0, 4).Replace("-", string.Empty);
-            }
+            return "file-" + UI.Shared.SingleInstance.PathKey(configPath);
         }
     }
 }

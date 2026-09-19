@@ -17,6 +17,8 @@ using Core.Repo;
 using Satellite.CoreUpdater.Compare;
 using Satellite.CoreUpdater.Tia;
 
+using UI.Shared;
+
 namespace Satellite.CoreUpdater
 {
     /// <summary>
@@ -71,6 +73,12 @@ namespace Satellite.CoreUpdater
 
         /// <summary>Whether the window has already done its one automatic map-and-compare.</summary>
         private bool _started;
+
+        /// <summary>
+        /// Whether this window holds its project's guard. One process, one window, one claim:
+        /// `SingleInstance` keeps a single mutex, and a second claim would drop the first.
+        /// </summary>
+        private bool _claimed;
 
         /// <summary>
         /// What the last import or move did, kept above whatever else is under the panels.
@@ -150,6 +158,10 @@ namespace Satellite.CoreUpdater
                 return;
             }
 
+            // Before anything is shown or read: a second window on a project that already has
+            // one gives way here, having done nothing but attach.
+            if (!Claimed(attachment)) return;
+
             _projectDirectory = attachment.ProjectDirectory;
 
             // A second attempt succeeding has to clear the first one's refusal, or the window
@@ -176,6 +188,51 @@ namespace Satellite.CoreUpdater
             StatusText.Text = "Reading the PLCs…";
 
             Plcs(plc, unit);
+        }
+
+        /// <summary>
+        /// **One window per project** — the guard that was deferred until this window could
+        /// change anything, and it now can: it imports blocks and moves them between folders.
+        /// Two windows over one project would each compare a map the other is about to make
+        /// stale, and both write the same `repo\project.json`, the same copied core and the same
+        /// `repo\tmp\` a move keeps its only copy in. That is the config editor's reason for its
+        /// own guard — two windows over one document lose each other's changes in silence —
+        /// with a project in place of a file.
+        ///
+        /// **Keyed on the project the attach found, not on the process that launched this.**
+        /// The parent process was measured on the VM not to identify the TIA Portal at all, which
+        /// is why the attach itself stopped relying on it.
+        ///
+        /// **Claimed after the attach, because that is the first moment the key is certain.** A
+        /// window started by hand knows its project only from the attach; one whose project was
+        /// not open falls to the chooser, and the operator may pick another; and the command line
+        /// names the project's *file* where the attach names its *folder*. The cost is that a
+        /// second launch opens, says it is attaching, and then gives way — a moment, against a
+        /// guard that could be holding the wrong project.
+        ///
+        /// **Not per TIA version.** The V20 and V21 executables are different programs, but a
+        /// folder is a folder: both would write the same `repo\`. Bringing the other window
+        /// forward only finds one of the same executable, which is the only kind that could
+        /// realistically be open on a folder TIA itself will open in one version at a time.
+        ///
+        /// **A project that was never saved takes no guard.** Everything this window writes goes
+        /// inside the project's own folder, and there is none — so there is nothing to protect.
+        /// </summary>
+        private bool Claimed(TiaAttachment attachment)
+        {
+            if (_claimed || !attachment.HasProjectFolder) return true;
+
+            if (SingleInstance.Claim("CoreUpdater." + SingleInstance.PathKey(attachment.ProjectDirectory)))
+            {
+                _claimed = true;
+                return true;
+            }
+
+            // The window that has this project has just been brought to the front, which is what
+            // the operator was reaching for. Closing this one ends the process, since it is the
+            // application's main window.
+            Close();
+            return false;
         }
 
         /// <summary>

@@ -122,7 +122,7 @@ src/AddIn.Shared/
 ```
 src/UI.Shared/
 ├── UI.Shared.csproj          SDK-style net48, UseWPF, references Core
-├── SingleInstance.cs         named Mutex + bring the running window to the front
+├── SingleInstance.cs         named Mutex + bring the running window to the front; PathKey hashes a path into a name
 ├── Controls/
 │   ├── BrandHeader.xaml      logo, title, subtitle and an optional badge — one shape for all
 │   └── StatusBar.xaml        the line along the bottom — there even when there is no status

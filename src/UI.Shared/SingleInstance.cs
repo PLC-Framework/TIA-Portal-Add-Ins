@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 
 using Core;
@@ -30,12 +32,50 @@ namespace UI.Shared
             // Session-scoped on purpose: the install folder is per-machine, but two users
             // on the same station must each get their own window.
             bool createdNew;
-            _mutex = new Mutex(false, "Local\\" + Product.Title + "." + appId, out createdNew);
+            Mutex mutex = new Mutex(false, "Local\\" + Product.Title + "." + appId, out createdNew);
 
-            if (!createdNew)
-                ActivateRunningInstance();
+            if (createdNew)
+            {
+                _mutex = mutex;
+                return true;
+            }
 
-            return createdNew;
+            // **A claim that lost lets go at once.** The guard is the *existence* of the named
+            // mutex - nobody owns it, it is created unowned - and a name exists for as long as
+            // any handle to it is open. Kept here, the other instance's mutex would outlive the
+            // instance itself: found by a test, where a window refused while another process
+            // held the project stopped the next window from starting after that process had
+            // gone. A process that loses normally exits at once, which is why nothing showed.
+            mutex.Dispose();
+            ActivateRunningInstance();
+
+            return false;
+        }
+
+        /// <summary>
+        /// A mutex-safe identifier for a path: eight hex characters of its SHA-256, taken
+        /// case-insensitively and without a trailing separator.
+        ///
+        /// **Hashed, and that is not decoration.** <see cref="Claim"/> builds
+        /// <c>Local\&lt;Product&gt;.&lt;id&gt;</c>, and a backslash *separates the mutex
+        /// namespace* - a raw path in there does not name what it seems to, and on some paths it
+        /// fails outright. It lives here rather than in a satellite because this is the class
+        /// that imposes the constraint: the config editor had it as a private helper, and the
+        /// core updater arriving as a second consumer is when a copy would have started to drift.
+        ///
+        /// Eight characters is plenty to keep two open projects apart, and it keeps the mutex
+        /// name readable in Process Explorer.
+        /// </summary>
+        public static string PathKey(string path)
+        {
+            string value = (path ?? string.Empty).Trim().TrimEnd('\\', '/').ToLowerInvariant();
+
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] digest = sha.ComputeHash(Encoding.UTF8.GetBytes(value));
+
+                return BitConverter.ToString(digest, 0, 4).Replace("-", string.Empty);
+            }
         }
 
         private static void ActivateRunningInstance()

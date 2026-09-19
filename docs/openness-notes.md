@@ -275,7 +275,7 @@ Simatic ML file: Data at the root level is invalid. Line 1, position 1.
 
 So a tag table that lives as `.xlsx` is built object by object, and `PlcUserConstantComposition.Create(name, dataTypeName, value)` is the three-argument overload that makes it possible. A tag has `Create(name)` and `Create(name, dataTypeName, logicalAddress)` and **nothing between**, so a tag with a type and no address cannot be expressed.
 
-**`GenerateBlockOption` is `None` or `KeepOnError` and nothing else** — there is no `Override` on the source route, so what TIA does when the block already exists is still unmeasured. `ImportOptions` is `None | Override | SkipInactiveCultures | ActivateInactiveCultures`, so the SimaticML route does have one.
+**`GenerateBlockOption` is `None` or `KeepOnError` and nothing else** — there is no `Override` on the source route, and none is needed: **a block that already exists is overwritten, silently** — measured on the VM (2026-09-19), with no refusal and no message. Worth knowing before relying on TIA to stop anything: on this route it never will. `ImportOptions` is `None | Override | SkipInactiveCultures | ActivateInactiveCultures`, so the SimaticML route does have one.
 
 **A comment is a `MultilingualText`, and `MultilingualTextItemComposition` has no `Create`.** The items that exist are the project's editing languages, so writing a comment means writing into those; a project with none keeps no comment, and that is not a failure.
 
