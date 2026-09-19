@@ -41,7 +41,7 @@ namespace AddIn.Shared.Actions
         /// Not embedded yet: <c>Icons.Get</c> answers null and the menu falls back to an entry
         /// without one. Drop the file into <c>assets\AddIn\</c> and it appears.
         /// </summary>
-        public const string IconPath = "AddIn/core-update.ico";
+        public const string IconPath = "AddIn/core-updater.ico";
 
         /// <summary>The executable for one TIA version - <c>V20</c> or <c>V21</c>.</summary>
         public static string ExecutableFor(string tiaVersion) =>

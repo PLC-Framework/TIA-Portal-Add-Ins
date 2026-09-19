@@ -23,7 +23,7 @@ namespace AddIn.Shared.Actions
         /// falls back to an entry without one. Drop the file into <c>assets\AddIn\</c> and it
         /// appears - assets are embedded by a glob.
         /// </summary>
-        public const string IconPath = "AddIn/open-folder.ico";
+        public const string IconPath = "AddIn/open-project-folder.ico";
 
         public static void Execute(ITiaNotifier notifier, IProcessLauncher launcher, string projectDirectory)
         {

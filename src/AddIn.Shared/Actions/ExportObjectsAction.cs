@@ -32,7 +32,7 @@ namespace AddIn.Shared.Actions
         /// Not embedded yet: <c>Icons.Get</c> answers null and the menu falls back to an entry
         /// without one. Drop the file into <c>assets\AddIn\</c> and it appears.
         /// </summary>
-        public const string IconPath = "AddIn/export.ico";
+        public const string IconPath = "AddIn/export-objects.ico";
 
         /// <summary>How many failures a notification names before it only counts the rest.</summary>
         private const int ListedProblems = 10;

@@ -27,7 +27,7 @@ namespace AddIn.Shared.Actions
     public static class CheckCodingStyleAction
     {
         public const string Title = "Check coding style";
-        public const string IconPath = "AddIn/coding-style.ico";
+        public const string IconPath = "AddIn/check-coding-style.ico";
 
         /// <summary>
         /// File name inside <see cref="InstallPaths.Root"/>. It is the AssemblyName of the

@@ -15,7 +15,7 @@ namespace AddIn.Shared.Actions
     public static class CreateProjectHierarchyAction
     {
         public const string Title = "Create project hierarchy";
-        public const string IconPath = "AddIn/folder-hierarchy.ico";
+        public const string IconPath = "AddIn/create-folder-hierarchy.ico";
 
         public static void Execute(ITiaNotifier notifier, Hierarchy hierarchy, HierarchyTargets targets)
         {
