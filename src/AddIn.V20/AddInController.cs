@@ -74,16 +74,7 @@ namespace AddIn
             // entry on narrower nodes is registered below, after the actions that belong
             // to those nodes.
             AddCheck<Project>(menuAddInRoot, "project", "projects", TiaCheckedObjects.FromProjects);
-
-            // On the project root, and last: it is about the framework rather than about
-            // anything selected. The window itself is a separate executable on disk, so
-            // all this does is launch it.
-            AddAction<Project>(
-                menuAddInRoot,
-                AboutAction.Title,
-                AboutAction.IconPath,
-                menuSelectionProvider => AboutAction.Execute(_notifier, _launcher));
-
+            
             // On a device rather than the project root: the hierarchy is created inside a PLC.
             AddAction<DeviceItem>(
                 menuAddInRoot,
@@ -180,6 +171,15 @@ namespace AddIn
             AddExport<PlcType>(menuAddInRoot, "PLC data type", "PLC data types", TiaExportObjects.FromTypes);
             AddExport<PlcAlarmTextlistGroup>(menuAddInRoot, "PLC alarm text lists", "PLC alarm text list groups", TiaExportObjects.FromAlarmTextListGroups);
             AddExport<PlcAlarmTextlist>(menuAddInRoot, "text list", "text lists", TiaExportObjects.FromAlarmTextLists);
+
+            // On the project root, and last: it is about the framework rather than about
+            // anything selected. The window itself is a separate executable on disk, so
+            // all this does is launch it.
+            AddAction<Project>(
+                menuAddInRoot,
+                AboutAction.Title,
+                AboutAction.IconPath,
+                menuSelectionProvider => AboutAction.Execute(_notifier, _launcher));
         }
 
         /// <summary>
