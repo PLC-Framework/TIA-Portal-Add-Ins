@@ -1,0 +1,142 @@
+<Window x:Class="Satellite.CoreUpdater.Download.DownloadWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:UI.Shared.Controls;assembly=PLC-Framework.UI.Shared"
+        Title="Download &amp; Import"
+        Height="520" Width="1080"
+        MinHeight="360" MinWidth="760"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Merged here for the reason MainWindow.xaml gives: this project has no App.xaml, so a
+         window that wants the brand dictionaries - and a designer that can resolve them - has
+         to merge them itself. -->
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/Controls.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PLC-Framework.UI.Shared;component/Resources/BrandLogo.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Window.Background>
+        <StaticResource ResourceKey="DarkThemeGradientBrush" />
+    </Window.Background>
+    <Window.Icon>
+        <StaticResource ResourceKey="BrandLogo" />
+    </Window.Icon>
+
+    <!-- No BrandHeader: this is a question the core updater asks, not a satellite of its own,
+         and the header would repeat the one on the window behind it. The status bar stays,
+         because here it has something to say - what the ticks add up to. -->
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="What this download would write into the project"
+                   FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource Ink}" />
+
+        <!-- What the list cannot show on its own: that TIA will not ask, that the order is the
+             order things go in, and that "used by" is a floor. -->
+        <TextBlock Grid.Row="1" Margin="0,8,0,12" TextWrapping="Wrap" Foreground="{StaticResource InkMuted}"
+                   Text="TIA Portal overwrites an object that is already there without a word, so everything the project already has is listed with where it is. Dependencies come before what needs them; leaving out one the project does not have leaves whatever needs it unable to build. 'Used by' counts only blocks that carry the core's metadata - the plant's own blocks are not counted, so there may be more." />
+
+        <Border Grid.Row="2" Background="{StaticResource Surface}"
+                BorderBrush="{StaticResource FieldEdge}" BorderThickness="1" Padding="4">
+            <ListView x:Name="Rows">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Width="34">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <CheckBox IsChecked="{Binding Take, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Object" Width="180">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" Foreground="{Binding Ink}"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Version" Width="64">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Version}" Foreground="{Binding Ink}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Why" Width="160">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Why}" Foreground="{Binding Muted}"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Why}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="In the project" Width="240">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Held}" Foreground="{Binding Ink}"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Held}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Would" Width="200">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Outcome}" Foreground="{Binding OutcomeInk}"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Outcome}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Used by" Width="110">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding UsedBy}" Foreground="{Binding Muted}"
+                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding UsedBy}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </Border>
+
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- All is the second download of a block with dependencies: everything written
+                 again, the dependencies included, which a plan that skips what is already at the
+                 core's version would otherwise never do. -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Button x:Name="AllButton" Content="All" Style="{StaticResource Quiet}" MinWidth="64"
+                        Click="AllClicked" />
+                <Button x:Name="NoneButton" Content="None" Style="{StaticResource Quiet}" MinWidth="64"
+                        Margin="6,0,0,0" Click="NoneClicked" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <Button x:Name="CancelButton" Content="Cancel" Style="{StaticResource Quiet}" MinWidth="96"
+                        IsCancel="True" Click="CancelClicked" />
+                <Button x:Name="GoButton" Content="&lt;&lt; Download &amp; Import" Style="{StaticResource Primary}"
+                        MinWidth="152" Margin="8,0,0,0" IsDefault="True" Click="GoClicked" />
+            </StackPanel>
+        </Grid>
+
+        <ui:StatusBar x:Name="StatusText" Grid.Row="4" Margin="0,14,0,0" />
+    </Grid>
+</Window>

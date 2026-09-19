@@ -15,6 +15,7 @@ using Core.Config.Validation;
 using Core.Repo;
 
 using Satellite.CoreUpdater.Compare;
+using Satellite.CoreUpdater.Download;
 using Satellite.CoreUpdater.Tia;
 
 using UI.Shared;
@@ -1390,12 +1391,17 @@ namespace Satellite.CoreUpdater
         // ---- Downloading ------------------------------------------------------------------------
 
         /// <summary>
-        /// Works out what the ticked blocks would do to the project, asks when it would reach
-        /// past them, and only then writes.
+        /// Works out what the ticked blocks would do to the project, asks whenever it would meet
+        /// anything the project already has, and only then writes.
         ///
         /// **The plan is made before anything is opened.** It is pure, so what the operator is
         /// shown and what the import then does come from the same answer rather than from two
         /// walks that could disagree.
+        ///
+        /// **A download that meets nothing the project has goes straight in**: there is nothing
+        /// to overwrite and nothing to decide, and a window asking to confirm a list of imports
+        /// is one the operator learns to click through - which is the habit the other case
+        /// cannot afford.
         /// </summary>
         private void DownloadClicked(object sender, RoutedEventArgs e)
         {
@@ -1413,10 +1419,15 @@ namespace Satellite.CoreUpdater
                 return;
             }
 
-            if (plan.NeedsConfirming && !Confirmed(plan))
+            if (plan.Collides)
             {
-                StatusText.Text = "Cancelled.";
-                return;
+                plan = DownloadWindow.Ask(this, plan);
+
+                if (plan == null)
+                {
+                    StatusText.Text = "Cancelled.";
+                    return;
+                }
             }
 
             string plc = _shown.Map?.Plc;
@@ -1440,44 +1451,6 @@ namespace Satellite.CoreUpdater
                 });
         }
 
-        /// <summary>
-        /// Asks before changing something other blocks depend on.
-        ///
-        /// **The only prompt in this window, and it earns it**: replacing a dependency the
-        /// project already holds at another version changes the behaviour of blocks nobody
-        /// selected, which is the one way a download can break a project without anything
-        /// looking wrong afterwards.
-        ///
-        /// **It says what it cannot see.** The project's dependency lists come from each block's
-        /// TITLE, so blocks of the plant declare nothing and are not counted — an operator
-        /// reading a short list has to know it is a floor rather than a total.
-        /// </summary>
-        private static bool Confirmed(DownloadPlan plan)
-        {
-            List<string> lines = new List<string>
-            {
-                "This download would replace blocks that other blocks depend on:",
-                string.Empty
-            };
-
-            foreach (PlannedNode one in plan.Impact)
-            {
-                lines.Add("    " + one.Node.Base + ": v" + one.HeldVersion + " becomes v" + one.Node.Version);
-                lines.Add("        used by " + string.Join(", ", one.Users));
-            }
-
-            lines.Add(string.Empty);
-            lines.Add(
-                "Only blocks that carry the core's metadata declare what they depend on, so the " +
-                "plant's own blocks are not counted here. There may be more.");
-
-            return MessageBox.Show(
-                string.Join(Environment.NewLine, lines),
-                Product.Title + " - Download",
-                MessageBoxButton.OKCancel,
-                MessageBoxImage.Warning) == MessageBoxResult.OK;
-        }
-
         private void Wrote(ImportReport report, DownloadPlan plan, string plc, string unit)
         {
             if (report == null)
@@ -1488,9 +1461,12 @@ namespace Satellite.CoreUpdater
 
             string summary = string.Format(
                 CultureInfo.CurrentCulture,
-                "{0} of {1} went in, {2} were already at the core's version, {3} refused.",
+                "{0} of {1} went in{2}, {3} left as they were, {4} refused.",
                 report.Imported,
                 plan.Nodes.Count - report.Skipped,
+                report.Moved == 0
+                    ? string.Empty
+                    : string.Format(CultureInfo.CurrentCulture, " ({0} moved into their family's folder)", report.Moved),
                 report.Skipped,
                 report.Failed);
 
@@ -1498,8 +1474,10 @@ namespace Satellite.CoreUpdater
 
             foreach (string problem in report.Problems) lines.Add("    " + problem);
 
+            // What did not go in, and what went in and is still not as asked - a block replaced
+            // where it stood because TIA would not export it to move it.
             foreach (ImportedNode one in report.Results)
-                if (!one.Done) lines.Add("    " + one.Name + ": " + one.Problem);
+                if (one.Problem != null) lines.Add("    " + one.Name + ": " + one.Problem);
 
             _notice = string.Join(Environment.NewLine, lines);
 

@@ -489,7 +489,8 @@ namespace Satellite.CoreUpdater.Tia
             }
             finally
             {
-                Clear(scratch);
+                // Kept when anything is left only as a file there - see Relocated.
+                if (report.Stranded == 0) Clear(scratch);
             }
 
             return report;
@@ -505,7 +506,7 @@ namespace Satellite.CoreUpdater.Tia
                 switch (Where(planned.Source))
                 {
                     case Destination.TagTable:
-                        return TagTable(software, into, planned);
+                        return TagTable(software, into, planned, scratch);
 
                     case Destination.Block:
                     case Destination.Type:
@@ -543,14 +544,20 @@ namespace Satellite.CoreUpdater.Tia
         ///
         /// **A table already there is deleted and rebuilt**, which is what replacing means: an
         /// enumeration that has dropped a constant must drop it here too, and creating over the
-        /// top would leave the retired one behind with nothing saying so.
+        /// top would leave the retired one behind with nothing saying so. **It is looked for in
+        /// the whole tree, not only in the family's folder** - a table of that name anywhere else
+        /// made the create fail, a name being unique across a PLC's software - and the new one is
+        /// built in the family's folder, so a download also puts a misplaced table back. The old
+        /// one is exported first and put back where it was if the new one cannot be made, for the
+        /// reason <see cref="Relocated"/> records.
         ///
         /// **A constant TIA refuses is named and the rest still go in.** Nothing is rolled back
         /// in this window, so the honest outcome is the table as complete as the workbook allowed
         /// with what would not go named - a constants table quietly three entries short is the
         /// silent hole every other part of this feature is shaped to avoid.
         /// </summary>
-        private static ImportedNode TagTable(PlcSoftware software, PlcUnitBase into, PlannedNode planned)
+        private static ImportedNode TagTable(
+            PlcSoftware software, PlcUnitBase into, PlannedNode planned, string scratch)
         {
             ConstantsWorkbook workbook = ConstantsWorkbook.Of(planned.Source);
 
@@ -559,11 +566,43 @@ namespace Satellite.CoreUpdater.Tia
             PlcTagTableGroup root = into == null ? (PlcTagTableGroup)software.TagTableGroup : into.TagTableGroup;
             PlcTagTableGroup group = Tables(root, planned.Folder);
 
-            PlcTagTable existing = group.TagTables.Find(workbook.Name);
+            PlcTagTable existing = FoundTable(root, workbook.Name);
+            string backup = null;
+            PlcTagTableGroup home = null;
+            bool moved = false;
 
-            if (existing != null) existing.Delete();
+            if (existing != null)
+            {
+                // TIA rebuilds the default table if it is deleted, and it never comes from the core.
+                if (existing.IsDefault) return ImportedNode.Refused(planned, "It is the PLC's default tag table.");
 
-            PlcTagTable table = group.TagTables.Create(workbook.Name);
+                moved = group.TagTables.Find(workbook.Name) == null;
+                home = existing.Parent as PlcTagTableGroup ?? root;
+                backup = Backup(scratch, workbook.Name);
+
+                existing.Export(new FileInfo(backup), ExportOptions.WithDefaults);
+                existing.Delete();
+            }
+
+            PlcTagTable table;
+
+            try
+            {
+                table = group.TagTables.Create(workbook.Name);
+            }
+            catch (Exception exception)
+            {
+                if (backup == null) throw;
+
+                PlcTagTableGroup back = home;
+
+                return PutBack(
+                    planned, exception.Message, backup,
+                    () => back.TagTables.Import(new FileInfo(backup), ImportOptions.Override));
+            }
+
+            if (backup != null) Drop(backup);
+
             List<string> refused = new List<string>();
 
             foreach (CoreConstant constant in workbook.Constants)
@@ -592,10 +631,10 @@ namespace Satellite.CoreUpdater.Tia
                 }
             }
 
-            return refused.Count == 0
-                ? ImportedNode.Went(planned)
-                : ImportedNode.Refused(
-                    planned, Named(refused, workbook.Constants.Count + workbook.Tags.Count));
+            if (refused.Count > 0)
+                return ImportedNode.Refused(planned, Named(refused, workbook.Constants.Count + workbook.Tags.Count));
+
+            return moved ? ImportedNode.Moved(planned, planned.From) : ImportedNode.Went(planned);
         }
 
         /// <summary>
@@ -698,28 +737,177 @@ namespace Satellite.CoreUpdater.Tia
             {
                 source = sources.ExternalSources.CreateFromFile(Path.GetFileName(path), path);
 
+                PlcExternalSource from = source;
+
                 if (Where(planned.Source) == Destination.Type)
                 {
-                    PlcTypeUserGroup group = Types(software, into, planned.Folder);
+                    PlcTypeGroup root = into == null ? (PlcTypeGroup)software.TypeGroup : into.TypeGroup;
+                    PlcTypeUserGroup family = Types(software, into, planned.Folder);
+                    PlcTypeGroup destination = (PlcTypeGroup)family ?? root;
+                    string name = planned.Node.Base;
 
-                    if (group == null) source.GenerateBlocksFromSource(GenerateBlockOption.KeepOnError);
-                    else source.GenerateBlocksFromSource(group, GenerateBlockOption.KeepOnError);
+                    PlcType elsewhere = destination.Types.Find(name) != null ? null : FoundType(root, name);
+
+                    return Relocated(
+                        planned, scratch, elsewhere != null,
+                        backup => elsewhere.Export(new FileInfo(backup), ExportOptions.WithDefaults),
+                        () => elsewhere.Delete(),
+                        () => Generate(from, family),
+                        () => destination.Types.Find(name) != null,
+                        Home(elsewhere?.Parent as PlcTypeGroup, root, (group, backup) =>
+                            group.Types.Import(new FileInfo(backup), ImportOptions.Override)));
                 }
                 else
                 {
-                    PlcBlockUserGroup group = Blocks(software, into, planned.Folder);
+                    PlcBlockGroup root = into == null ? (PlcBlockGroup)software.BlockGroup : into.BlockGroup;
+                    PlcBlockUserGroup family = Blocks(software, into, planned.Folder);
+                    PlcBlockGroup destination = (PlcBlockGroup)family ?? root;
+                    string name = planned.Node.Base;
 
-                    if (group == null) source.GenerateBlocksFromSource(GenerateBlockOption.KeepOnError);
-                    else source.GenerateBlocksFromSource(group, GenerateBlockOption.KeepOnError);
+                    PlcBlock elsewhere = destination.Blocks.Find(name) != null ? null : FoundBlock(root, name);
+
+                    return Relocated(
+                        planned, scratch, elsewhere != null,
+                        backup => elsewhere.Export(new FileInfo(backup), ExportOptions.WithDefaults),
+                        () => elsewhere.Delete(),
+                        () => Generate(from, family),
+                        () => destination.Blocks.Find(name) != null,
+                        Home(elsewhere?.Parent as PlcBlockGroup, root, (group, backup) =>
+                            group.Blocks.Import(new FileInfo(backup), ImportOptions.Override)));
                 }
-
-                return ImportedNode.Went(planned);
             }
             finally
             {
                 Remove(source);
                 Drop(path);
             }
+        }
+
+        /// <summary>
+        /// Writes one block or data type, **and puts it in the folder its family names even when
+        /// the project already had it somewhere else**.
+        ///
+        /// **TIA overwrites an object that exists, silently and where it is** - measured on the
+        /// VM: no refusal, no message, and the new block in the old block's folder. With nothing
+        /// of that name elsewhere, generating into the family's folder is all there is to do, and
+        /// that includes the ordinary replace of one already in the right place.
+        ///
+        /// **Found elsewhere, it is taken out first**, because Openness has no move and the name
+        /// is unique across a PLC's software: exported, deleted, and generated again where it
+        /// belongs. That leaves a moment in which the old object is only a file, so:
+        ///
+        /// - **If it will not export, nothing is deleted** and it is replaced where it stands, as
+        ///   TIA would have done anyway - written, not moved, and the report says why. A know-how
+        ///   protected block and an inconsistent one are both refused on the way out.
+        /// - **If the new one will not generate, the old one is put back** in the folder it came
+        ///   from - a failed download must not cost the project a block it already had. A source
+        ///   that generates nothing of that name counts as not generating.
+        /// - **If even that fails, the file is kept and named**, and the scratch folder stays.
+        ///   An object nobody can find again is the one outcome this must never produce.
+        /// </summary>
+        private static ImportedNode Relocated(
+            PlannedNode planned,
+            string scratch,
+            bool elsewhere,
+            Action<string> export,
+            Action delete,
+            Action generate,
+            Func<bool> arrived,
+            Action<string> restore)
+        {
+            if (!elsewhere)
+            {
+                generate();
+                return ImportedNode.Went(planned);
+            }
+
+            string backup = Backup(scratch, planned.Node.Base);
+
+            try
+            {
+                export(backup);
+            }
+            catch (Exception exception)
+            {
+                generate();
+
+                return ImportedNode.InPlace(
+                    planned,
+                    "Replaced where it was rather than moved into " + planned.Folder +
+                    ": TIA would not export it to move it. " + exception.Message);
+            }
+
+            delete();
+
+            try
+            {
+                generate();
+
+                if (!arrived())
+                    throw new InvalidOperationException(
+                        "The source did not produce an object called '" + planned.Node.Base + "'.");
+            }
+            catch (Exception exception)
+            {
+                return PutBack(planned, exception.Message, backup, () => restore(backup));
+            }
+
+            Drop(backup);
+
+            return ImportedNode.Moved(planned, planned.From);
+        }
+
+        /// <summary>
+        /// The old object back into the folder it was taken out of, after the new one would not
+        /// go in. **Refused** when that works - the project is as it was, and the reason is TIA's;
+        /// **stranded** when it does not, with the file that is now the only copy.
+        /// </summary>
+        private static ImportedNode PutBack(PlannedNode planned, string refusal, string backup, Action restore)
+        {
+            try
+            {
+                restore();
+            }
+            catch (Exception exception)
+            {
+                return ImportedNode.Stranded(
+                    planned,
+                    "The core's version would not go in (" + refusal + "), and the one the project had " +
+                    "would not go back in either (" + exception.Message + "). It is kept at " + backup + ".",
+                    backup);
+            }
+
+            Drop(backup);
+
+            return ImportedNode.Refused(
+                planned, "The core's version would not go in, so the one the project had was put back: " + refusal);
+        }
+
+        /// <summary>
+        /// How to put an object back into the folder it came from - **that folder**, found before
+        /// the delete, and the tree's root when it cannot be told.
+        /// </summary>
+        private static Action<string> Home<TGroup>(TGroup home, TGroup root, Action<TGroup, string> import)
+            where TGroup : class =>
+            backup => import(home ?? root, backup);
+
+        /// <summary>
+        /// Named after the object, like a move's file: when it is the only copy of something it
+        /// has to be recognisable in the folder it was left in.
+        /// </summary>
+        private static string Backup(string scratch, string name) =>
+            Path.Combine(scratch, "replace-" + Core.Exports.ExportTree.Segment(name) + ".xml");
+
+        private static void Generate(PlcExternalSource source, PlcBlockUserGroup group)
+        {
+            if (group == null) source.GenerateBlocksFromSource(GenerateBlockOption.KeepOnError);
+            else source.GenerateBlocksFromSource(group, GenerateBlockOption.KeepOnError);
+        }
+
+        private static void Generate(PlcExternalSource source, PlcTypeUserGroup group)
+        {
+            if (group == null) source.GenerateBlocksFromSource(GenerateBlockOption.KeepOnError);
+            else source.GenerateBlocksFromSource(group, GenerateBlockOption.KeepOnError);
         }
 
         private static void Remove(PlcExternalSource source)

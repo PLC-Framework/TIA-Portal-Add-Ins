@@ -19,7 +19,7 @@ TIA-Portal-Add-Ins.slnx
     ├── Satellite.DataBlockSnapshot/  (net48, WPF) — captures a DB to .xlsx           ← EXISTS
     ├── Satellite.ConfigEditor/       (net48, WPF) — edits config.json                ← EXISTS
     ├── Satellite.CodingStyleReport/  (net48, WPF) — shows a coding-style check       ← EXISTS
-    ├── Satellite.CoreUpdater/        (net48, WPF, LIBRARY) — the window, its port, Compare\ ← EXISTS
+    ├── Satellite.CoreUpdater/        (net48, WPF, LIBRARY) — the window, its port, Compare\, Download\ ← EXISTS
     ├── Satellite.CoreUpdater.V20/    (net48, x64) — the same app, Openness V17–V20   ← EXISTS
     ├── Satellite.CoreUpdater.V21/    (net48, x64) — the same app, Openness V21       ← EXISTS
     ├── Satellite.<Name>/     (net48, WPF) — a UI app the Add-In launches

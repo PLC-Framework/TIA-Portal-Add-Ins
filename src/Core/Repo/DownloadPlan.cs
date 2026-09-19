@@ -9,10 +9,11 @@ namespace Core.Repo
     /// What a download would do, worked out before anything is written.
     ///
     /// **The plan exists so the operator can be asked.** Importing a block pulls its dependencies
-    /// in with it, and a dependency the project already holds at another version is not a private
-    /// matter: every block that calls it changes behaviour, including blocks nobody selected. So
-    /// the plan says what it would touch and who else depends on it, and the window asks before
-    /// any of it happens.
+    /// in with it, and TIA overwrites an object that is already there **without a word** -
+    /// measured on the VM, where no refusal and no message came back. So whatever the plan would
+    /// write over is something the operator has to see first, and choose: the window lists every
+    /// entry with a tick box, says which of them the project already holds and where, and takes
+    /// back exactly what was left ticked (<see cref="Taking"/>).
     ///
     /// **Pure.** It reads a catalogue and a comparison and opens nothing — which is what lets the
     /// whole of it be exercised against the real 264-node core with no TIA Portal anywhere near.
@@ -27,10 +28,16 @@ namespace Core.Repo
 
         private static readonly PlannedNode[] Nothing = new PlannedNode[0];
 
-        private DownloadPlan(IReadOnlyList<PlannedNode> nodes, IReadOnlyList<PlannedNode> impact)
+        private DownloadPlan(IReadOnlyList<PlannedNode> nodes)
         {
             Nodes = nodes;
-            Impact = impact;
+
+            List<PlannedNode> collisions = new List<PlannedNode>();
+
+            foreach (PlannedNode one in nodes)
+                if (one.Found != null) collisions.Add(one);
+
+            Collisions = collisions;
         }
 
         /// <summary>
@@ -41,15 +48,18 @@ namespace Core.Repo
         public IReadOnlyList<PlannedNode> Nodes { get; }
 
         /// <summary>
-        /// The entries that would change something the project already holds **and that other
-        /// blocks depend on** — the ones worth stopping for.
+        /// The entries the project already holds something of that name for — what a download
+        /// would write over, or leave alone, and in either case what the operator is shown first.
         /// </summary>
-        public IReadOnlyList<PlannedNode> Impact { get; }
+        public IReadOnlyList<PlannedNode> Collisions { get; }
 
-        /// <summary>Whether the operator has to be asked before this runs.</summary>
-        public bool NeedsConfirming => Impact.Count > 0;
+        /// <summary>
+        /// Whether the operator has to be asked before this runs: **whenever it meets anything
+        /// the project already has**. TIA will not refuse the overwrite, so nothing else would.
+        /// </summary>
+        public bool Collides => Collisions.Count > 0;
 
-        public static DownloadPlan Empty => new DownloadPlan(Nothing, Nothing);
+        public static DownloadPlan Empty => new DownloadPlan(Nothing);
 
         public int Count(DownloadAction action)
         {
@@ -74,10 +84,40 @@ namespace Core.Repo
             {
                 Node node = core.ById(id);
 
-                if (node != null) Walk(core, node, true, held, planned, ordered, 0);
+                if (node != null) Walk(core, node, null, held, planned, ordered, 0);
             }
 
-            return new DownloadPlan(ordered, Affected(ordered, planned, compared));
+            Affected(ordered, compared);
+
+            return new DownloadPlan(ordered);
+        }
+
+        /// <summary>
+        /// The same plan with **exactly these entries taken, and every other one left as it is** —
+        /// what the operator's ticks in the download window turn into.
+        ///
+        /// A ticked entry the project has nothing of is imported and one it holds is replaced,
+        /// **whatever the plan first proposed**: a dependency already at the core's version is
+        /// left alone by default, and ticking it is how it gets written again - which is what a
+        /// second download of the same block used to be unable to do, bringing the block down and
+        /// none of what it needs. An unticked entry stays in the plan as a skip rather than
+        /// vanishing, so the report can still say it was left as it was.
+        /// </summary>
+        public DownloadPlan Taking(IEnumerable<string> ids)
+        {
+            HashSet<string> taken = new HashSet<string>(ids ?? new string[0], StringComparer.Ordinal);
+            List<PlannedNode> nodes = new List<PlannedNode>();
+
+            foreach (PlannedNode one in Nodes)
+            {
+                DownloadAction action = !taken.Contains(one.Node.Id)
+                    ? DownloadAction.Skip
+                    : one.Found == null ? DownloadAction.Import : DownloadAction.Replace;
+
+                nodes.Add(one.With(action));
+            }
+
+            return new DownloadPlan(nodes);
         }
 
         /// <summary>
@@ -88,11 +128,15 @@ namespace Core.Repo
         /// answer, except that being *chosen* wins: a block the operator ticked is replaced even
         /// where it would have been skipped as an already-current dependency, because ticking it
         /// is what asking for it looks like.
+        ///
+        /// **Every node remembers who needs it**, however many paths reach it, so the download
+        /// window can say why a dependency is on the list at all.
         /// </summary>
+        /// <param name="by">The node this one was reached from, or null when it was ticked.</param>
         private static void Walk(
             CoreCatalog core,
             Node node,
-            bool chosen,
+            PlannedNode by,
             Dictionary<string, ProjectObject> held,
             Dictionary<string, PlannedNode> planned,
             List<PlannedNode> ordered,
@@ -100,11 +144,13 @@ namespace Core.Repo
         {
             if (node == null || string.IsNullOrEmpty(node.Id) || depth >= MaxDepth) return;
 
+            bool chosen = by == null;
             PlannedNode already;
 
             if (planned.TryGetValue(node.Id, out already))
             {
                 if (chosen) already.Choose(Action(node, held, true));
+                else already.NeededBy(by.Node.Base);
 
                 return;
             }
@@ -112,12 +158,14 @@ namespace Core.Repo
             PlannedNode made = new PlannedNode(
                 node, Folder(core, node), core.FileOf(node), chosen, Action(node, held, chosen), Found(node, held));
 
+            if (!chosen) made.NeededBy(by.Node.Base);
+
             // Recorded before descending, so a graph that points back at this node finds it and
             // stops rather than going round again.
             planned.Add(node.Id, made);
 
             foreach (Node needed in Needs(core, node))
-                Walk(core, needed, false, held, planned, ordered, depth + 1);
+                Walk(core, needed, made, held, planned, ordered, depth + 1);
 
             ordered.Add(made);
         }
@@ -169,10 +217,12 @@ namespace Core.Repo
         }
 
         /// <summary>
-        /// Which planned entries would change something other blocks depend on.
+        /// Who else in the project depends on each entry the project already holds — **every
+        /// collision, not only what the plan would replace by default**, because the window lets
+        /// the operator tick a skipped one too.
         ///
         /// **A block already in the plan does not count as somebody else.** It is going to be
-        /// replaced by the same download, so the version it used to want is not an argument
+        /// written by the same download, so the version it used to want is not an argument
         /// against the version it is about to get.
         ///
         /// **Only blocks that declare their dependencies can be counted, and that is a real
@@ -181,33 +231,23 @@ namespace Core.Repo
         /// means "no *core* block depends on it", never "nothing does" - and whatever shows this
         /// has to say so rather than let it read as an all-clear.
         /// </summary>
-        private static IReadOnlyList<PlannedNode> Affected(
-            IReadOnlyList<PlannedNode> ordered,
-            Dictionary<string, PlannedNode> planned,
-            CoreComparison compared)
+        private static void Affected(IReadOnlyList<PlannedNode> ordered, CoreComparison compared)
         {
             HashSet<string> inside = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (PlannedNode one in ordered)
                 if (one.Node.Base != null) inside.Add(one.Node.Base);
 
-            List<PlannedNode> affected = new List<PlannedNode>();
-
             foreach (PlannedNode one in ordered)
             {
-                // Only a change to something already there can disturb anybody. An import of a
-                // name the project has never had cannot.
-                if (one.Action != DownloadAction.Replace || one.Found == null) continue;
+                // Only something already there can have users. An import of a name the project
+                // has never had cannot disturb anybody.
+                if (one.Found == null) continue;
 
                 List<string> users = Users(compared, one.Node.Base, inside);
 
-                if (users.Count == 0) continue;
-
-                one.UsedBy(users);
-                affected.Add(one);
+                if (users.Count > 0) one.UsedBy(users);
             }
-
-            return affected.Count == 0 ? Nothing : affected;
         }
 
         private static List<string> Users(CoreComparison compared, string name, HashSet<string> inside)
@@ -301,10 +341,16 @@ namespace Core.Repo
         /// <summary>The project has nothing of this name.</summary>
         Import,
 
-        /// <summary>The project has it, and this would write over it.</summary>
+        /// <summary>
+        /// The project has it, and this would write over it - **and move it into the folder its
+        /// family names** when it is anywhere else, which TIA would not do on its own.
+        /// </summary>
         Replace,
 
-        /// <summary>A dependency already at the version the core stands behind: left alone.</summary>
+        /// <summary>
+        /// Left as it is: a dependency already at the version the core stands behind, by
+        /// default, or anything the operator unticked when asked.
+        /// </summary>
         Skip
     }
 
@@ -314,6 +360,7 @@ namespace Core.Repo
         private static readonly string[] Nobody = new string[0];
 
         private IReadOnlyList<string> _users = Nobody;
+        private readonly List<string> _neededBy = new List<string>();
 
         internal PlannedNode(
             Node node, string folder, string source, bool chosen, DownloadAction action, ProjectObject found)
@@ -352,9 +399,30 @@ namespace Core.Repo
         /// </summary>
         public IReadOnlyList<string> Users => _users;
 
+        /// <summary>
+        /// The planned entries that need this one — why a dependency is on the list at all.
+        /// Empty for what the operator ticked and nothing else reaches.
+        /// </summary>
+        public IReadOnlyList<string> Needers => _neededBy;
+
         /// <summary>The version the project holds, when it holds one.</summary>
         public string HeldVersion =>
             Found == null ? null : (string.IsNullOrWhiteSpace(Found.Version) ? Found.HeaderVersion : Found.Version);
+
+        /// <summary>Where the project keeps what it has of this name, as the map recorded it.</summary>
+        public string From => Found?.Folder;
+
+        /// <summary>
+        /// Whether what the project holds sits somewhere other than the folder its family names.
+        ///
+        /// **TIA overwrites in place, so this is what a download has to do something about**:
+        /// generating a block that already exists writes the new one wherever the old one was -
+        /// measured on the VM - and a download meant to put the core's block where the core says
+        /// would otherwise leave it exactly where it was found. The tree is stripped and never
+        /// compared, the same rule the comparison's own "in the wrong folder" follows.
+        /// </summary>
+        public bool Moves =>
+            Found != null && !CoreComparison.SamePath(CoreComparison.Inside(Found.Folder), Folder);
 
         internal void Choose(DownloadAction action)
         {
@@ -363,6 +431,26 @@ namespace Core.Repo
         }
 
         internal void UsedBy(IReadOnlyList<string> users) => _users = users;
+
+        internal void NeededBy(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return;
+
+            foreach (string one in _neededBy)
+                if (string.Equals(one, name, StringComparison.OrdinalIgnoreCase)) return;
+
+            _neededBy.Add(name);
+        }
+
+        /// <summary>This entry with another action and everything else as it was.</summary>
+        internal PlannedNode With(DownloadAction action)
+        {
+            PlannedNode copy = new PlannedNode(Node, Folder, Source, Chosen, action, Found) { _users = _users };
+
+            copy._neededBy.AddRange(_neededBy);
+
+            return copy;
+        }
 
         public override string ToString() => Node.Base + " v" + Node.Version + " — " + Action;
     }

@@ -224,7 +224,7 @@ namespace Core.Repo
         /// language, so holding it against a literal would make this wrong in German; only what
         /// comes after it is held against a family the core wrote.
         /// </summary>
-        private static string Inside(string folder)
+        internal static string Inside(string folder)
         {
             if (string.IsNullOrEmpty(folder)) return string.Empty;
 
@@ -233,7 +233,7 @@ namespace Core.Repo
             return slash < 0 ? string.Empty : folder.Substring(slash + 1);
         }
 
-        private static bool SamePath(string left, string right) =>
+        internal static bool SamePath(string left, string right) =>
             string.Equals(
                 (left ?? string.Empty).Trim('/'), (right ?? string.Empty).Trim('/'),
                 StringComparison.OrdinalIgnoreCase);
@@ -292,12 +292,40 @@ namespace Core.Repo
             {
                 int byFolder = string.Compare(left.Folder, right.Folder, StringComparison.OrdinalIgnoreCase);
 
-                return byFolder != 0
-                    ? byFolder
+                if (byFolder != 0) return byFolder;
+
+                int bySource = Rank(left.Node).CompareTo(Rank(right.Node));
+
+                return bySource != 0
+                    ? bySource
                     : string.Compare(left.Node.Base, right.Node.Base, StringComparison.OrdinalIgnoreCase);
             });
 
             return offered;
+        }
+
+        /// <summary>
+        /// The order inside one folder: **the blocks, then the data types, then the enumerations**
+        /// - `.scl`, `.udt`, `.xlsx`, which is the order the maintainer reads a family in. By name
+        /// alone they came out interleaved, `_queue` between `EQueueMethod` and `queueItem`, so a
+        /// folder read as a list of names rather than as a function and what it works on.
+        ///
+        /// **The extension is the core's own answer**, as it is for the import: the repository
+        /// writes one kind per extension and `core.json` carries the file. Anything else follows,
+        /// by name, rather than being dropped from a panel that has to show the whole core.
+        /// </summary>
+        private static int Rank(Node node)
+        {
+            string extension = (System.IO.Path.GetExtension(node.File ?? string.Empty) ?? string.Empty)
+                .ToLowerInvariant();
+
+            switch (extension)
+            {
+                case ".scl": return 0;
+                case ".udt": return 1;
+                case ".xlsx": return 2;
+                default: return 3;
+            }
         }
 
         /// <summary>
