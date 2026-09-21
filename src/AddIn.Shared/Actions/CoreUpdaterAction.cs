@@ -9,9 +9,14 @@ namespace AddIn.Shared.Actions
     /// <summary>
     /// Opens the window that compares a PLC's program with the core it is built on.
     ///
-    /// **On a PLC and nowhere else** (the maintainer's decision, 2026-09-16): a core belongs
-    /// to one PLC's software, so an entry on the project root would have to ask which PLC it
-    /// meant, and one on a block would offer a whole-PLC operation from a single object.
+    /// **On a PLC, and on the project root** (2026-09-21, the maintainer's decision, widening
+    /// his own of 2026-09-16). The reason the entry was kept off the root was that a core
+    /// belongs to one PLC's software, so an entry there would have to ask which PLC it meant -
+    /// and the window had no good moment to ask, because it read the project as soon as it
+    /// opened. It does not any more: **nothing is read until *Load* is pressed**, so a window
+    /// opened from the root comes up with the project's PLCs in a drop-down and waits, which
+    /// is the asking. An entry on a block is still refused - that would offer a whole-PLC
+    /// operation from a single object.
     ///
     /// **Three arguments, and no handoff.** Every other satellite is told what to work on in a
     /// JSON document, because it cannot ask; this one attaches to TIA Portal itself and finds
@@ -66,14 +71,41 @@ namespace AddIn.Shared.Actions
             // The entry is registered on every DeviceItem, and most of them are not a CPU -
             // a rack, a power supply, an interface module. Saying so is better than opening a
             // window that then reports a PLC it cannot find.
+            //
+            // **The project root is the other way round**, and goes through ExecuteForProject:
+            // there nobody pointed at a PLC, which is a different thing from pointing at
+            // something that is not one.
             if (string.IsNullOrWhiteSpace(plc))
             {
                 notifier.Info(Title,
                     "\n\nThis is not a PLC.\n\n" +
-                    "The core belongs to a PLC's software, so run this on the controller itself.");
+                    "The core belongs to a PLC's software, so run this on the controller itself, " +
+                    "or on the project to pick one in the window.");
                 return;
             }
 
+            Start(notifier, launcher, tiaVersion, plc, projectFile);
+        }
+
+        /// <summary>
+        /// The same window, opened from the project root with **no PLC named**.
+        ///
+        /// A core belongs to one PLC's software, so something has to choose one — and the
+        /// window is where that is done now: it lists the project's PLCs, counts what the
+        /// chosen one holds, and reads nothing until *Load* is pressed. Naming a PLC here
+        /// would be the Add-In guessing at what the operator did not say.
+        /// </summary>
+        public static void ExecuteForProject(
+            ITiaNotifier notifier, IProcessLauncher launcher, string tiaVersion, string projectFile)
+        {
+            if (notifier == null || launcher == null) return;
+
+            Start(notifier, launcher, tiaVersion, null, projectFile);
+        }
+
+        private static void Start(
+            ITiaNotifier notifier, IProcessLauncher launcher, string tiaVersion, string plc, string projectFile)
+        {
             string path = InstallPaths.Tool(ExecutableFor(tiaVersion) + ".exe");
 
             // The expected failure, and it deserves a message naming the missing file rather
@@ -93,6 +125,11 @@ namespace AddIn.Shared.Actions
 
         /// <summary>
         /// The command line: the PLC, the general program, and the project file.
+        ///
+        /// **An empty first argument is what the project root sends**, and the window reads it
+        /// as "nobody said": it offers the project's PLCs and takes the first as a starting
+        /// point. The positions stay fixed whatever is known, which is the same rule the third
+        /// argument already follows.
         ///
         /// **Quoted, because a PLC's name and a path both hold spaces** - and a quoted argument
         /// must not end in a backslash, which is why each is trimmed of one. That trap is

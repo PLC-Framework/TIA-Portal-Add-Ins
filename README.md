@@ -16,7 +16,7 @@ Right-click the project, or a PLC, or a selection of blocks, and:
 | **Create project hierarchy** | creates that folder tree inside the PLC: program blocks, technology objects, tag tables, PLC data types, and inside every software unit |
 | **Data block snapshot** | reads every variable of the selected data blocks over the CPU's own web server and writes one `.xlsx` per block — for capturing settings, not live process values |
 | **Open project folder** | opens the folder the project lives in, where `.plc-framework\` and its exports and reports are |
-| **Core updater** | on a PLC: opens a window that attaches to TIA Portal itself and compares the program with the core library it is built on. Early — it reads and reports; importing is not wired up yet |
+| **Core updater** | on a PLC, or on the project: opens a window that attaches to TIA Portal itself and compares the program with the core library it is built on — then offers to download what is missing or out of date, and to move core blocks back into the folders their family names. Nothing is read or written until you ask for it |
 | **Export objects** | writes the selection to `.plc-framework\exports\`, in a tree shaped like the project's — so two exports can be compared. **Every format TIA offers for each object**: SimaticML `.xml` for all of them, the SIMATIC SD pair where it applies, and the language source — `.scl`, `.awl`, `.db`, `.udt`. A PLC's alarm text lists come out as one `.xlsx`, which is all Openness offers for them |
 
 The configuration lives **inside the TIA project**, in `.plc-framework\`, so it travels with the project and belongs to it rather than to whoever last ran the tool.

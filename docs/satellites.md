@@ -190,7 +190,7 @@ The scroll bars were light grey in every satellite until this window, whose tabl
 
 ## Updating a project's core
 
-`Satellite.CoreUpdater` opens from **"Core updater"** on a PLC — not on the project root, and not on a block: a core belongs to one PLC's software, so an entry anywhere else would either have to ask which PLC it meant or offer a whole-PLC operation from a single object.
+`Satellite.CoreUpdater` opens from **"Core updater"** on a PLC, and on the project root — but not on a block, which would offer a whole-PLC operation from a single object. From a PLC the window opens on that PLC; from the root it opens with the project's PLCs in a drop-down and the first one showing. Nothing is read either way until **Load** is pressed, which is what makes the root entry work at all: choosing the PLC is a drop-down rather than a right-click.
 
 **It is the one satellite that talks to TIA Portal itself.** Every other one is handed what it should work on, because it cannot ask. This attaches to the running TIA Portal as an Openness *client* and finds the project that way, so the Add-In hands over nothing — no payload, no handoff, and none of the bugs where the two ends disagree about what was selected. The Add-In entry is one line that starts an executable.
 

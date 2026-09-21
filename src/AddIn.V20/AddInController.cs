@@ -70,6 +70,16 @@ namespace AddIn
                 menuSelectionProvider => OpenProjectFolderAction.Execute(
                     _notifier, _launcher, ProjectDirectory()));
 
+            // The core updater is also here, where no PLC is selected: the window lists the
+            // project's PLCs and reads nothing until Load is pressed, so choosing one is a
+            // drop-down rather than a right-click.
+            AddAction<Project>(
+                menuAddInRoot,
+                CoreUpdaterAction.Title,
+                CoreUpdaterAction.IconPath,
+                menuSelectionProvider => CoreUpdaterAction.ExecuteForProject(
+                    _notifier, _launcher, TiaVersion, ProjectFile()));
+
             // The coding-style check on the project root checks every PLC in it. The same
             // entry on narrower nodes is registered below, after the actions that belong
             // to those nodes.
@@ -97,7 +107,8 @@ namespace AddIn
                         TiaGroupNode.TargetsFor(deviceItem));
                 });
 
-            // Beside it, on the PLC and nowhere else: a core belongs to one PLC's software.
+            // And on the PLC, which is the entry that names one: the operator right-clicked
+            // the controller, so the window opens on it rather than on whichever comes first.
             // This one hands nothing over - the window attaches to TIA Portal itself - so all
             // the Add-In supplies is which of the two executables its TIA version needs.
             AddAction<DeviceItem>(
