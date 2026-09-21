@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>GitHubApi</RootNamespace>
+    <AssemblyName>PLC-Framework.GitHubApi</AssemblyName>
+  </PropertyGroup>
+  
+  <!-- External packages -->
+  
+  
+</Project>
