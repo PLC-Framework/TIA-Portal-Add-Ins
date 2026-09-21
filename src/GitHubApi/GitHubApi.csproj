@@ -2,14 +2,28 @@
 
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- The GitHub REST API, and nothing of ours - the same shape as `S7PlcWebserverApi` and
+       for the same reason: it knows nothing about `Product`, `InstallPaths` or the config
+       model, so it can be exercised from PowerShell against a real repository without
+       dragging the framework in. That is how every one of its behaviours is checked.
+
+       It is also why it must never go *into* `Core`: it pulls `System.Net.Http`, and `Core`
+       is loaded inside TIA Portal's process. `Core` declares a port instead; whoever has a
+       window implements it with this. -->
   <PropertyGroup>
+    <OutputType>Library</OutputType>
     <TargetFramework>net48</TargetFramework>
     <LangVersion>latest</LangVersion>
     <RootNamespace>GitHubApi</RootNamespace>
     <AssemblyName>PLC-Framework.GitHubApi</AssemblyName>
   </PropertyGroup>
-  
-  <!-- External packages -->
-  
-  
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+
 </Project>
