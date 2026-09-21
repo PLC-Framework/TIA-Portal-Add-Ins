@@ -5,7 +5,7 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Text;
 
-namespace Core.Repo
+namespace Core.Repo.PlcCore
 {
     /// <summary>
     /// The JSON object a core block carries on its <c>TITLE</c> line, as it arrives from a
@@ -47,7 +47,7 @@ namespace Core.Repo
         [DataMember(Name = "family")]
         public string Family { get; set; }
 
-        /// <summary><c>current</c> or <c>deprecated</c> - see <see cref="CoreStatus"/>.</summary>
+        /// <summary><c>current</c> or <c>deprecated</c> - see <see cref="PlcCoreStatus"/>.</summary>
         [DataMember(Name = "status")]
         public string Status { get; set; }
 

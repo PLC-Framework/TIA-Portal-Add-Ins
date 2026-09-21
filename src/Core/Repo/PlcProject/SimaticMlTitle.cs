@@ -3,7 +3,7 @@ using System.IO;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace Core.Repo
+namespace Core.Repo.PlcProject
 {
     /// <summary>
     /// Reads a block's or a PLC data type's title out of a SimaticML export.

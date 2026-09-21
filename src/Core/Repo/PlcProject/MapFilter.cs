@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace Core.Repo
+namespace Core.Repo.PlcProject
 {
     /// <summary>
     /// What a map is asked to cover: which kinds of object, and **within each kind**, which

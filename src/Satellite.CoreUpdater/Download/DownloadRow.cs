@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Windows.Media;
 
 using Core.Repo;
+using Core.Repo.PlcCore;
 
 namespace Satellite.CoreUpdater.Download
 {

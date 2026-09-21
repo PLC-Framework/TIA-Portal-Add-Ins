@@ -7,7 +7,7 @@ using Core.Repo.Local;
 using Core.Repo.Remote;
 using Core.Secrets;
 
-namespace Core.Repo
+namespace Core.Repo.PlcCore
 {
     /// <summary>
     /// Brings a project's copy of the core up to date and reads it back: configuration, then
@@ -27,7 +27,7 @@ namespace Core.Repo
     /// **A project that names no core is a normal state**, not a failure. Only the actions that
     /// read one need one, which is why `coreSource` may be null at all.
     /// </summary>
-    public static class CoreRefresh
+    public static class PlcCoreRefresh
     {
         /// <summary>
         /// <paramref name="projectDirectory"/> is the TIA project's own folder, the one holding
@@ -43,21 +43,21 @@ namespace Core.Repo
         /// Told what is happening while a couple of hundred files come down a wire. A local
         /// core never needs it; a remote one on a slow line very much does.
         /// </param>
-        public static CoreRefreshResult Run(
+        public static PlcCoreRefreshResult Run(
             string projectDirectory, IRemoteCore remote = null, Action<string> progress = null)
         {
             if (string.IsNullOrWhiteSpace(projectDirectory))
-                return CoreRefreshResult.Failed("This project has no folder yet, so there is nowhere to copy a core into.");
+                return PlcCoreRefreshResult.Failed("This project has no folder yet, so there is nowhere to copy a core into.");
 
             ConfigLoadResult loaded = ConfigLoader.LoadFromProject(projectDirectory);
 
-            if (loaded.Config == null) return CoreRefreshResult.Failed(loaded.Error);
+            if (loaded.Config == null) return PlcCoreRefreshResult.Failed(loaded.Error);
 
             string source = loaded.Config.Metadata?.CoreSource;
 
             // Absent and null are the same answer, and it is an answer rather than a fault.
             if (string.IsNullOrWhiteSpace(source))
-                return CoreRefreshResult.NoCore(
+                return PlcCoreRefreshResult.NoCore(
                     "This project names no core: metadata.coreSource is null. " +
                     "Set it in the Config. Editor to compare against one.");
 
@@ -65,12 +65,12 @@ namespace Core.Repo
                 return FromGitHub(projectDirectory, loaded.Config.CoreRemoteRepositoryConfig, remote, progress);
 
             if (!string.Equals(source, MetadataValidator.Local, StringComparison.Ordinal))
-                return CoreRefreshResult.Failed(
+                return PlcCoreRefreshResult.Failed(
                     "metadata.coreSource is '" + source + "', which is neither 'local' nor 'remote'.");
 
             LocalSource repository = LocalSource.Of(loaded.Config.CoreLocalRepositoryConfig);
 
-            if (!repository.Resolved) return CoreRefreshResult.Failed(repository.Problem);
+            if (!repository.Resolved) return PlcCoreRefreshResult.Failed(repository.Problem);
 
             // Environmental, and asked here rather than in LocalSource for the reason that type
             // records: a configuration prepared for another station is not wrong because a drive
@@ -78,22 +78,22 @@ namespace Core.Repo
             // until it is.
             string missing = repository.Exists();
 
-            if (missing != null) return CoreRefreshResult.Failed(missing);
+            if (missing != null) return PlcCoreRefreshResult.Failed(missing);
 
             LocalCopyResult copied = LocalCopy.Mirror(repository.CoreFolder, RepoPaths.CoreFor(projectDirectory));
 
-            if (copied.IsRefused) return CoreRefreshResult.Failed(copied.Refusal);
+            if (copied.IsRefused) return PlcCoreRefreshResult.Failed(copied.Refusal);
 
             // Read out of the copy, never out of the repository - which is the whole point of
             // having made one.
-            CoreLoadResult read = CoreCatalogLoader.LoadFromProject(
+            PlcCoreLoadResult read = PlcCoreCatalogLoader.LoadFromProject(
                 projectDirectory,
                 repository.Folder,
                 loaded.Config.CoreLocalRepositoryConfig?.DependencyFile);
 
-            if (read.Catalog == null) return CoreRefreshResult.Failed(read.Error);
+            if (read.Catalog == null) return PlcCoreRefreshResult.Failed(read.Error);
 
-            return CoreRefreshResult.Read(read.Catalog, CoreValidator.Validate(read.Catalog), copied);
+            return PlcCoreRefreshResult.Read(read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied);
         }
 
         /// <summary>
@@ -108,16 +108,16 @@ namespace Core.Repo
         /// about what the core defines, so a file short would be read as the core not defining
         /// something - "you are missing a block" told about a download that failed.
         /// </summary>
-        private static CoreRefreshResult FromGitHub(
+        private static PlcCoreRefreshResult FromGitHub(
             string projectDirectory, CoreRemoteRepositoryConfig repository, IRemoteCore remote, Action<string> progress)
         {
             if (repository == null)
-                return CoreRefreshResult.Failed(
+                return PlcCoreRefreshResult.Failed(
                     "This project reads its core from GitHub, but names no repository: " +
                     "coreRemoteRepositoryConfig is missing.");
 
             if (remote == null)
-                return CoreRefreshResult.Failed(
+                return PlcCoreRefreshResult.Failed(
                     "This project reads its core from GitHub, and this program cannot reach it. " +
                     "Open the core updater, which can.");
 
@@ -134,22 +134,22 @@ namespace Core.Repo
                         RepoPaths.TmpFor(projectDirectory),
                         progress);
 
-                    if (copied.IsRefused) return CoreRefreshResult.Failed(copied.Refusal);
+                    if (copied.IsRefused) return PlcCoreRefreshResult.Failed(copied.Refusal);
 
                     if (!copied.Ready)
-                        return CoreRefreshResult.Failed(
+                        return PlcCoreRefreshResult.Failed(
                             "The core did not come down whole, so it is not compared against. " +
                             string.Join(" ", copied.Problems));
 
-                    CoreLoadResult read = CoreCatalogLoader.LoadFromProject(
+                    PlcCoreLoadResult read = PlcCoreCatalogLoader.LoadFromProject(
                         projectDirectory, repository.Folder, repository.DependencyFile);
 
-                    if (read.Catalog == null) return CoreRefreshResult.Failed(read.Error);
+                    if (read.Catalog == null) return PlcCoreRefreshResult.Failed(read.Error);
 
                     CoreOrigin.Write(
                         CoreOrigin.Of(repository, copied, copied.Downloaded + copied.Kept), projectDirectory);
 
-                    return CoreRefreshResult.Fetch(read.Catalog, CoreValidator.Validate(read.Catalog), copied);
+                    return PlcCoreRefreshResult.Fetch(read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied);
                 }
             }
             catch (Exception exception)
@@ -157,7 +157,7 @@ namespace Core.Repo
                 // Opening the repository, or disposing it. The client's own refusals are
                 // already sentences; anything else is at least named rather than thrown into
                 // a window that would report "Failed."
-                return CoreRefreshResult.Failed(exception.Message);
+                return PlcCoreRefreshResult.Failed(exception.Message);
             }
         }
 
@@ -183,10 +183,10 @@ namespace Core.Repo
     }
 
     /// <summary>What came of refreshing a project's core: the catalogue, or why there is none.</summary>
-    public sealed class CoreRefreshResult
+    public sealed class PlcCoreRefreshResult
     {
-        private CoreRefreshResult(
-            CoreCatalog catalog, ValidationResult issues, LocalCopyResult copied, RemoteCopyResult fetched,
+        private PlcCoreRefreshResult(
+            PlcCoreCatalog catalog, ValidationResult issues, LocalCopyResult copied, RemoteCopyResult fetched,
             string problem, bool names)
         {
             Catalog = catalog;
@@ -198,7 +198,7 @@ namespace Core.Repo
         }
 
         /// <summary>The core as the project now holds it, or null.</summary>
-        public CoreCatalog Catalog { get; }
+        public PlcCoreCatalog Catalog { get; }
 
         /// <summary>
         /// What is wrong with the graph that loaded, as `ValidationIssue`s - the config
@@ -234,16 +234,16 @@ namespace Core.Repo
 
         public bool Ready => Catalog != null;
 
-        public static CoreRefreshResult Read(CoreCatalog catalog, ValidationResult issues, LocalCopyResult copied) =>
-            new CoreRefreshResult(catalog, issues, copied, null, null, true);
+        public static PlcCoreRefreshResult Read(PlcCoreCatalog catalog, ValidationResult issues, LocalCopyResult copied) =>
+            new PlcCoreRefreshResult(catalog, issues, copied, null, null, true);
 
-        public static CoreRefreshResult Fetch(CoreCatalog catalog, ValidationResult issues, RemoteCopyResult fetched) =>
-            new CoreRefreshResult(catalog, issues, null, fetched, null, true);
+        public static PlcCoreRefreshResult Fetch(PlcCoreCatalog catalog, ValidationResult issues, RemoteCopyResult fetched) =>
+            new PlcCoreRefreshResult(catalog, issues, null, fetched, null, true);
 
-        public static CoreRefreshResult Failed(string problem) =>
-            new CoreRefreshResult(null, null, null, null, problem ?? "The core could not be read.", true);
+        public static PlcCoreRefreshResult Failed(string problem) =>
+            new PlcCoreRefreshResult(null, null, null, null, problem ?? "The core could not be read.", true);
 
-        public static CoreRefreshResult NoCore(string why) =>
-            new CoreRefreshResult(null, null, null, null, why, false);
+        public static PlcCoreRefreshResult NoCore(string why) =>
+            new PlcCoreRefreshResult(null, null, null, null, why, false);
     }
 }

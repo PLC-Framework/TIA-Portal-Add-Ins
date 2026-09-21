@@ -7,6 +7,8 @@ using System.Linq;
 using Core;
 using Core.Config;
 using Core.Repo;
+using Core.Repo.PlcProject;
+using Core.Repo.PlcCore;
 
 using Siemens.Engineering;
 using Siemens.Engineering.HW;
@@ -605,7 +607,7 @@ namespace Satellite.CoreUpdater.Tia
 
             List<string> refused = new List<string>();
 
-            foreach (CoreConstant constant in workbook.Constants)
+            foreach (PlcCoreConstant constant in workbook.Constants)
             {
                 try
                 {
@@ -619,7 +621,7 @@ namespace Satellite.CoreUpdater.Tia
                 }
             }
 
-            foreach (CoreTag tag in workbook.Tags)
+            foreach (PlcCoreTag tag in workbook.Tags)
             {
                 try
                 {
@@ -643,7 +645,7 @@ namespace Satellite.CoreUpdater.Tia
         /// between - so a type without an address cannot be expressed. Every tag in the core's
         /// own tables carries one; this is the branch for a workbook that does not.
         /// </summary>
-        private static PlcTag Made(PlcTagTable table, CoreTag tag) =>
+        private static PlcTag Made(PlcTagTable table, PlcCoreTag tag) =>
             string.IsNullOrEmpty(tag.Address)
                 ? table.Tags.Create(tag.Name)
                 : table.Tags.Create(tag.Name, tag.DataType, tag.Address);

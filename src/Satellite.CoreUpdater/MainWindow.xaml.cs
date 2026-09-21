@@ -12,6 +12,8 @@ using System.Windows.Threading;
 using Core;
 using Core.Config.Validation;
 using Core.Repo;
+using Core.Repo.PlcProject;
+using Core.Repo.PlcCore;
 
 using Satellite.CoreUpdater.Compare;
 using Satellite.CoreUpdater.Download;
@@ -876,7 +878,7 @@ namespace Satellite.CoreUpdater
             // The GitHub client travels with the window, because `Core` may not hold it: it is
             // loaded inside TIA Portal's process and cannot take `System.Net.Http`. A project
             // with a local core never touches it.
-            CoreRefreshResult core = CoreRefresh.Run(directory, new GitHubCore(), progress);
+            PlcCoreRefreshResult core = PlcCoreRefresh.Run(directory, new GitHubCore(), progress);
 
             if (!core.Ready) return Comparison.Without(core);
 
@@ -1703,7 +1705,7 @@ namespace Satellite.CoreUpdater
         /// <summary>One comparison, and why there is none when there is not.</summary>
         private sealed class Comparison
         {
-            private Comparison(ProjectMap map, CoreRefreshResult core, CoreComparison result, string problem, bool names)
+            private Comparison(ProjectMap map, PlcCoreRefreshResult core, CoreComparison result, string problem, bool names)
             {
                 Map = map;
                 Core = core;
@@ -1715,7 +1717,7 @@ namespace Satellite.CoreUpdater
             /// <summary>The map as it was read back — which names the scope the panels are of.</summary>
             public ProjectMap Map { get; }
 
-            public CoreRefreshResult Core { get; }
+            public PlcCoreRefreshResult Core { get; }
 
             public CoreComparison Result { get; }
 
@@ -1723,10 +1725,10 @@ namespace Satellite.CoreUpdater
 
             public bool NamesCore { get; }
 
-            public static Comparison Of(ProjectMap map, CoreRefreshResult core, CoreComparison result) =>
+            public static Comparison Of(ProjectMap map, PlcCoreRefreshResult core, CoreComparison result) =>
                 new Comparison(map, core, result, null, true);
 
-            public static Comparison Without(CoreRefreshResult core) =>
+            public static Comparison Without(PlcCoreRefreshResult core) =>
                 new Comparison(null, core, null, core.Problem, core.NamesCore);
 
             public static Comparison Failed(string problem) =>

@@ -6,7 +6,7 @@ using Core.DependencyGraph;
 
 using CoreGraph = Core.DependencyGraph.DependencyGraph;
 
-namespace Core.Repo
+namespace Core.Repo.PlcCore
 {
     /// <summary>
     /// A core that has been read: the graph, where it was read from, and the two lookups
@@ -26,7 +26,7 @@ namespace Core.Repo
     /// > namespace and the type inside it, and an unqualified use resolves to the namespace.
     /// > Same trap as `AddIn.Core`, one layer down.
     /// </summary>
-    public sealed class CoreCatalog
+    public sealed class PlcCoreCatalog
     {
         private static readonly Node[] NoNodes = new Node[0];
         private static readonly Edge[] NoEdges = new Edge[0];
@@ -35,7 +35,7 @@ namespace Core.Repo
         private readonly Dictionary<string, Node> _byId;
         private readonly Dictionary<string, List<Node>> _byBase;
 
-        private CoreCatalog(CoreGraph graph, string coreFolder, string folderInRepository)
+        private PlcCoreCatalog(CoreGraph graph, string coreFolder, string folderInRepository)
         {
             Graph = graph;
             CoreFolder = coreFolder;
@@ -48,7 +48,7 @@ namespace Core.Repo
             {
                 if (node == null) continue;
 
-                // A duplicate id is a broken file, and CoreValidator reports it. Keeping the
+                // A duplicate id is a broken file, and PlcCoreValidator reports it. Keeping the
                 // first rather than throwing means a catalogue still loads and the report
                 // says why, which is the whole reason loading and validating are separate.
                 if (!string.IsNullOrEmpty(node.Id) && !_byId.ContainsKey(node.Id)) _byId.Add(node.Id, node);
@@ -87,8 +87,8 @@ namespace Core.Repo
         /// <summary>When the repository generated this graph, as it wrote it.</summary>
         public string GeneratedAt => Graph.GeneratedAt;
 
-        public static CoreCatalog Of(CoreGraph graph, string coreFolder, string folderInRepository) =>
-            graph == null ? null : new CoreCatalog(graph, coreFolder, folderInRepository);
+        public static PlcCoreCatalog Of(CoreGraph graph, string coreFolder, string folderInRepository) =>
+            graph == null ? null : new PlcCoreCatalog(graph, coreFolder, folderInRepository);
 
         /// <summary>One node by its id - <c>_queue-v3.0</c> - or null.</summary>
         public Node ById(string id)
@@ -123,7 +123,7 @@ namespace Core.Repo
             List<Node> found = new List<Node>();
 
             foreach (Node node in ByBase(baseName))
-                if (CoreStatus.IsCurrent(node.Status)) found.Add(node);
+                if (PlcCoreStatus.IsCurrent(node.Status)) found.Add(node);
 
             return found;
         }
@@ -142,7 +142,7 @@ namespace Core.Repo
 
         /// <summary>
         /// Where a node's source sits inside <see cref="CoreFolder"/>, or null when the node's
-        /// <c>file</c> does not sit under the core at all - which <see cref="CoreValidator"/>
+        /// <c>file</c> does not sit under the core at all - which <see cref="PlcCoreValidator"/>
         /// reports rather than this silently resolving to somewhere plausible.
         /// </summary>
         public string FileOf(Node node)
@@ -189,7 +189,7 @@ namespace Core.Repo
     /// rather than assumed current - a block whose status nobody can read is not a block to
     /// report as up to date.
     /// </summary>
-    public static class CoreStatus
+    public static class PlcCoreStatus
     {
         public const string Current = "current";
         public const string Deprecated = "deprecated";

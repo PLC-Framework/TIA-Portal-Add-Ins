@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 using Core.Config;
 
-namespace Core.Repo
+namespace Core.Repo.PlcProject
 {
     /// <summary>
     /// What a PLC holds, counted but not read: how many of each kind, and within each kind how

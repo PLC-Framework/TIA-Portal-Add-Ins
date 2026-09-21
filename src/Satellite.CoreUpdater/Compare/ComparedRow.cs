@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Windows.Media;
 
 using Core.Repo;
+using Core.Repo.PlcProject;
+using Core.Repo.PlcCore;
 
 namespace Satellite.CoreUpdater.Compare
 {
@@ -107,7 +109,7 @@ namespace Satellite.CoreUpdater.Compare
             List<string> versions = new List<string>();
 
             foreach (Core.DependencyGraph.Node node in one.Versions)
-                if (CoreStatus.IsCurrent(node.Status)) versions.Add("v" + node.Version);
+                if (PlcCoreStatus.IsCurrent(node.Status)) versions.Add("v" + node.Version);
 
             // Every version is retired, which is a real answer rather than an empty sentence:
             // the core still knows the name and stands behind none of them.

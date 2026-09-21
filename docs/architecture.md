@@ -88,20 +88,22 @@ src/Core/
 │   │   └── CoreOrigin.cs     which commit the copy is — repo\core.origin.json
 │   ├── GitHub/
 │   │   └── GitBlobSha.cs     git's own content hash, so the copy is its own index
-│   ├── CoreCatalog.cs        a core that has been read: the graph, plus lookup by id and base
-│   ├── CoreCatalogLoader.cs  core.json → CoreCatalog, and why it could not be read
-│   ├── CoreValidator.cs      what is wrong with one that loaded — as ValidationIssues
-│   ├── BlockMetadata.cs      the JSON a core block carries on its TITLE line
-│   ├── SimaticMlTitle.cs     that title read back out of an export — the only way in V17-V20
-│   ├── ProjectSurvey.cs      what a PLC holds, counted per kind and per language inside it
-│   ├── MapFilter.cs          which kinds to map, and which languages inside each
-│   ├── ProjectMap.cs         what the TIA project holds — repo\project.json
-│   ├── ProjectMapFile.cs     that map, written indented and read back
-│   ├── CoreRefresh.cs        config → repository → the copy → core.json, in one call
+│   ├── PlcCore/              the PLC core itself: core.json and what a core object carries
+│   │   ├── PlcCoreCatalog.cs        a core that has been read: the graph, plus lookup by id and base
+│   │   ├── PlcCoreCatalogLoader.cs  core.json → PlcCoreCatalog, and why it could not be read
+│   │   ├── PlcCoreValidator.cs      what is wrong with one that loaded — as ValidationIssues
+│   │   ├── PlcCoreRefresh.cs        config → repository → the copy → core.json, in one call
+│   │   ├── BlockMetadata.cs         the JSON a core block carries on its TITLE line
+│   │   └── ConstantsWorkbook.cs     the core's .xlsx read back as objects, because Openness will not
+│   ├── PlcProject/           the other side: what the TIA project holds — repo\project.json
+│   │   ├── ProjectSurvey.cs  what a PLC holds, counted per kind and per language inside it
+│   │   ├── MapFilter.cs      which kinds to map, and which languages inside each
+│   │   ├── ProjectMap.cs     the map itself
+│   │   ├── ProjectMapFile.cs that map, written indented and read back
+│   │   └── SimaticMlTitle.cs a title read out of an export — the only way to one in V17-V20
 │   ├── CoreComparison.cs     that core held against that map — metadata only, nothing written
 │   ├── DownloadPlan.cs       what a download would touch, and who else depends on it
 │   ├── ImportReport.cs       what it actually did, object by object
-│   ├── ConstantsWorkbook.cs  the core's .xlsx read back as objects, because Openness will not
 │   └── SyncPlan.cs           what is in the wrong folder, where it belongs, and how a move went
 ├── Places.cs                 "*" for the general program, spelled once for every reader
 ├── Secrets/

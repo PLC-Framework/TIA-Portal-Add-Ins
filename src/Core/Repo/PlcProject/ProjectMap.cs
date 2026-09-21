@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace Core.Repo
+namespace Core.Repo.PlcProject
 {
     /// <summary>
     /// What a TIA project actually holds, as the core updater read it - the other half of

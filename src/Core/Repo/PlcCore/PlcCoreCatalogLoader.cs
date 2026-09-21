@@ -4,27 +4,27 @@ using System.Runtime.Serialization.Json;
 
 using CoreGraph = Core.DependencyGraph.DependencyGraph;
 
-namespace Core.Repo
+namespace Core.Repo.PlcCore
 {
     /// <summary>
-    /// Reads <c>core.json</c> into a <see cref="CoreCatalog"/>.
+    /// Reads <c>core.json</c> into a <see cref="PlcCoreCatalog"/>.
     ///
     /// Loading and validating are separate here for the same reason they are for
     /// <c>config.json</c>: this says only why the file could not be turned into a catalogue
-    /// at all, and <see cref="CoreValidator"/> says what is wrong with one that loaded.
+    /// at all, and <see cref="PlcCoreValidator"/> says what is wrong with one that loaded.
     ///
     /// **The parsing is `ConfigLoader`'s, byte for byte**, including the byte order mark it
     /// has to skip and the empty file it has to name. `DataContractJsonSerializer` reports a
     /// BOM as *"Encountered unexpected character 'i'"*, which nobody can act on, and both
     /// files are written by tools that add one.
     /// </summary>
-    public static class CoreCatalogLoader
+    public static class PlcCoreCatalogLoader
     {
         /// <summary>Reads the core a <see cref="Local.LocalSource"/> points at.</summary>
-        public static CoreLoadResult Load(Local.LocalSource source)
+        public static PlcCoreLoadResult Load(Local.LocalSource source)
         {
-            if (source == null) return CoreLoadResult.Failed("No repository was given.");
-            if (!source.Resolved) return CoreLoadResult.Failed(source.Problem);
+            if (source == null) return PlcCoreLoadResult.Failed("No repository was given.");
+            if (!source.Resolved) return PlcCoreLoadResult.Failed(source.Problem);
 
             return LoadFile(source.GraphFile, source.CoreFolder, source.Folder);
         }
@@ -38,25 +38,25 @@ namespace Core.Repo
         /// The copy mirrors the core folder, but a node's <c>file</c> is still written
         /// relative to the repository root, so the prefix is needed to resolve one.
         /// </param>
-        public static CoreLoadResult LoadFromProject(string projectDirectory, string folderInRepository, string dependencyFile)
+        public static PlcCoreLoadResult LoadFromProject(string projectDirectory, string folderInRepository, string dependencyFile)
         {
             string coreFolder = RepoPaths.CoreFor(projectDirectory);
 
             if (coreFolder == null)
-                return CoreLoadResult.Failed("This project has no folder yet, so there is no core copied into it.");
+                return PlcCoreLoadResult.Failed("This project has no folder yet, so there is no core copied into it.");
 
             if (string.IsNullOrWhiteSpace(dependencyFile))
-                return CoreLoadResult.Failed("coreLocalRepositoryConfig.dependencyFile is empty.");
+                return PlcCoreLoadResult.Failed("coreLocalRepositoryConfig.dependencyFile is empty.");
 
             return LoadFile(Path.Combine(coreFolder, dependencyFile.Trim()), coreFolder, folderInRepository);
         }
 
-        public static CoreLoadResult LoadFile(string path, string coreFolder, string folderInRepository)
+        public static PlcCoreLoadResult LoadFile(string path, string coreFolder, string folderInRepository)
         {
-            if (string.IsNullOrWhiteSpace(path)) return CoreLoadResult.Failed("No dependency file was given.");
+            if (string.IsNullOrWhiteSpace(path)) return PlcCoreLoadResult.Failed("No dependency file was given.");
 
             if (!File.Exists(path))
-                return CoreLoadResult.Failed("'" + path + "' does not exist.");
+                return PlcCoreLoadResult.Failed("'" + path + "' does not exist.");
 
             try
             {
@@ -65,7 +65,7 @@ namespace Core.Repo
             }
             catch (Exception exception)
             {
-                return CoreLoadResult.Failed("'" + path + "' could not be read: " + exception.Message);
+                return PlcCoreLoadResult.Failed("'" + path + "' could not be read: " + exception.Message);
             }
         }
 
@@ -74,9 +74,9 @@ namespace Core.Repo
         /// exercised without a repository on disk.
         /// </summary>
         /// <param name="source">Only used to name the file in a message.</param>
-        public static CoreLoadResult Load(Stream json, string coreFolder, string folderInRepository, string source = null)
+        public static PlcCoreLoadResult Load(Stream json, string coreFolder, string folderInRepository, string source = null)
         {
-            if (json == null) return CoreLoadResult.Failed("No dependency stream was given.");
+            if (json == null) return PlcCoreLoadResult.Failed("No dependency stream was given.");
 
             try
             {
@@ -84,15 +84,15 @@ namespace Core.Repo
                 int offset = StartsWithByteOrderMark(bytes) ? 3 : 0;
 
                 if (IsBlank(bytes, offset))
-                    return CoreLoadResult.Failed(Describe(source, "is empty."));
+                    return PlcCoreLoadResult.Failed(Describe(source, "is empty."));
 
                 using (MemoryStream payload = new MemoryStream(bytes, offset, bytes.Length - offset, false))
                 {
                     CoreGraph graph = new DataContractJsonSerializer(typeof(CoreGraph)).ReadObject(payload) as CoreGraph;
 
                     return graph == null
-                        ? CoreLoadResult.Failed(Describe(source, "is not a dependency file."))
-                        : CoreLoadResult.Loaded(CoreCatalog.Of(graph, coreFolder, folderInRepository));
+                        ? PlcCoreLoadResult.Failed(Describe(source, "is not a dependency file."))
+                        : PlcCoreLoadResult.Loaded(PlcCoreCatalog.Of(graph, coreFolder, folderInRepository));
                 }
             }
             catch (Exception exception)
@@ -101,7 +101,7 @@ namespace Core.Repo
                 // input as SerializationException, XmlException or FormatException depending
                 // on how it is malformed, and this runs inside TIA Portal, where a file
                 // somebody edited by hand must not take the host down.
-                return CoreLoadResult.Failed(Describe(source, "could not be parsed: " + exception.Message));
+                return PlcCoreLoadResult.Failed(Describe(source, "could not be parsed: " + exception.Message));
             }
         }
 

@@ -4,7 +4,7 @@ using System.Runtime.Serialization.Json;
 using System.Text;
 using System.Xml;
 
-namespace Core.Repo
+namespace Core.Repo.PlcProject
 {
     /// <summary>
     /// Reads and writes <c>repo\project.json</c>.

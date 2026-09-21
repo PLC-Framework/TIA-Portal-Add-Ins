@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 
 using Core.Repo;
+using Core.Repo.PlcProject;
+using Core.Repo.PlcCore;
 
 namespace Satellite.CoreUpdater.Tia
 {

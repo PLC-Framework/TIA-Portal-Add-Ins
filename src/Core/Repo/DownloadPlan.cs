@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 
 using Core.DependencyGraph;
+using Core.Repo.PlcCore;
+
+using Core.Repo.PlcProject;
 
 namespace Core.Repo
 {
@@ -72,7 +75,7 @@ namespace Core.Repo
         }
 
         /// <param name="chosen">The node ids ticked in the repository panel.</param>
-        public static DownloadPlan Of(CoreCatalog core, CoreComparison compared, IEnumerable<string> chosen)
+        public static DownloadPlan Of(PlcCoreCatalog core, CoreComparison compared, IEnumerable<string> chosen)
         {
             if (core == null || compared == null || chosen == null) return Empty;
 
@@ -134,7 +137,7 @@ namespace Core.Repo
         /// </summary>
         /// <param name="by">The node this one was reached from, or null when it was ticked.</param>
         private static void Walk(
-            CoreCatalog core,
+            PlcCoreCatalog core,
             Node node,
             PlannedNode by,
             Dictionary<string, ProjectObject> held,
@@ -175,7 +178,7 @@ namespace Core.Repo
         /// 147 of the real core's 296 edges are external — Siemens system blocks and things
         /// tracked elsewhere — and none of them is ours to import.
         /// </summary>
-        private static IEnumerable<Node> Needs(CoreCatalog core, Node node)
+        private static IEnumerable<Node> Needs(PlcCoreCatalog core, Node node)
         {
             List<Node> needed = new List<Node>();
 
@@ -299,7 +302,7 @@ namespace Core.Repo
         /// `core.json` is the source of truth and it carries the path. The two agree on all 264
         /// nodes of the real core, which is a fact about today's core rather than a contract.
         /// </summary>
-        private static string Folder(CoreCatalog core, Node node)
+        private static string Folder(PlcCoreCatalog core, Node node)
         {
             string inside = core.InsideCore(node);
 
@@ -381,7 +384,7 @@ namespace Core.Repo
         /// <summary>
         /// The source file **inside the project's own copy of the core**, never in the repository
         /// it came from. Null when the node's file does not sit under the core at all, which
-        /// `CoreValidator` reports rather than this resolving to somewhere plausible.
+        /// `PlcCoreValidator` reports rather than this resolving to somewhere plausible.
         /// </summary>
         public string Source { get; }
 

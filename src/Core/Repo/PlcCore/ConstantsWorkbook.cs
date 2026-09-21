@@ -4,7 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Xml.Linq;
 
-namespace Core.Repo
+namespace Core.Repo.PlcCore
 {
     /// <summary>
     /// One of the core's <c>.xlsx</c> tag tables, read back as the objects TIA has to be given.
@@ -37,15 +37,15 @@ namespace Core.Repo
         /// <summary>The sheet holding the PLC tags, when the table has any.</summary>
         public const string TagsSheet = "PLC Tags";
 
-        private static readonly CoreConstant[] NoConstants = new CoreConstant[0];
-        private static readonly CoreTag[] NoTags = new CoreTag[0];
+        private static readonly PlcCoreConstant[] NoConstants = new PlcCoreConstant[0];
+        private static readonly PlcCoreTag[] NoTags = new PlcCoreTag[0];
 
         private ConstantsWorkbook(
             string name,
             string folder,
             string title,
-            IReadOnlyList<CoreConstant> constants,
-            IReadOnlyList<CoreTag> tags,
+            IReadOnlyList<PlcCoreConstant> constants,
+            IReadOnlyList<PlcCoreTag> tags,
             string problem)
         {
             Name = name;
@@ -84,9 +84,9 @@ namespace Core.Repo
         /// to be created like the rest — it is the only place a `PlcTagTable`'s metadata can
         /// live, since the type itself has a `Name` and nothing more.
         /// </summary>
-        public IReadOnlyList<CoreConstant> Constants { get; }
+        public IReadOnlyList<PlcCoreConstant> Constants { get; }
 
-        public IReadOnlyList<CoreTag> Tags { get; }
+        public IReadOnlyList<PlcCoreTag> Tags { get; }
 
         /// <summary>Why it could not be read, or null.</summary>
         public string Problem { get; }
@@ -149,10 +149,10 @@ namespace Core.Repo
             // is not metadata TIA keeps somewhere else: `PlcTagTable` has a `Name` and nothing
             // more, so the comment of the constant named after the table is the only place the
             // TITLE can live, which is why the workbook puts it there.
-            List<CoreConstant> held = new List<CoreConstant>();
+            List<PlcCoreConstant> held = new List<PlcCoreConstant>();
 
             for (int i = 0; i < rows.Count; i++)
-                held.Add(new CoreConstant(
+                held.Add(new PlcCoreConstant(
                     Trimmed(rows[i]["Name"]),
                     Trimmed(rows[i]["Data Type"]),
                     Trimmed(rows[i]["Value"]),
@@ -167,14 +167,14 @@ namespace Core.Repo
                 null);
         }
 
-        private static IReadOnlyList<CoreTag> Listed(Sheet sheet)
+        private static IReadOnlyList<PlcCoreTag> Listed(Sheet sheet)
         {
             if (sheet == null || !sheet.Has("Name") || !sheet.Has("Data Type")) return NoTags;
 
-            List<CoreTag> tags = new List<CoreTag>();
+            List<PlcCoreTag> tags = new List<PlcCoreTag>();
 
             foreach (Row row in sheet.Rows)
-                tags.Add(new CoreTag(
+                tags.Add(new PlcCoreTag(
                     Trimmed(row["Name"]),
                     Trimmed(row["Data Type"]),
                     Trimmed(row["Logical Address"]),
@@ -467,9 +467,9 @@ namespace Core.Repo
     }
 
     /// <summary>One user constant of a tag table, as the workbook writes it.</summary>
-    public sealed class CoreConstant
+    public sealed class PlcCoreConstant
     {
-        internal CoreConstant(string name, string dataType, string value, string comment)
+        internal PlcCoreConstant(string name, string dataType, string value, string comment)
         {
             Name = name;
             DataType = dataType;
@@ -491,9 +491,9 @@ namespace Core.Repo
     }
 
     /// <summary>One PLC tag of a tag table.</summary>
-    public sealed class CoreTag
+    public sealed class PlcCoreTag
     {
-        internal CoreTag(string name, string dataType, string address, string comment)
+        internal PlcCoreTag(string name, string dataType, string address, string comment)
         {
             Name = name;
             DataType = dataType;

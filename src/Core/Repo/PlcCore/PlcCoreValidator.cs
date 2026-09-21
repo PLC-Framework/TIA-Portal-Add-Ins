@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using Core.Config.Validation;
 using Core.DependencyGraph;
 
-namespace Core.Repo
+namespace Core.Repo.PlcCore
 {
     /// <summary>
     /// What is wrong with a core that loaded.
@@ -21,9 +21,9 @@ namespace Core.Repo
     /// Pure: handed a catalogue, it returns issues. It opens nothing, so it is safe inside
     /// TIA Portal and can be exercised against invented graphs.
     /// </summary>
-    public static class CoreValidator
+    public static class PlcCoreValidator
     {
-        public static ValidationResult Validate(CoreCatalog catalog, string path = "core.json")
+        public static ValidationResult Validate(PlcCoreCatalog catalog, string path = "core.json")
         {
             Issues issues = new Issues();
 
@@ -54,7 +54,7 @@ namespace Core.Repo
         /// would have failed a core that is correct.
         /// </summary>
         private static void Nodes(
-            CoreCatalog catalog,
+            PlcCoreCatalog catalog,
             string path,
             HashSet<string> ids,
             Issues issues)
@@ -86,9 +86,9 @@ namespace Core.Repo
                     issues.Add(Issues.Field(at, "file"),
                         "'" + node.File + "' does not sit under the core folder, so its source cannot be found.");
 
-                if (!CoreStatus.IsKnown(node.Status))
+                if (!PlcCoreStatus.IsKnown(node.Status))
                     issues.Add(Issues.Field(at, "status"),
-                        "Must be one of: " + CoreStatus.Current + ", " + CoreStatus.Deprecated + ".");
+                        "Must be one of: " + PlcCoreStatus.Current + ", " + PlcCoreStatus.Deprecated + ".");
             }
         }
 
@@ -99,7 +99,7 @@ namespace Core.Repo
         /// current node carrying a replacement contradicts itself - both are broken files
         /// rather than broken machines, so they are structural.
         /// </summary>
-        private static void Deprecations(CoreCatalog catalog, string path, HashSet<string> ids, Issues issues)
+        private static void Deprecations(PlcCoreCatalog catalog, string path, HashSet<string> ids, Issues issues)
         {
             IReadOnlyList<Node> nodes = catalog.Nodes;
 
@@ -110,7 +110,7 @@ namespace Core.Repo
 
                 string at = Issues.Field(Issues.At(path, i), "deprecatedBy");
 
-                if (CoreStatus.IsDeprecated(node.Status))
+                if (PlcCoreStatus.IsDeprecated(node.Status))
                 {
                     if (!issues.Required(at, node.DeprecatedBy)) continue;
 
@@ -119,14 +119,14 @@ namespace Core.Repo
                     else if (string.Equals(node.DeprecatedBy, node.Id, StringComparison.Ordinal))
                         issues.Add(at, "A node cannot be deprecated by itself.");
                 }
-                else if (CoreStatus.IsCurrent(node.Status) && !string.IsNullOrWhiteSpace(node.DeprecatedBy))
+                else if (PlcCoreStatus.IsCurrent(node.Status) && !string.IsNullOrWhiteSpace(node.DeprecatedBy))
                 {
-                    issues.Add(at, "Set on a node whose status is '" + CoreStatus.Current + "'.");
+                    issues.Add(at, "Set on a node whose status is '" + PlcCoreStatus.Current + "'.");
                 }
             }
         }
 
-        private static void Edges(CoreCatalog catalog, string path, HashSet<string> ids, Issues issues)
+        private static void Edges(PlcCoreCatalog catalog, string path, HashSet<string> ids, Issues issues)
         {
             IReadOnlyList<Edge> edges = catalog.Edges;
 

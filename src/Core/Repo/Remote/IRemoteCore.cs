@@ -14,7 +14,7 @@ namespace Core.Repo.Remote
     /// says what it needs and the window supplies it.
     ///
     /// **It is opened from the configuration rather than handed a built client**, so nothing
-    /// outside reads `coreRemoteRepositoryConfig` twice: `CoreRefresh` already has it, and
+    /// outside reads `coreRemoteRepositoryConfig` twice: `PlcCoreRefresh` already has it, and
     /// resolving `${GITHUB_TOKEN}` out of the per-user `.env` is `Core.Secrets`' job.
     /// </summary>
     public interface IRemoteCore

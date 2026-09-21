@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 
 using Core.DependencyGraph;
+using Core.Repo.PlcCore;
+
+using Core.Repo.PlcProject;
 
 namespace Core.Repo
 {
@@ -85,7 +88,7 @@ namespace Core.Repo
         /// </summary>
         public bool AbsentKnown { get; }
 
-        public static CoreComparison Of(CoreCatalog core, ProjectMap map)
+        public static CoreComparison Of(PlcCoreCatalog core, ProjectMap map)
         {
             List<ComparedObject> objects = new List<ComparedObject>();
 
@@ -129,7 +132,7 @@ namespace Core.Repo
 
         // ---- One object --------------------------------------------------------------------
 
-        private static ComparedObject Compare(CoreCatalog core, ProjectObject found)
+        private static ComparedObject Compare(PlcCoreCatalog core, ProjectObject found)
         {
             List<Finding> findings = new List<Finding>();
 
@@ -169,14 +172,14 @@ namespace Core.Repo
 
             Node replacement = null;
 
-            if (CoreStatus.IsDeprecated(node.Status))
+            if (PlcCoreStatus.IsDeprecated(node.Status))
             {
                 findings.Add(Finding.Outdated);
                 replacement = core.ById(node.DeprecatedBy);
             }
 
             // A status that is neither current nor deprecated is the *core's* problem, and
-            // `CoreValidator` reports it with the node's id. Inventing a finding here would say
+            // `PlcCoreValidator` reports it with the node's id. Inventing a finding here would say
             // it twice, in a panel about the project, where nobody can act on it.
 
             return new ComparedObject(found, node, replacement, version, versions, findings);
@@ -248,7 +251,7 @@ namespace Core.Repo
         /// answered - if a block is in there, it is in the project whatever else was skipped.
         /// </summary>
         private static IReadOnlyList<CoreNodeState> Offered(
-            CoreCatalog core, IReadOnlyList<ComparedObject> objects, bool narrowed)
+            PlcCoreCatalog core, IReadOnlyList<ComparedObject> objects, bool narrowed)
         {
             Dictionary<string, ProjectObject> held =
                 new Dictionary<string, ProjectObject>(StringComparer.OrdinalIgnoreCase);
@@ -270,7 +273,7 @@ namespace Core.Repo
             {
                 // Only what the core still stands behind. Offering a retired version would be
                 // offering to import something the core has itself withdrawn.
-                if (node == null || !CoreStatus.IsCurrent(node.Status) || !Some(node.Base)) continue;
+                if (node == null || !PlcCoreStatus.IsCurrent(node.Status) || !Some(node.Base)) continue;
 
                 ProjectObject found;
                 NodeState state;
@@ -337,7 +340,7 @@ namespace Core.Repo
         /// about itself, and the two agreeing on all 264 nodes is a fact about today's core
         /// rather than something to depend on here.
         /// </summary>
-        private static string Folder(CoreCatalog core, Node node)
+        private static string Folder(PlcCoreCatalog core, Node node)
         {
             string inside = core.InsideCore(node);
 
