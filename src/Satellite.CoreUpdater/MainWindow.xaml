@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:UI.Shared.Controls;assembly=PLC-Framework.UI.Shared"
         Title="Core updater"
-        Height="860" Width="1180"
-        MinHeight="560" MinWidth="880"
-        WindowStartupLocation="CenterScreen">
+        Height="220" Width="460"
+        MinHeight="180" MinWidth="360"
+        WindowStartupLocation="Manual">
 
     <!-- Merged on the window rather than on an application, because this project has none:
          no `App.xaml` is what lets one library serve the V20 and V21 executables, and an
@@ -59,10 +59,16 @@
              ceremony around a few assignments. -->
         <Grid Grid.Row="1" Margin="0,18,0,0">
 
+            <!-- The window it opens at is this panel's size, and that is deliberate: see
+                 `Grow` in the code-behind. TIA Portal asks the engineer to confirm the
+                 access while this is still attaching, and a window the size of the one
+                 below covers the box it asks in. The text wraps rather than being cut,
+                 because a project name can be as long as somebody wants it. -->
             <StackPanel x:Name="WaitingPanel" VerticalAlignment="Center">
                 <TextBlock x:Name="WaitingText"
                            Text="Looking for the TIA Portal that opened this…"
                            FontSize="14" Foreground="{StaticResource Ink}"
+                           TextWrapping="Wrap" TextAlignment="Center"
                            HorizontalAlignment="Center" />
                 <ProgressBar IsIndeterminate="True" Height="4" Width="260" Margin="0,14,0,0" />
             </StackPanel>

@@ -94,6 +94,32 @@ namespace Satellite.CoreUpdater
 
             Title = Product.Title + " - Core updater";
             StatusText.Text = "Starting…";
+
+            Corner();
+        }
+
+        /// <summary>
+        /// Puts the waiting window out of the way: the bottom right of the work area, a thumb's
+        /// width in.
+        ///
+        /// **Small was not enough, and the middle of the screen is the one place it must not be.**
+        /// TIA Portal asks the engineer to confirm the access in a dialog it centres, so a window
+        /// centred at the same moment lands on top of it whatever size it is - and the two then
+        /// wait for each other, because TIA answers the attach only once somebody confirms. Out
+        /// of the centre it is a notice beside the question rather than over it.
+        ///
+        /// **It is centred again when it grows**, which is where a window with two panels in it
+        /// belongs. The cost is that a waiting window somebody dragged somewhere goes back to the
+        /// middle when TIA answers, which is a second of movement against a dialog nobody can see.
+        /// </summary>
+        private void Corner()
+        {
+            Rect work = SystemParameters.WorkArea;
+
+            const double Margin = 24;
+
+            Left = work.Right - Width - Margin;
+            Top = work.Bottom - Height - Margin;
         }
 
         /// <summary>The worker is handed over once the application has built it.</summary>
@@ -133,6 +159,88 @@ namespace Satellite.CoreUpdater
             StatusText.Text = string.Empty;
         }
 
+        /// <summary>
+        /// How much of the screen this window has asked for so far.
+        ///
+        /// **It opens at the size of the one panel it is showing, and grows when TIA answers**
+        /// (2026-09-21, and the reason came off a real station): TIA Portal asks the engineer to
+        /// confirm that an application may access the project, and it asks while this window is
+        /// starting - so a window of 1180 by 860 in the middle of the screen sits squarely on top
+        /// of the box it asks in. The two then wait for each other: TIA will not answer the attach
+        /// until somebody confirms, and nobody can confirm a dialog they cannot see.
+        ///
+        /// **Growing is one way.** Once the panels are up, the size is the operator's: a second
+        /// trip through the chooser must not undo a window they resized or moved.
+        /// </summary>
+        private enum Sized
+        {
+            /// <summary>Attaching: one line and a progress bar, and nothing in the way.</summary>
+            Waiting,
+
+            /// <summary>The refusal, and the instances to pick from — longer than it is wide.</summary>
+            Choosing,
+
+            /// <summary>The two panels, which is what this window is for.</summary>
+            Attached
+        }
+
+        private Sized _sized = Sized.Waiting;
+
+        /// <summary>
+        /// Gives the window the size of what it is about to show, and puts it where that size
+        /// belongs.
+        ///
+        /// **Leaving the corner means centring**, because the corner was never a position
+        /// somebody chose - it is where <see cref="Corner"/> parks the window so TIA's own
+        /// dialog is not covered. Growing from there would leave a window with two panels in it
+        /// hanging off the bottom right of the screen.
+        ///
+        /// **Every later growth keeps the centre it has**, so a window the operator has moved
+        /// stays where they put it.
+        ///
+        /// The minimums travel with it. They are what a window may be dragged down to, and the
+        /// one this opens at is smaller than anything the panels can be read in.
+        /// </summary>
+        private void Grow(Sized wanted, double width, double height, double leastWidth, double leastHeight)
+        {
+            // Attached is the last word: the panels are the window, and a chooser that came back
+            // afterwards would otherwise shrink it around them.
+            if (_sized == wanted || _sized == Sized.Attached) return;
+
+            bool parked = _sized == Sized.Waiting;
+
+            _sized = wanted;
+
+            double x = Left + ActualWidth / 2;
+            double y = Top + ActualHeight / 2;
+
+            MinWidth = leastWidth;
+            MinHeight = leastHeight;
+            Width = width;
+            Height = height;
+
+            Rect work = SystemParameters.WorkArea;
+
+            if (parked || double.IsNaN(x) || double.IsNaN(y))
+            {
+                Left = work.Left + (work.Width - width) / 2;
+                Top = work.Top + (work.Height - height) / 2;
+                return;
+            }
+
+            Left = Inside(x - width / 2, SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenWidth, width);
+            Top = Inside(y - height / 2, SystemParameters.VirtualScreenTop, SystemParameters.VirtualScreenHeight, height);
+        }
+
+        private static double Inside(double wanted, double start, double length, double size)
+        {
+            double last = start + length - size;
+
+            if (wanted < start) return start;
+
+            return wanted > last ? Math.Max(start, last) : wanted;
+        }
+
         /// <summary>The answer to the attach, whichever of the three it is.</summary>
         public void Arrived(TiaAttachment attachment, string plc, string unit)
         {
@@ -156,8 +264,13 @@ namespace Satellite.CoreUpdater
             }
 
             // Before anything is shown or read: a second window on a project that already has
-            // one gives way here, having done nothing but attach.
+            // one gives way here, having done nothing but attach. Before it is grown, too - a
+            // window about to close has no business taking the screen first.
             if (!Claimed(attachment)) return;
+
+            // TIA has answered, so its confirmation dialog is gone and the panels can have the
+            // room they need.
+            Grow(Sized.Attached, 1180, 860, 880, 560);
 
             _projectDirectory = attachment.ProjectDirectory;
 
@@ -1860,6 +1973,10 @@ namespace Satellite.CoreUpdater
         private void Refused(TiaAttachment attachment)
         {
             bool choose = attachment.CanChoose;
+
+            // Enough for the account of where the loader looked, or for a list of instances to
+            // pick from - and not the size of the panels, which this is not going to show.
+            Grow(Sized.Choosing, 720, 520, 480, 320);
 
             ProblemPanel.Visibility = Visibility.Visible;
             ProblemText.Text = attachment.Problem;
