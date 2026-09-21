@@ -76,13 +76,20 @@
 
                 <!-- The PLC and the unit on one line (the maintainer's layout): they are one
                      decision - which software this window is about - and two rows made it read
-                     as two. -->
+                     as two.
+
+                     **`Load` sits at the end of that same line** (2026-09-21, the maintainer's
+                     layout), because it is the third part of that one decision: which software,
+                     and then read it. Nothing happens on its own any more - opening the window
+                     counts what is in the scope and waits - so the button belongs where the
+                     scope is chosen rather than between two panels it is about to fill. -->
                 <Grid Grid.Row="0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="3*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="5*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0" Text="PLC" Style="{StaticResource FieldLabel}"
@@ -94,6 +101,14 @@
                                VerticalAlignment="Center" Margin="18,0,10,0" />
                     <ComboBox x:Name="UnitBox" Grid.Column="3" Height="26"
                               SelectionChanged="UnitChanged" />
+
+                    <!-- One button for both halves: it walks the project, brings the core's copy
+                         up to date and compares the two. Splitting it in two was tried on paper
+                         and dropped as the same work under two names - a comparison is only
+                         worth anything with both sides current. -->
+                    <Button x:Name="LoadButton" Grid.Column="4" Content="Load"
+                            Style="{StaticResource Primary}" MinWidth="110" Margin="18,0,0,0"
+                            Click="LoadClicked" />
                 </Grid>
 
                 <!-- The project on the left, the repository on the right (the maintainer's
@@ -105,9 +120,10 @@
                      What sits between them is what *crosses* between them - importing the core
                      into the project, and putting the project's own blocks back where the core
                      says they go - so the arrow on Download & Import says which way, and
-                     neither belongs under either tree. `Reload` is one button because it brings
-                     both halves up to date at once; two of them was the same work twice under
-                     different names. -->
+                     neither belongs under either tree. `Load` brings both halves up to date at
+                     once - two buttons for that was the same work twice under different names -
+                     and it lives on the scope row, because choosing a scope and reading it are
+                     one decision. -->
                 <Grid Grid.Row="1" Margin="0,16,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" MinWidth="300" />
@@ -159,37 +175,24 @@
                     <!-- ============================ the actions ============================ -->
 
                     <!-- Between the two panels because that is what they act across, and only
-                         in the tree's own row: the captions below belong to a tree each. -->
-                    <Grid Grid.Row="1" Grid.Column="1">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
+                         in the tree's own row: the captions below belong to a tree each. What
+                         is here is what crosses *between* them - `Load` is about the scope, and
+                         went to the row that chooses one. -->
+                    <StackPanel Grid.Row="1" Grid.Column="1" VerticalAlignment="Center">
+                        <!-- Moving blocks inside somebody's project, so it says what it
+                             would move and waits to be told before it moves anything. -->
+                        <Button x:Name="SyncButton" Content="Sync folders with core"
+                                Style="{StaticResource Quiet}" MinWidth="152"
+                                IsEnabled="False" Click="SyncClicked" />
 
-                        <StackPanel Grid.Row="0" VerticalAlignment="Center">
-                            <!-- Moving blocks inside somebody's project, so it says what it
-                                 would move and waits to be told before it moves anything. -->
-                            <Button x:Name="SyncButton" Content="Sync folders with core"
-                                    Style="{StaticResource Quiet}" MinWidth="152"
-                                    IsEnabled="False" Click="SyncClicked" />
-
-                            <!-- The arrow is the direction: out of the core, into the project.
-                                 It stays off until something is ticked, and what it would touch
-                                 is worked out and shown before a single source is written. -->
-                            <Button x:Name="DownloadButton" Content="&lt;&lt; Download &amp; Import"
-                                    Margin="0,8,0,0"
-                                    Style="{StaticResource Primary}" MinWidth="152"
-                                    IsEnabled="False" Click="DownloadClicked" />
-                        </StackPanel>
-
-                        <!-- One button for both halves: it walks the project again, brings the
-                             core's copy up to date and compares the two. Splitting it in two
-                             was tried on paper and dropped as the same work under two names -
-                             a comparison is only worth anything with both sides current. -->
-                        <Button x:Name="ReloadButton" Grid.Row="1" Content="Reload"
+                        <!-- The arrow is the direction: out of the core, into the project.
+                             It stays off until something is ticked, and what it would touch
+                             is worked out and shown before a single source is written. -->
+                        <Button x:Name="DownloadButton" Content="&lt;&lt; Download &amp; Import"
+                                Margin="0,8,0,0"
                                 Style="{StaticResource Primary}" MinWidth="152"
-                                Click="ReloadClicked" />
-                    </Grid>
+                                IsEnabled="False" Click="DownloadClicked" />
+                    </StackPanel>
 
                     <!-- ========================== the repository =========================== -->
 

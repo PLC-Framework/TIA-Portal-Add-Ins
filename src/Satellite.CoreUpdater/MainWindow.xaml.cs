@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -71,9 +70,6 @@ namespace Satellite.CoreUpdater
         /// them does not rebuild a tree that is about to be rebuilt anyway.
         /// </summary>
         private bool _settling;
-
-        /// <summary>Whether the window has already done its one automatic map-and-compare.</summary>
-        private bool _started;
 
         /// <summary>
         /// Whether this window holds its project's guard. One process, one window, one claim:
@@ -180,7 +176,7 @@ namespace Satellite.CoreUpdater
             {
                 ProjectSays("This project has not been saved, so it has no folder - and the map is " +
                      "written inside it. Save the project and open this window again.");
-                ReloadButton.IsEnabled = false;
+                LoadButton.IsEnabled = false;
                 StatusText.Text = "Attached, with nowhere to write.";
                 return;
             }
@@ -378,6 +374,12 @@ namespace Satellite.CoreUpdater
         /// no object - a kind and a language are typed properties - so it costs one pass over
         /// the tree, where the map costs one export per object in V17-V20. Paying that second
         /// for four hundred objects is what lets somebody map the thirty they wanted.
+        ///
+        /// **And it empties both panels** (2026-09-21, the maintainer asked for it of the
+        /// project tree): what is on them was read out of another PLC or another unit, and a
+        /// tree that stays while the scope above it changes is the one thing this window has
+        /// spent every stage refusing - two panels nobody can date. The core tree goes with it,
+        /// because every line on that side says what *this* project has of a node.
         /// </summary>
         private void Survey()
         {
@@ -387,11 +389,8 @@ namespace Satellite.CoreUpdater
             if (plc == null)
             {
                 Offer(null);
+                Scope("This project holds no PLC.");
                 Ready();
-
-                // A project with no PLC still gets its one automatic run: there may be a map
-                // from before, and nothing else would ever ask for it to be compared.
-                Start();
                 return;
             }
 
@@ -404,12 +403,13 @@ namespace Satellite.CoreUpdater
                 {
                     Offer(survey);
                     Working(false);
+                    Scope("Press Load to read " +
+                          (Places.UnitOrNull(unit) == null ? plc : plc + " / " + unit) +
+                          " and compare it with the core.");
 
                     StatusText.Text = survey == null || survey.Total == 0
                         ? "Nothing to map in this scope."
                         : "Ready — " + survey.Total + " objects.";
-
-                    Start();
                 },
                 exception =>
                 {
@@ -420,60 +420,32 @@ namespace Satellite.CoreUpdater
         }
 
         /// <summary>
-        /// What the window does by itself, once — compare, and map first when there is nothing
-        /// to compare from (the maintainer asked for it, with both buttons kept).
+        /// Both panels emptied, with one sentence under the project tree.
         ///
-        /// **Because the two trees are the window.** Opening onto two empty panels and a row of
-        /// buttons makes somebody press one to see what they came to see, and the answer is the
-        /// same every time. A project that has been mapped before is compared in the time it
-        /// takes to copy a folder; one that has not is walked first.
-        ///
-        /// **It runs on the first survey and never again.** Changing the PLC or the unit is the
-        /// operator steering, and re-mapping several hundred objects under them because they
-        /// looked at another unit is the opposite of helpful.
-        ///
-        /// **The file is looked for rather than read.** Whether it parses, and whether its
-        /// format is one this version knows, is the comparison's own question and it already
-        /// answers it in a sentence; parsing a map of four thousand objects here, on the UI
-        /// thread, to learn only that it is there would be paying twice.
-        ///
-        /// **The whole scope, because nothing has been ticked yet.** The survey has just put
-        /// every box on, so the filter narrows nothing - which is the same "empty means
-        /// everything" the map itself runs on.
+        /// **Nothing on either side outlives the scope it was read from.** A walk and a
+        /// comparison describe one PLC at one moment, so a tree left standing while the combo
+        /// boxes above it change is a panel nobody can date - the half-truth this window has
+        /// refused at every stage. It is what a scope change, a failure and a run with nothing
+        /// to show all do.
         /// </summary>
-        private void Start()
+        private void Scope(string caption)
         {
-            if (_started || _busy || string.IsNullOrWhiteSpace(_projectDirectory)) return;
+            Empty(ProjectTree);
+            Empty(RepositoryTree);
 
-            _started = true;
+            _compared = null;
+            _shown = null;
 
-            // A map already on disk is worth comparing whatever the combo boxes hold, and since
-            // *Reload* became the only button there is nothing else that would: it may even
-            // cover a PLC this project no longer has, which is a thing worth seeing rather than
-            // a reason to show nothing.
-            if (Mapped())
-            {
-                Compare();
-                return;
-            }
+            SyncButton.IsEnabled = false;
+            DownloadButton.IsEnabled = false;
 
-            string plc = PlcBox.SelectedItem as string;
+            RepositorySays(string.Empty);
+            ProjectSays(caption);
 
-            if (plc != null) Map(plc, UnitBox.SelectedItem as string, Chosen());
-        }
-
-        private bool Mapped()
-        {
-            try
-            {
-                return File.Exists(RepoPaths.ProjectFor(_projectDirectory));
-            }
-            catch (Exception)
-            {
-                // A path this window cannot even ask about is one the comparison will report
-                // properly; guessing "yes" here would only send it looking.
-                return false;
-            }
+            // The caption carries the whole of it here, so anything still under the panels came
+            // from a run that is now gone. Callers that do have something to list - an import,
+            // a move - set it straight after this returns.
+            Problems(null);
         }
 
         /// <summary>
@@ -623,7 +595,7 @@ namespace Satellite.CoreUpdater
 
         /// <summary>
         /// **One button for both halves** (the maintainer's layout, 2026-09-18): it walks the
-        /// project again, brings the project's copy of the core up to date, and compares the two.
+        /// project, brings the project's copy of the core up to date, and compares the two.
         ///
         /// It was drawn as two — *Reload Project* and *Reload Core* — and dropped before it was
         /// built, because a reload of the core that did not re-walk TIA would still have had to
@@ -631,28 +603,37 @@ namespace Satellite.CoreUpdater
         /// another name. In V17-V20 that second reading costs one export per object, which is a
         /// price nobody should pay for wanting a repository change picked up. A comparison is
         /// only worth anything with both sides current, so one button brings both.
+        ///
+        /// **It is the only thing that reads anything** (2026-09-21, the maintainer's decision:
+        /// *"el usuario quiere tener control de cuando se carga"*). Opening the window counts
+        /// what the scope holds and stops there; a walk of a few hundred objects is minutes in
+        /// V17-V20, and starting one because somebody opened a window - or looked at another
+        /// unit - spends their time on a question they may not have asked. Hence *Load* rather
+        /// than *Reload*: the first press is the one that fills the panels.
         /// </summary>
-        private void ReloadClicked(object sender, RoutedEventArgs e)
+        private void LoadClicked(object sender, RoutedEventArgs e)
         {
             string plc = PlcBox.SelectedItem as string;
             string unit = UnitBox.SelectedItem as string;
 
             if (plc == null) return;
 
-            // A reload somebody asked for themselves is not about the last import.
+            // A load somebody asked for themselves is not about the last import.
             _notice = string.Empty;
 
             Map(plc, unit, Chosen());
         }
 
         /// <summary>
-        /// The same reload, run because something just changed the project rather than because
+        /// The same load, run because something just changed the project rather than because
         /// anybody pressed the button.
         ///
-        /// **The window used to stop at "Map the project again".** The comparison had to go — it
-        /// described a project that no longer existed — but leaving two empty trees and a
-        /// sentence asking for a click is the same defect the walk itself had one step earlier,
-        /// and what was just written is the whole reason for looking.
+        /// **This is the one thing that still runs by itself**, and it is not the window
+        /// deciding to read a project: it is the window showing what an import or a move just
+        /// did to one it was already showing. The comparison has to go — it described a project
+        /// that no longer exists — and stopping at two empty trees with a sentence asking for a
+        /// click is the defect the walk itself had one step earlier: what was just written is
+        /// the whole reason for looking.
         ///
         /// **What the write had to say survives it**, in <see cref="_notice"/>: the reload
         /// replaces every caption and the status line, so that is the only place it could.
@@ -716,8 +697,8 @@ namespace Satellite.CoreUpdater
 
         /// <summary>
         /// Brings the core up to date and holds the project's map against it — the second half
-        /// of what both the automatic start and *Reload* do, and **no longer a button of its
-        /// own**: with one Reload there is nothing that wants only this half.
+        /// of what *Load* does, and **not a button of its own**: with one Load there is nothing
+        /// that wants only this half.
         ///
         /// **The map is read back off disk rather than kept from the last walk.** It is what
         /// lets the window compare a map written yesterday without walking anything, and it is
@@ -840,22 +821,7 @@ namespace Satellite.CoreUpdater
         /// </summary>
         private void Told(string text, string status)
         {
-            Empty(ProjectTree);
-            Empty(RepositoryTree);
-
-            _compared = null;
-            _shown = null;
-
-            SyncButton.IsEnabled = false;
-            DownloadButton.IsEnabled = false;
-
-            RepositorySays(string.Empty);
-            ProjectSays(text);
-
-            // The caption carries the whole of it here, so anything still under the panels came
-            // from a run that is now gone. Callers that do have something to list - an import,
-            // a move - set it straight after this returns.
-            Problems(null);
+            Scope(text);
 
             StatusText.Text = status;
         }
@@ -1699,7 +1665,7 @@ namespace Satellite.CoreUpdater
             string empty = Empty();
             bool enough = _rows.Count == 0 || (AnyKind() && empty == null);
 
-            ReloadButton.IsEnabled = !_busy && PlcBox.SelectedItem != null && enough;
+            LoadButton.IsEnabled = !_busy && PlcBox.SelectedItem != null && enough;
 
             if (_busy) return;
 
