@@ -413,6 +413,8 @@ The grid was driven on the real window, shown and laid out: six rows in the orde
 
 **And attached for real, in TIA Portal V20 and V21 on the VM** (2026-09-16), which is what settles the two things no test without TIA can reach: that the resolver finds the assemblies in both versions, and that attaching leaves the engineer's session alone. The second cost a wrong assumption to learn — see the note about disposing, above.
 
+**And writing into a project, in TIA Portal V20 and V21 on the VM** (2026-09-21): a block the project held in another folder came down and ended in the folder its family names, a tag table found elsewhere was rebuilt in its own with its marker constant, the download window listed what it would write over and brought the dependencies with `All`, and the small waiting window is what makes TIA's confirmation dialog reachable — with the full-sized one it was covered, and the attach could not go on. One branch stays unexercised and says so: the fallback for an object TIA will not export needs a know-how protected or inconsistent one, and the core has none.
+
 ## Editing a configuration
 
 `Satellite.ConfigEditor` opens from **"Config. Editor"** on the project root of both Add-Ins. Section navigation down the left rather than tabs — two of the four sections subdivide again — and a **dot beside a section** marks where the problems are, which costs nothing because the validator already reports per concern.
