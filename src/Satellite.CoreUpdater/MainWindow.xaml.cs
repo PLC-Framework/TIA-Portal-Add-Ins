@@ -15,6 +15,7 @@ using Core.Repo;
 
 using Satellite.CoreUpdater.Compare;
 using Satellite.CoreUpdater.Download;
+using Satellite.CoreUpdater.Remote;
 using Satellite.CoreUpdater.Tia;
 
 using UI.Shared;
@@ -840,7 +841,12 @@ namespace Satellite.CoreUpdater
 
             Dispatcher dispatcher = Dispatcher;
 
-            Task.Run(() => Compared(directory)).ContinueWith(done =>
+            // A local core is a folder copy and says nothing while it happens; a remote one is
+            // a couple of hundred files off a wire, and a window that goes quiet for a minute
+            // is one an operator concludes has died - which this project has paid for once.
+            Action<string> progress = text => dispatcher.BeginInvoke(new Action(() => StatusText.Text = text));
+
+            Task.Run(() => Compared(directory, progress)).ContinueWith(done =>
                 dispatcher.BeginInvoke(new Action(() =>
                 {
                     Working(false);
@@ -859,15 +865,18 @@ namespace Satellite.CoreUpdater
         /// through `repo\project.json` — including its format guard, which is the one thing that
         /// stands between an old map and a comparison that reads it as covering everything.
         /// </summary>
-        private static Comparison Compared(string directory)
+        private static Comparison Compared(string directory, Action<string> progress)
         {
             string problem;
             ProjectMap map = ProjectMapFile.Read(directory, out problem);
 
             if (map == null)
-                return Comparison.Failed(problem ?? "This project has no map yet. Press Map project first.");
+                return Comparison.Failed(problem ?? "This project has no map yet. Press Load first.");
 
-            CoreRefreshResult core = CoreRefresh.Run(directory);
+            // The GitHub client travels with the window, because `Core` may not hold it: it is
+            // loaded inside TIA Portal's process and cannot take `System.Net.Http`. A project
+            // with a local core never touches it.
+            CoreRefreshResult core = CoreRefresh.Run(directory, new GitHubCore(), progress);
 
             if (!core.Ready) return Comparison.Without(core);
 

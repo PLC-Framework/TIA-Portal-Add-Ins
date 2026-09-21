@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Core.Repo
+namespace Core.Repo.Local
 {
     /// <summary>
     /// What came of copying a core into the project: how much arrived, how much stale content
@@ -10,11 +10,11 @@ namespace Core.Repo
     /// keeps them apart: a core missing four files is not a core nothing was copied into, and
     /// comparing against the first while believing it whole is how a report acquires a hole.
     /// </summary>
-    public sealed class RepoCopyResult
+    public sealed class LocalCopyResult
     {
         private static readonly string[] Nothing = new string[0];
 
-        private RepoCopyResult(string folder, int files, int removed, IReadOnlyList<string> problems, string refused)
+        private LocalCopyResult(string folder, int files, int removed, IReadOnlyList<string> problems, string refused)
         {
             Folder = folder;
             Files = files;
@@ -43,10 +43,10 @@ namespace Core.Repo
         /// <summary>Everything the core holds is here.</summary>
         public bool IsComplete => !IsRefused && Problems.Count == 0;
 
-        internal static RepoCopyResult Done(string folder, int files, int removed, IReadOnlyList<string> problems) =>
-            new RepoCopyResult(folder, files, removed, problems, null);
+        internal static LocalCopyResult Done(string folder, int files, int removed, IReadOnlyList<string> problems) =>
+            new LocalCopyResult(folder, files, removed, problems, null);
 
-        internal static RepoCopyResult Refused(string refusal) =>
-            new RepoCopyResult(null, 0, 0, Nothing, refusal ?? "The core could not be copied.");
+        internal static LocalCopyResult Refused(string refusal) =>
+            new LocalCopyResult(null, 0, 0, Nothing, refusal ?? "The core could not be copied.");
     }
 }

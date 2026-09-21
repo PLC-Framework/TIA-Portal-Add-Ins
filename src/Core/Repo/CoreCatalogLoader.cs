@@ -20,8 +20,8 @@ namespace Core.Repo
     /// </summary>
     public static class CoreCatalogLoader
     {
-        /// <summary>Reads the core a <see cref="RepoSource"/> points at.</summary>
-        public static CoreLoadResult Load(RepoSource source)
+        /// <summary>Reads the core a <see cref="Local.LocalSource"/> points at.</summary>
+        public static CoreLoadResult Load(Local.LocalSource source)
         {
             if (source == null) return CoreLoadResult.Failed("No repository was given.");
             if (!source.Resolved) return CoreLoadResult.Failed(source.Problem);

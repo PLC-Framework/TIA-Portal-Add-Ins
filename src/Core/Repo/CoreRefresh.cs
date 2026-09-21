@@ -1,5 +1,11 @@
+using System;
+
 using Core.Config;
 using Core.Config.Validation;
+using Core.Repo.GitHub;
+using Core.Repo.Local;
+using Core.Repo.Remote;
+using Core.Secrets;
 
 namespace Core.Repo
 {
@@ -27,7 +33,18 @@ namespace Core.Repo
         /// <paramref name="projectDirectory"/> is the TIA project's own folder, the one holding
         /// <c>.plc-framework\</c>.
         /// </summary>
-        public static CoreRefreshResult Run(string projectDirectory)
+        /// <param name="remote">
+        /// How to reach a repository this machine does not have, or null. **`Core` cannot hold
+        /// that itself** - it would pull `System.Net.Http` into TIA Portal's process - so a
+        /// caller with a window supplies it and a caller without one simply cannot use a
+        /// `remote` core, which is what the sentence says.
+        /// </param>
+        /// <param name="progress">
+        /// Told what is happening while a couple of hundred files come down a wire. A local
+        /// core never needs it; a remote one on a slow line very much does.
+        /// </param>
+        public static CoreRefreshResult Run(
+            string projectDirectory, IRemoteCore remote = null, Action<string> progress = null)
         {
             if (string.IsNullOrWhiteSpace(projectDirectory))
                 return CoreRefreshResult.Failed("This project has no folder yet, so there is nowhere to copy a core into.");
@@ -44,20 +61,18 @@ namespace Core.Repo
                     "This project names no core: metadata.coreSource is null. " +
                     "Set it in the Config. Editor to compare against one.");
 
-            if (string.Equals(source, MetadataValidator.Remote, System.StringComparison.Ordinal))
-                return CoreRefreshResult.NoCore(
-                    "This project reads its core from GitHub, and that is not wired up yet. " +
-                    "A local repository works today.");
+            if (string.Equals(source, MetadataValidator.Remote, StringComparison.Ordinal))
+                return FromGitHub(projectDirectory, loaded.Config.CoreRemoteRepositoryConfig, remote, progress);
 
-            if (!string.Equals(source, MetadataValidator.Local, System.StringComparison.Ordinal))
+            if (!string.Equals(source, MetadataValidator.Local, StringComparison.Ordinal))
                 return CoreRefreshResult.Failed(
                     "metadata.coreSource is '" + source + "', which is neither 'local' nor 'remote'.");
 
-            RepoSource repository = RepoSource.Local(loaded.Config.CoreLocalRepositoryConfig);
+            LocalSource repository = LocalSource.Of(loaded.Config.CoreLocalRepositoryConfig);
 
             if (!repository.Resolved) return CoreRefreshResult.Failed(repository.Problem);
 
-            // Environmental, and asked here rather than in RepoSource for the reason that type
+            // Environmental, and asked here rather than in LocalSource for the reason that type
             // records: a configuration prepared for another station is not wrong because a drive
             // is not mapped on this one. It is still a sentence, because nothing can be compared
             // until it is.
@@ -65,7 +80,7 @@ namespace Core.Repo
 
             if (missing != null) return CoreRefreshResult.Failed(missing);
 
-            RepoCopyResult copied = RepoCopy.Mirror(repository.CoreFolder, RepoPaths.CoreFor(projectDirectory));
+            LocalCopyResult copied = LocalCopy.Mirror(repository.CoreFolder, RepoPaths.CoreFor(projectDirectory));
 
             if (copied.IsRefused) return CoreRefreshResult.Failed(copied.Refusal);
 
@@ -80,17 +95,104 @@ namespace Core.Repo
 
             return CoreRefreshResult.Read(read.Catalog, CoreValidator.Validate(read.Catalog), copied);
         }
+
+        /// <summary>
+        /// The same thing from a repository on GitHub: bring the core down into
+        /// <c>repo\core\</c>, then read it out of the copy exactly as the local one is.
+        ///
+        /// **Everything past the download is shared with the local core**, which is the whole
+        /// point of a copy: the catalogue, the validator, the comparison and a download's own
+        /// sources all read a folder, and none of them learns where it came from.
+        ///
+        /// **A core that did not come down whole is refused.** The copy is read as the truth
+        /// about what the core defines, so a file short would be read as the core not defining
+        /// something - "you are missing a block" told about a download that failed.
+        /// </summary>
+        private static CoreRefreshResult FromGitHub(
+            string projectDirectory, CoreRemoteRepositoryConfig repository, IRemoteCore remote, Action<string> progress)
+        {
+            if (repository == null)
+                return CoreRefreshResult.Failed(
+                    "This project reads its core from GitHub, but names no repository: " +
+                    "coreRemoteRepositoryConfig is missing.");
+
+            if (remote == null)
+                return CoreRefreshResult.Failed(
+                    "This project reads its core from GitHub, and this program cannot reach it. " +
+                    "Open the core updater, which can.");
+
+            string token = Token(repository.Token);
+
+            try
+            {
+                using (IRemoteFiles files = remote.Open(repository, token))
+                {
+                    RemoteCopyResult copied = RemoteCopy.Mirror(
+                        files,
+                        repository.Folder,
+                        RepoPaths.CoreFor(projectDirectory),
+                        RepoPaths.TmpFor(projectDirectory),
+                        progress);
+
+                    if (copied.IsRefused) return CoreRefreshResult.Failed(copied.Refusal);
+
+                    if (!copied.Ready)
+                        return CoreRefreshResult.Failed(
+                            "The core did not come down whole, so it is not compared against. " +
+                            string.Join(" ", copied.Problems));
+
+                    CoreLoadResult read = CoreCatalogLoader.LoadFromProject(
+                        projectDirectory, repository.Folder, repository.DependencyFile);
+
+                    if (read.Catalog == null) return CoreRefreshResult.Failed(read.Error);
+
+                    CoreOrigin.Write(
+                        CoreOrigin.Of(repository, copied, copied.Downloaded + copied.Kept), projectDirectory);
+
+                    return CoreRefreshResult.Fetch(read.Catalog, CoreValidator.Validate(read.Catalog), copied);
+                }
+            }
+            catch (Exception exception)
+            {
+                // Opening the repository, or disposing it. The client's own refusals are
+                // already sentences; anything else is at least named rather than thrown into
+                // a window that would report "Failed."
+                return CoreRefreshResult.Failed(exception.Message);
+            }
+        }
+
+        /// <summary>
+        /// The token behind <c>${GITHUB_TOKEN}</c>, or null.
+        ///
+        /// **`config.json` never holds the secret** - it holds the reference, because that
+        /// file lives inside a TIA project and TIA projects are under version control. The
+        /// value is in the per-user `.env`, and a reference nothing answers stays unresolved
+        /// rather than becoming an empty string: null here is "no token", which is exactly how
+        /// a public repository is read, and the refusal that follows for a private one names
+        /// the variable to set.
+        /// </summary>
+        private static string Token(string configured)
+        {
+            if (string.IsNullOrWhiteSpace(configured)) return null;
+
+            string expanded = Variables.Expand(configured.Trim(), DotEnv.Get);
+
+            // Still a reference: nobody answered it.
+            return Variables.References(expanded).Count > 0 ? null : expanded;
+        }
     }
 
     /// <summary>What came of refreshing a project's core: the catalogue, or why there is none.</summary>
     public sealed class CoreRefreshResult
     {
         private CoreRefreshResult(
-            CoreCatalog catalog, ValidationResult issues, RepoCopyResult copied, string problem, bool names)
+            CoreCatalog catalog, ValidationResult issues, LocalCopyResult copied, RemoteCopyResult fetched,
+            string problem, bool names)
         {
             Catalog = catalog;
             Issues = issues;
             Copied = copied;
+            Fetched = fetched;
             Problem = problem;
             NamesCore = names;
         }
@@ -108,8 +210,15 @@ namespace Core.Repo
         /// </summary>
         public ValidationResult Issues { get; }
 
-        /// <summary>What the mirror copied and removed, or null when none was made.</summary>
-        public RepoCopyResult Copied { get; }
+        /// <summary>What the local mirror copied and removed, or null when the core is remote.</summary>
+        public LocalCopyResult Copied { get; }
+
+        /// <summary>
+        /// What came down the wire, or null when the core is local. **At most one of the two
+        /// is ever set**: a core comes from one place, and which one is the difference between
+        /// "17 files copied" and "17 downloaded, 232 already here".
+        /// </summary>
+        public RemoteCopyResult Fetched { get; }
 
         /// <summary>Why there is no catalogue, or null when there is one.</summary>
         public string Problem { get; }
@@ -125,13 +234,16 @@ namespace Core.Repo
 
         public bool Ready => Catalog != null;
 
-        public static CoreRefreshResult Read(CoreCatalog catalog, ValidationResult issues, RepoCopyResult copied) =>
-            new CoreRefreshResult(catalog, issues, copied, null, true);
+        public static CoreRefreshResult Read(CoreCatalog catalog, ValidationResult issues, LocalCopyResult copied) =>
+            new CoreRefreshResult(catalog, issues, copied, null, null, true);
+
+        public static CoreRefreshResult Fetch(CoreCatalog catalog, ValidationResult issues, RemoteCopyResult fetched) =>
+            new CoreRefreshResult(catalog, issues, null, fetched, null, true);
 
         public static CoreRefreshResult Failed(string problem) =>
-            new CoreRefreshResult(null, null, null, problem ?? "The core could not be read.", true);
+            new CoreRefreshResult(null, null, null, null, problem ?? "The core could not be read.", true);
 
         public static CoreRefreshResult NoCore(string why) =>
-            new CoreRefreshResult(null, null, null, why, false);
+            new CoreRefreshResult(null, null, null, null, why, false);
     }
 }

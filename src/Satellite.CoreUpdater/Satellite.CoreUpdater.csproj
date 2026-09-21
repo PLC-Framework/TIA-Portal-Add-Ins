@@ -22,6 +22,12 @@
   <ItemGroup>
     <ProjectReference Include="..\Core\Core.csproj" />
     <ProjectReference Include="..\UI.Shared\UI.Shared.csproj" />
+
+    <!-- The GitHub client, for a core that lives in a repository rather than in a folder.
+         It is a project of its own so it can be exercised against a real repository without
+         the framework, and it cannot be in `Core`: that assembly is loaded inside TIA
+         Portal's process and may not take `System.Net.Http`. -->
+    <ProjectReference Include="..\GitHubApi\GitHubApi.csproj" />
   </ItemGroup>
 
   <!-- WMI, to read this process's parent - which is the TIA Portal that launched it, and

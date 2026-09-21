@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace Core.Repo
+namespace Core.Repo.Local
 {
     /// <summary>
     /// Copies a core folder into the project's own <c>repo\core\</c>, and leaves it holding
@@ -13,12 +13,19 @@ namespace Core.Repo
     /// the project would be told it is missing something the core no longer defines. So
     /// whatever the copy does not write, it removes.
     ///
+    /// **The same contract as <see cref="Remote.RemoteCopy"/>, over a folder instead of a
+    /// wire** - one core comes from each, and everything downstream reads the copy without
+    /// learning which. What differs is what each can afford. A remote mirror asks before it
+    /// fetches, because a file costs a request; here the file is already under the reader's
+    /// hand, and comparing it with the source costs the same read as copying over it. So this
+    /// one copies every file, every time, and needs no hash to decide.
+    ///
     /// **It only ever removes inside the destination it was given**, and it refuses outright
     /// when the two folders overlap - a destination inside the source would have the copy
     /// feeding itself, and a source inside the destination would be deleted by the clean-up
     /// that follows. Both are one wrong path in a configuration away.
     /// </summary>
-    public static class RepoCopy
+    public static class LocalCopy
     {
         /// <summary>
         /// Deep enough for any repository laid out by hand, and a guarantee that a junction
@@ -31,10 +38,10 @@ namespace Core.Repo
         /// **Never throws**: a file that could not be copied is one line in the result, and
         /// the rest of the core still arrives.
         /// </summary>
-        public static RepoCopyResult Mirror(string source, string destination)
+        public static LocalCopyResult Mirror(string source, string destination)
         {
-            if (string.IsNullOrWhiteSpace(source)) return RepoCopyResult.Refused("No core folder was given.");
-            if (string.IsNullOrWhiteSpace(destination)) return RepoCopyResult.Refused("There is nowhere to copy to.");
+            if (string.IsNullOrWhiteSpace(source)) return LocalCopyResult.Refused("No core folder was given.");
+            if (string.IsNullOrWhiteSpace(destination)) return LocalCopyResult.Refused("There is nowhere to copy to.");
 
             string from, to;
             try
@@ -44,20 +51,20 @@ namespace Core.Repo
             }
             catch (Exception exception)
             {
-                return RepoCopyResult.Refused("The paths could not be read: " + exception.Message);
+                return LocalCopyResult.Refused("The paths could not be read: " + exception.Message);
             }
 
             if (!Directory.Exists(from))
-                return RepoCopyResult.Refused("The core folder does not exist: " + from);
+                return LocalCopyResult.Refused("The core folder does not exist: " + from);
 
             if (Same(from, to))
-                return RepoCopyResult.Refused("The core folder and the copy are the same folder: " + from);
+                return LocalCopyResult.Refused("The core folder and the copy are the same folder: " + from);
 
             if (Inside(to, from))
-                return RepoCopyResult.Refused("The copy would sit inside the core folder it is copying: " + to);
+                return LocalCopyResult.Refused("The copy would sit inside the core folder it is copying: " + to);
 
             if (Inside(from, to))
-                return RepoCopyResult.Refused("The core folder sits inside the copy, which would delete it: " + from);
+                return LocalCopyResult.Refused("The core folder sits inside the copy, which would delete it: " + from);
 
             List<string> problems = new List<string>();
             HashSet<string> written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -68,13 +75,13 @@ namespace Core.Repo
             }
             catch (Exception exception)
             {
-                return RepoCopyResult.Refused("The copy folder could not be created: " + exception.Message);
+                return LocalCopyResult.Refused("The copy folder could not be created: " + exception.Message);
             }
 
             int files = Copy(from, to, 0, written, problems);
             int removed = Clean(to, written, problems);
 
-            return RepoCopyResult.Done(to, files, removed, problems);
+            return LocalCopyResult.Done(to, files, removed, problems);
         }
 
         private static int Copy(string from, string to, int depth, HashSet<string> written, List<string> problems)

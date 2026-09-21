@@ -13,6 +13,7 @@ TIA-Portal-Add-Ins.slnx
     ├── AddIn.Shared/         (net48, AnyCPU) — the Add-In layer, NO Siemens          ← EXISTS
     ├── UI.Shared/            (net48, WPF) — brand resources, shared windows          ← EXISTS
     ├── S7PlcWebserverApi/    (net48, AnyCPU) — JSON-RPC client for a CPU's webserver ← EXISTS
+    ├── GitHubApi/            (net48, AnyCPU) — REST client for a core kept in a repository ← EXISTS
     ├── AddIn.V20/            (net48, x64) — references PublicAPI\V20.addIn (V17–V20) ← EXISTS
     ├── AddIn.V21/            (net48, x64) — references PublicAPI\V21\net48           ← EXISTS
     ├── Satellite.About/      (net48, WPF) — the About window                         ← EXISTS
@@ -76,8 +77,17 @@ src/Core/
 │   └── ExportTree.cs         where an exported object goes: exports\ shaped like the project
 ├── Repo/                     the core a project is built on, and the workspace for it
 │   ├── RepoPaths.cs          what lives inside .plc-framework\repo\
-│   ├── RepoSource.cs         where a core comes from, resolved to paths — local today
-│   ├── RepoCopy.cs           mirrors a core into the project, removing what it no longer has
+│   ├── Local/                a core that is a folder on this machine
+│   │   ├── LocalSource.cs    where it is, resolved to paths
+│   │   ├── LocalCopy.cs      mirrored into the project, removing what it no longer has
+│   │   └── LocalCopyResult.cs   how many files, how many removed, what would not copy
+│   ├── Remote/               a core that is a repository this machine has not got
+│   │   ├── IRemoteCore.cs    the port: open it, list a folder, read one file
+│   │   ├── RemoteCopy.cs     the same mirror over a wire, fetching only what changed
+│   │   ├── RemoteCopyResult.cs  downloaded, kept, removed, and the commit it now holds
+│   │   └── CoreOrigin.cs     which commit the copy is — repo\core.origin.json
+│   ├── GitHub/
+│   │   └── GitBlobSha.cs     git's own content hash, so the copy is its own index
 │   ├── CoreCatalog.cs        a core that has been read: the graph, plus lookup by id and base
 │   ├── CoreCatalogLoader.cs  core.json → CoreCatalog, and why it could not be read
 │   ├── CoreValidator.cs      what is wrong with one that loaded — as ValidationIssues
@@ -226,6 +236,7 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
 | `AddIn.Shared` | `Core` + host types that are **not** Siemens | `+ PLC-Framework.Core`, `System.Drawing` |
 | `UI.Shared` | `Core` + WPF | `mscorlib`, `System` — see below |
 | `S7PlcWebserverApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |
+| `GitHubApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |
 | `AddIn.VXX` | anything, Siemens included | `+ Siemens.Engineering.AddIn` |
 | `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window |  |
 | `Satellite.<Name>.VXX` | the above **plus Openness**, as a *client* | `+ Siemens.Engineering` (V20) / `.Base` (V21) |

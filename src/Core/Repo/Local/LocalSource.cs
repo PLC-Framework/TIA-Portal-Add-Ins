@@ -3,7 +3,7 @@ using System.IO;
 
 using Core.Config;
 
-namespace Core.Repo
+namespace Core.Repo.Local
 {
     /// <summary>
     /// Where a core comes from, resolved to paths something can actually open.
@@ -17,9 +17,9 @@ namespace Core.Repo
     /// in a file that Windows will resolve. `plc/s7-1x00/core` is what the real configuration
     /// carries, so the separators are normalised here rather than at four call sites.
     /// </summary>
-    public sealed class RepoSource
+    public sealed class LocalSource
     {
-        private RepoSource(string root, string folder, string coreFolder, string graphFile, string problem)
+        private LocalSource(string root, string folder, string coreFolder, string graphFile, string problem)
         {
             Root = root;
             Folder = folder;
@@ -58,7 +58,7 @@ namespace Core.Repo
         /// is not mapped here. <see cref="Exists"/> asks that question when somebody wants it
         /// asked.
         /// </summary>
-        public static RepoSource Local(CoreLocalRepositoryConfig local)
+        public static LocalSource Of(CoreLocalRepositoryConfig local)
         {
             if (local == null) return Failed("This project names no local repository.");
 
@@ -78,7 +78,7 @@ namespace Core.Repo
                 string coreFolder = Path.GetFullPath(Path.Combine(root, folder.Replace('/', Path.DirectorySeparatorChar)));
                 string graphFile = Path.Combine(coreFolder, local.DependencyFile.Trim());
 
-                return new RepoSource(root, folder, coreFolder, graphFile, null);
+                return new LocalSource(root, folder, coreFolder, graphFile, null);
             }
             catch (Exception exception)
             {
@@ -111,6 +111,6 @@ namespace Core.Repo
             }
         }
 
-        private static RepoSource Failed(string problem) => new RepoSource(null, null, null, null, problem);
+        private static LocalSource Failed(string problem) => new LocalSource(null, null, null, null, problem);
     }
 }
