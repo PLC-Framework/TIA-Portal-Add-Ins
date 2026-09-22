@@ -35,6 +35,25 @@ namespace GitHubApi
     }
 
     /// <summary>The owner, the repository, the branch or the object is not there.</summary>
+    /// <summary>
+    /// The repository is still there and is not where the configuration says: somebody renamed
+    /// it, or its owner.
+    ///
+    /// **Its own exception because it is its own instruction** - not a token to check and not a
+    /// name to doubt, but one line of `config.json` to bring up to date.
+    /// </summary>
+    public sealed class GitHubMovedException : GitHubException
+    {
+        public GitHubMovedException(string message, string movedTo, int? status = null)
+            : base(message, status)
+        {
+            MovedTo = movedTo;
+        }
+
+        /// <summary>Where it went, as <c>owner/repository</c> - or null when that could not be read.</summary>
+        public string MovedTo { get; }
+    }
+
     public sealed class GitHubNotFoundException : GitHubException
     {
         public GitHubNotFoundException(string message, Exception inner = null)

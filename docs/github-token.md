@@ -76,6 +76,7 @@ The Core updater says what happened rather than "failed". These are the four you
 | *"GitHub refused the token."* | the token is wrong, was deleted, or has expired |
 | *"GitHub refused the request for `owner/repo@branch`, which usually means the token cannot read it."* | the token is valid but does not cover **this** repository: it was made for a different one, or it is waiting for an organization owner to approve it |
 | *"GitHub's rate limit has been reached — and without a token it is sixty calls an hour."* | you are reading without a token. Wait, or make one |
+| *"GitHub says `owner/repo@branch` has moved, and is now `new-owner/repo`."* | somebody renamed the repository or its owner. Put the new name in `config.json` — the framework does not follow the move by itself, because then the file would stay wrong for ever |
 
 Two things worth knowing when you are hunting one of these down:
 

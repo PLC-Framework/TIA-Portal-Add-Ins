@@ -58,7 +58,22 @@ namespace GitHubApi
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
 
-            _http = new HttpClient
+            // **Redirects are not followed, and that is the whole of a bug worth remembering.**
+            // GitHub answers 301 for a repository or an owner that has been renamed - and
+            // `HttpClient` on .NET Framework drops the `Authorization` header when it follows
+            // one. The followed request therefore arrives anonymous, so GitHub replies with the
+            // anonymous rate limit or a 404, and the operator is sent to check a token that is
+            // perfectly good or a name that is merely old. Measured against a real renamed
+            // owner: /rate_limit with the same token answers 5,000 an hour while the redirected
+            // call answers "rate limit exceeded for <our IP>".
+            //
+            // Following it with the header re-attached would work and is still wrong: the core's
+            // identity is the one in `config.json`, and a silent follow leaves that file stale
+            // for good while `core.origin.json` records a repository the configuration does not
+            // name. So a move is reported, by name, and somebody edits one line.
+            HttpClientHandler handler = new HttpClientHandler { AllowAutoRedirect = false };
+
+            _http = new HttpClient(handler)
             {
                 BaseAddress = new Uri(_repository.ApiUrl),
                 Timeout = timeout > TimeSpan.Zero ? timeout : DefaultTimeout
@@ -229,6 +244,107 @@ namespace GitHubApi
             }
         }
 
+        private static bool Redirected(HttpResponseMessage response)
+        {
+            int status = (int)response.StatusCode;
+
+            return status == 301 || status == 302 || status == 307 || status == 308;
+        }
+
+        /// <summary>
+        /// A repository that has moved, named on both sides where that can be done.
+        ///
+        /// **GitHub does not say the new name in the `Location` header** - it answers
+        /// <c>…/repositories/1301869263</c>, the repository's numeric id, which is no use to
+        /// anybody editing a configuration file. So this asks that one URL what it is called,
+        /// **once, and only on the way to failing**, which is the same bargain `Missing` already
+        /// strikes: it costs nothing on any run that works.
+        ///
+        /// **A second request that goes wrong costs the destination, never the message.** Not
+        /// knowing where it went is worth far less than knowing it moved, and a redirect chain
+        /// or a refusal on the way must not turn a clear sentence into an unclear one.
+        /// </summary>
+        private GitHubMovedException Moved(HttpResponseMessage response)
+        {
+            Uri location = response.Headers.Location;
+            string now = NamedAt(location);
+            int status = (int)response.StatusCode;
+
+            string said =
+                "GitHub says '" + _repository + "'" + Where() + " has moved" +
+                (now == null ? string.Empty : ", and is now '" + now + "'") +
+                ". Somebody renamed the repository or its owner, so update owner and repository " +
+                "in config.json - this framework does not follow the move on its own, because " +
+                "then the file would stay wrong.";
+
+            return new GitHubMovedException(said, now, status);
+        }
+
+        /// <summary>
+        /// The repository itself, out of wherever the redirect pointed.
+        ///
+        /// **A redirect keeps the rest of the path**, which is the detail that made the first
+        /// version of this answer nothing: asking for a branch of a renamed repository is sent
+        /// to <c>…/repositories/1301869263/branches/main</c>, and a branch has no
+        /// <c>full_name</c>. What carries the name is the repository, two segments up.
+        /// </summary>
+        private static Uri RepositoryAt(Uri location)
+        {
+            if (location == null || !location.IsAbsoluteUri) return null;
+
+            string[] parts = location.AbsolutePath.Trim('/').Split('/');
+
+            for (int i = 0; i + 1 < parts.Length; i++)
+            {
+                // Either shape GitHub can send us back to: the id it answers for a rename, and
+                // the plain name a differently configured host might.
+                if (!string.Equals(parts[i], "repositories", StringComparison.Ordinal) &&
+                    !string.Equals(parts[i], "repos", StringComparison.Ordinal)) continue;
+
+                int keep = string.Equals(parts[i], "repos", StringComparison.Ordinal) ? 3 : 2;
+
+                if (i + keep > parts.Length) break;
+
+                return new Uri(
+                    location.GetLeftPart(UriPartial.Authority) + "/" +
+                    string.Join("/", parts, i, keep));
+            }
+
+            // Not a shape this knows: ask where it was pointed and let the answer decide.
+            return location;
+        }
+
+        /// <summary>What the repository behind a redirect calls itself, or null.</summary>
+        private string NamedAt(Uri location)
+        {
+            Uri repository = RepositoryAt(location);
+
+            if (repository == null) return null;
+
+            try
+            {
+                using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, repository))
+                {
+                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+                    using (HttpResponseMessage response = Send(request))
+                    {
+                        if (!response.IsSuccessStatusCode) return null;
+
+                        string body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                        string name = JObject.Parse(body)["full_name"]?.Value<string>();
+
+                        return string.IsNullOrWhiteSpace(name) ? null : name;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // See above: the destination is a courtesy, the move is the message.
+                return null;
+            }
+        }
+
         private HttpResponseMessage Send(HttpRequestMessage request)
         {
             try
@@ -257,6 +373,10 @@ namespace GitHubApi
         private void Refused(HttpResponseMessage response)
         {
             if (response.IsSuccessStatusCode) return;
+
+            // Asked before anything else, because a redirect is not a refusal at all: the
+            // repository is there and the configuration is pointing at where it used to be.
+            if (Redirected(response)) throw Moved(response);
 
             int status = (int)response.StatusCode;
             string said = Message(response);
