@@ -288,32 +288,43 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="API URL" Style="{StaticResource FieldLabel}" />
-                                <TextBox   Grid.Row="0" Grid.Column="1" x:Name="ApiUrlBox" TextChanged="OnFieldChanged" />
+                                <!-- Which host's API, and it comes first because every field
+                                     under it is read through that one: a drop-down rather than
+                                     a text box, like coreSource, so a closed set cannot be
+                                     mistyped. Absent in the file means github. -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Provider" Style="{StaticResource FieldLabel}" />
+                                <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="ProviderBox"
+                                           HorizontalAlignment="Left" Width="200"
+                                           ToolTip="Which host's API to speak. A file with no provider key means github, which is what every configuration written before the key existed says."
+                                           SelectionChanged="OnProviderChanged" />
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Owner" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <TextBox   Grid.Row="1" Grid.Column="1" x:Name="OwnerBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="API URL" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="1" Grid.Column="1" x:Name="ApiUrlBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Repository" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <TextBox   Grid.Row="2" Grid.Column="1" x:Name="RemoteRepositoryBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Owner" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="2" Grid.Column="1" x:Name="OwnerBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
 
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Branch" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <TextBox   Grid.Row="3" Grid.Column="1" x:Name="BranchBox" Margin="0,10,0,0"
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Repository" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="3" Grid.Column="1" x:Name="RemoteRepositoryBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Branch" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="4" Grid.Column="1" x:Name="BranchBox" Margin="0,10,0,0"
                                            HorizontalAlignment="Left" Width="200" TextChanged="OnFieldChanged" />
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Folder" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <TextBox   Grid.Row="4" Grid.Column="1" x:Name="RemoteFolderBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Folder" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="5" Grid.Column="1" x:Name="RemoteFolderBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
 
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Dependency file" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <TextBox   Grid.Row="5" Grid.Column="1" x:Name="RemoteDependencyBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Dependency file" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="6" Grid.Column="1" x:Name="RemoteDependencyBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
 
                                 <!-- The token, and it never enters config.json: the file
-                                     always carries the literal ${GITHUB_TOKEN} and the
+                                     always carries the reference the provider needs and the
                                      secret goes to the per-user .env. -->
-                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Token" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <Grid      Grid.Row="6" Grid.Column="1" Margin="0,10,0,0">
+                                <TextBlock Grid.Row="7" Grid.Column="0" Text="Token" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <Grid      Grid.Row="7" Grid.Column="1" Margin="0,10,0,0">
                                     <PasswordBox x:Name="TokenBox" Padding="6,4,26,4"
                                                  PasswordChanged="OnTokenChanged" />
                                     <TextBox     x:Name="TokenPlain" Padding="6,4,26,4" Visibility="Collapsed"
@@ -324,7 +335,7 @@
                                                   Checked="OnTokenRevealChanged" Unchecked="OnTokenRevealChanged" />
                                 </Grid>
 
-                                <TextBlock Grid.Row="7" Grid.Column="1" x:Name="TokenNote" Margin="0,6,0,0"
+                                <TextBlock Grid.Row="8" Grid.Column="1" x:Name="TokenNote" Margin="0,6,0,0"
                                            TextWrapping="Wrap" Foreground="#7E8899" />
                             </Grid>
                         </StackPanel>

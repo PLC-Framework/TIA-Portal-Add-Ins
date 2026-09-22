@@ -458,9 +458,15 @@ The `Coding style` section is where the editor stops being a form and starts pre
 - **The pattern says whether it compiles, and a "Try it" box says whether a sample name matches.** A regex that compiles can still be perfectly wrong, and otherwise that is only discovered once the Add-In has marked half a project.
 - **A type appears at most once per section.** A second row for the same type says nothing the first does not, so a type in use is offered nowhere it could be duplicated.
 
-### The token
+### The remote repository, and the token
 
-`config.json` always carries the literal `${GITHUB_TOKEN}`; the secret goes to the per-user `.env`. The field is masked with the same twin-control eye as the PLC password, and the `.env` is written **before** the JSON — there is no point leaving a `config.json` behind that references a variable nobody managed to set.
+**`Provider` sits at the top of the Remote section**, as a drop-down rather than a text box: the set is closed, so it is chosen and cannot be mistyped. It holds one value today, `github`, and it comes first because every field under it — the API URL, the owner, the repository — is read through that one.
+
+- **A file with no `provider` key shows `github`**, because that is what every configuration written before the key existed says by omission.
+- **A value the set does not hold is shown as it is**, not blanked, and `Save` stays off with the problem named in the status line. Blanking it would let the next edit anywhere on the form write a decision nobody made over somebody's typo.
+- **It is written only into a remote section that already exists.** The other fields write back empty and create nothing; a provider always has a value, so writing it unconditionally would plant a whole remote section in a purely local configuration.
+
+`config.json` always carries the token as a `${VARIABLE}` reference — `${GITHUB_TOKEN}` for `github` — never the secret, which goes to the per-user `.env`. The field is masked with the same twin-control eye as the PLC password, and the `.env` is written **before** the JSON — there is no point leaving a `config.json` behind that references a variable nobody managed to set.
 
 ### One editor per TIA Portal
 

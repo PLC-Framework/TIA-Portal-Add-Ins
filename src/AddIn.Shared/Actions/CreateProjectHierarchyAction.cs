@@ -1,7 +1,10 @@
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 
 using AddIn.Shared.Adapters;
 using Core.Config;
+using Core.Config.Validation;
 
 namespace AddIn.Shared.Actions
 {
@@ -17,6 +20,9 @@ namespace AddIn.Shared.Actions
         public const string Title = "Create project hierarchy";
         public const string IconPath = "AddIn/create-folder-hierarchy.ico";
 
+        /// <summary>How many problems a message names before it only counts the rest.</summary>
+        private const int ListedProblems = 10;
+
         public static void Execute(ITiaNotifier notifier, Hierarchy hierarchy, HierarchyTargets targets)
         {
             if (notifier == null) return;
@@ -30,6 +36,26 @@ namespace AddIn.Shared.Actions
             if (hierarchy == null)
             {
                 notifier.Warning(Title, $"'{ConfigPaths.File}' has no 'projectConfig.hierarchy' section.");
+                return;
+            }
+
+            // **Validated here, after loading, because hand-editing bypasses the editor** - the
+            // rule this framework states and, until 2026-09-22, did not keep on this side: only
+            // the coding-style check validated its own concern, and this one walked straight
+            // into TIA with whatever the file said.
+            //
+            // Nothing was ever corrupted by that, which is why it went unnoticed: `Ensure` steps
+            // over a blank name and `FindOrCreate` answers the folder a duplicate names. What it
+            // cost was **silence** - a file with a nameless folder, or two siblings spelled the
+            // same, came back "Hierarchy ready" with a count that was one too many, and the
+            // defect the editor would have marked in red was never mentioned again.
+            //
+            // Only this concern's validator, and the path prefix the whole document would give,
+            // so each issue points into the file as written rather than at a section in the air.
+            ValidationResult validation = HierarchyValidator.Validate(hierarchy, "projectConfig.hierarchy");
+            if (!validation.IsValid)
+            {
+                notifier.Error(Title, Invalid(validation));
                 return;
             }
 
@@ -105,6 +131,29 @@ namespace AddIn.Shared.Actions
             }
 
             return count;
+        }
+
+        /// <summary>
+        /// What is wrong with the hierarchy, and that nothing was created because of it.
+        ///
+        /// **It says nothing was done, and means it**: the walk is refused whole rather than
+        /// run as far as the first bad name, because a folder tree half created is one nobody
+        /// can tell from a tree somebody built by hand.
+        /// </summary>
+        private static string Invalid(ValidationResult validation)
+        {
+            StringBuilder text = new StringBuilder();
+
+            text.Append($"\n\n'{ConfigPaths.File}' has problems in its hierarchy, so no group was created:\n\n");
+
+            foreach (ValidationIssue issue in validation.Issues.Take(ListedProblems))
+                text.Append("  ").Append(issue).Append('\n');
+
+            int rest = validation.Issues.Count - ListedProblems;
+            if (rest > 0) text.Append($"  ...and {rest} more.\n");
+
+            text.Append("\nOpen Config. Editor to fix them.");
+            return text.ToString();
         }
     }
 }

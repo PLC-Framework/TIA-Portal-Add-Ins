@@ -78,6 +78,11 @@ namespace Satellite.ConfigEditor
             CoreSourceBox.Items.Add(MetadataValidator.Remote);
             CoreSourceBox.Items.Add(NoCoreSource);
 
+            // One item today, and a drop-down all the same: the set is closed, so it is chosen
+            // rather than typed - which is what makes a second provider a line here instead of
+            // a class of typo to validate against.
+            ProviderBox.Items.Add(RepositoryValidator.GitHub);
+
             // The tab's Checked fired before the areas it switches existed, so the hint beside
             // the tabs is set once more now that they do.
             OnCodingTab(this, null);
@@ -241,6 +246,8 @@ namespace Satellite.ConfigEditor
                 LocalFolderBox.Text = _document.Get("coreLocalRepositoryConfig.folder") ?? string.Empty;
                 LocalDependencyBox.Text = _document.Get("coreLocalRepositoryConfig.dependencyFile") ?? string.Empty;
 
+                SelectProvider(_document.Get("coreRemoteRepositoryConfig.provider"));
+
                 ApiUrlBox.Text = _document.Get("coreRemoteRepositoryConfig.apiUrl") ?? string.Empty;
                 OwnerBox.Text = _document.Get("coreRemoteRepositoryConfig.owner") ?? string.Empty;
                 RemoteRepositoryBox.Text = _document.Get("coreRemoteRepositoryConfig.repository") ?? string.Empty;
@@ -302,6 +309,22 @@ namespace Satellite.ConfigEditor
             CoreSourceBox.SelectedItem = shown;
         }
 
+        /// <summary>
+        /// Shows which provider the file names, and **github when it names none** - absent is
+        /// not an omission but what every configuration written before the key existed says.
+        ///
+        /// A value outside the set is added and shown as it is, exactly as `coreSource` does:
+        /// leaving the box empty would let the next edit anywhere on the form write a decision
+        /// nobody made over somebody's typo, where the validator names it instead.
+        /// </summary>
+        private void SelectProvider(string stored)
+        {
+            string shown = stored ?? RepositoryValidator.GitHub;
+
+            if (!ProviderBox.Items.Contains(shown)) ProviderBox.Items.Add(shown);
+            ProviderBox.SelectedItem = shown;
+        }
+
         private void Collect()
         {
             string coreSource = CoreSourceBox.SelectedItem as string;
@@ -326,14 +349,22 @@ namespace Satellite.ConfigEditor
             _document.Set("coreRemoteRepositoryConfig.folder", RemoteFolderBox.Text.Trim());
             _document.Set("coreRemoteRepositoryConfig.dependencyFile", RemoteDependencyBox.Text.Trim());
 
-            // The reference, never the secret - and only when the remote section is in use
-            // at all, so a purely local configuration does not grow a token key it will
-            // never read.
+            // The reference, never the secret - and the provider beside it, both only when the
+            // remote section is in use at all, so a purely local configuration does not grow
+            // keys it will never read. The provider follows the token's rule rather than the
+            // fields above it because it always has a value to write: `Set` would create the
+            // whole section around it, which is the planting `ConfigDocument.Set` exists to
+            // avoid for an empty one.
             if (_document.Has("coreRemoteRepositoryConfig"))
+            {
+                _document.Set("coreRemoteRepositoryConfig.provider", ProviderBox.SelectedItem as string);
                 _document.Set("coreRemoteRepositoryConfig.token", TokenReference);
+            }
         }
 
         private void OnFieldChanged(object sender, TextChangedEventArgs e) => Touched();
+
+        private void OnProviderChanged(object sender, SelectionChangedEventArgs e) => Touched();
 
         private void OnCoreSourceChanged(object sender, SelectionChangedEventArgs e)
         {
