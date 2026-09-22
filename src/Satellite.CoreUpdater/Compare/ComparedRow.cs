@@ -108,7 +108,7 @@ namespace Satellite.CoreUpdater.Compare
         {
             List<string> versions = new List<string>();
 
-            foreach (Core.DependencyGraph.Node node in one.Versions)
+            foreach (Core.Repo.PlcCore.Graph.Node node in one.Versions)
                 if (PlcCoreStatus.IsCurrent(node.Status)) versions.Add("v" + node.Version);
 
             // Every version is retired, which is a real answer rather than an empty sentence:

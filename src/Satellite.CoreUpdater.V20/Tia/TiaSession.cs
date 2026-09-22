@@ -468,6 +468,7 @@ namespace Satellite.CoreUpdater.Tia
 
             if (scratch == null) return report;
 
+            string project = _project?.Path?.DirectoryName;
             int done = 0;
 
             try
@@ -486,19 +487,20 @@ namespace Satellite.CoreUpdater.Tia
                         continue;
                     }
 
-                    report.Add(One(software, into, one, scratch));
+                    report.Add(One(software, into, one, project));
                 }
             }
             finally
             {
-                // Kept when anything is left only as a file there - see Relocated.
-                if (report.Stranded == 0) Clear(scratch);
+                // The sources this download brought, and nothing else: an export that may be an
+                // object's only copy is never in here - see StrandedFiles.
+                Clear(scratch);
             }
 
             return report;
         }
 
-        private ImportedNode One(PlcSoftware software, PlcUnitBase into, PlannedNode planned, string scratch)
+        private ImportedNode One(PlcSoftware software, PlcUnitBase into, PlannedNode planned, string project)
         {
             // Checked rather than trusted: an import started without its sources brought down
             // would otherwise fail inside CreateFromFile with a message naming nothing.
@@ -510,11 +512,11 @@ namespace Satellite.CoreUpdater.Tia
                 switch (Where(planned.Source))
                 {
                     case Destination.TagTable:
-                        return TagTable(software, into, planned, scratch);
+                        return TagTable(software, into, planned, project);
 
                     case Destination.Block:
                     case Destination.Type:
-                        return FromSource(software, into, planned, scratch);
+                        return FromSource(software, into, planned, project);
                 }
 
                 return ImportedNode.Refused(
@@ -561,7 +563,7 @@ namespace Satellite.CoreUpdater.Tia
         /// silent hole every other part of this feature is shaped to avoid.
         /// </summary>
         private static ImportedNode TagTable(
-            PlcSoftware software, PlcUnitBase into, PlannedNode planned, string scratch)
+            PlcSoftware software, PlcUnitBase into, PlannedNode planned, string project)
         {
             ConstantsWorkbook workbook = ConstantsWorkbook.Of(planned.Source);
 
@@ -582,7 +584,7 @@ namespace Satellite.CoreUpdater.Tia
 
                 moved = group.TagTables.Find(workbook.Name) == null;
                 home = existing.Parent as PlcTagTableGroup ?? root;
-                backup = Backup(scratch, workbook.Name);
+                backup = Backup(project, workbook.Name);
 
                 existing.Export(new FileInfo(backup), ExportOptions.WithDefaults);
                 existing.Delete();
@@ -723,7 +725,7 @@ namespace Satellite.CoreUpdater.Tia
         /// that is already correct.
         /// </summary>
         private static ImportedNode FromSource(
-            PlcSoftware software, PlcUnitBase into, PlannedNode planned, string scratch)
+            PlcSoftware software, PlcUnitBase into, PlannedNode planned, string project)
         {
             // Already in the project's repo\tmp\: the download brought it there before this ran,
             // and TIA is pointed at it where it landed. There used to be a copy step here, from a
@@ -753,7 +755,7 @@ namespace Satellite.CoreUpdater.Tia
                     PlcType elsewhere = destination.Types.Find(name) != null ? null : FoundType(root, name);
 
                     return Relocated(
-                        planned, scratch, elsewhere != null,
+                        planned, project, elsewhere != null,
                         backup => elsewhere.Export(new FileInfo(backup), ExportOptions.WithDefaults),
                         () => elsewhere.Delete(),
                         () => Generate(from, family),
@@ -771,7 +773,7 @@ namespace Satellite.CoreUpdater.Tia
                     PlcBlock elsewhere = destination.Blocks.Find(name) != null ? null : FoundBlock(root, name);
 
                     return Relocated(
-                        planned, scratch, elsewhere != null,
+                        planned, project, elsewhere != null,
                         backup => elsewhere.Export(new FileInfo(backup), ExportOptions.WithDefaults),
                         () => elsewhere.Delete(),
                         () => Generate(from, family),
@@ -806,12 +808,13 @@ namespace Satellite.CoreUpdater.Tia
         /// - **If the new one will not generate, the old one is put back** in the folder it came
         ///   from - a failed download must not cost the project a block it already had. A source
         ///   that generates nothing of that name counts as not generating.
-        /// - **If even that fails, the file is kept and named**, and the scratch folder stays.
-        ///   An object nobody can find again is the one outcome this must never produce.
+        /// - **If even that fails, the file is kept and named** - in <c>repo\stranded\</c>, where
+        ///   it was written in the first place, so no clean-up reaches it. An object nobody can
+        ///   find again is the one outcome this must never produce.
         /// </summary>
         private static ImportedNode Relocated(
             PlannedNode planned,
-            string scratch,
+            string project,
             bool elsewhere,
             Action<string> export,
             Action delete,
@@ -825,10 +828,12 @@ namespace Satellite.CoreUpdater.Tia
                 return ImportedNode.Went(planned);
             }
 
-            string backup = Backup(scratch, planned.Node.Base);
+            string backup;
 
             try
             {
+                // Asked for inside the try: nowhere to keep the export means it is not taken out.
+                backup = Backup(project, planned.Node.Base);
                 export(backup);
             }
             catch (Exception exception)
@@ -897,10 +902,11 @@ namespace Satellite.CoreUpdater.Tia
 
         /// <summary>
         /// Named after the object, like a move's file: when it is the only copy of something it
-        /// has to be recognisable in the folder it was left in.
+        /// has to be recognisable in the folder it was left in. **Born in `repo\stranded\`**, and
+        /// never over a file already there - see <see cref="StrandedFiles.PathFor"/>.
         /// </summary>
-        private static string Backup(string scratch, string name) =>
-            Path.Combine(scratch, "replace-" + Core.Exports.ExportTree.Segment(name) + ".xml");
+        private static string Backup(string project, string name) =>
+            StrandedFiles.PathFor(project, "replace", name);
 
         private static void Generate(PlcExternalSource source, PlcBlockUserGroup group)
         {
@@ -1014,8 +1020,9 @@ namespace Satellite.CoreUpdater.Tia
             }
             catch (Exception)
             {
-                // The folder goes at the end of the run, and a file TIA still holds is not a
-                // reason to report a successful import as a failure.
+                // A file TIA still holds is not a reason to report a successful import as a
+                // failure. If it is an export in repo\stranded\, the window lists it and it is
+                // safe to delete: the object it holds went back in.
             }
         }
 
@@ -1046,10 +1053,10 @@ namespace Satellite.CoreUpdater.Tia
         /// chosen: an object's name is unique across a PLC's software, so the copy cannot go into
         /// its new folder while the original is still in the old one.
         ///
-        /// **The scratch folder is kept when anything was left stranded.** Between the delete and
-        /// the import the object exists only as a file, and clearing the folder after a refusal
-        /// would throw away the only copy. Every other run clears it, because what is in there is
-        /// somebody's source code.
+        /// **The export is written in `repo\stranded\` from the start.** Between the delete and
+        /// the import the object exists only as that file, so it is born where no clean-up
+        /// reaches - it lived in `repo\tmp\` until 2026-09-22, which the next run that ended well
+        /// cleared, and so did every V17-V20 Load. Deleted as soon as the object is back in.
         /// </summary>
         public SyncReport Sync(string plc, string unit, SyncPlan plan, Action<string> progress)
         {
@@ -1080,40 +1087,32 @@ namespace Satellite.CoreUpdater.Tia
                 }
             }
 
-            string scratch = Workspace(report.Add);
-
-            if (scratch == null) return report;
-
+            string project = _project?.Path?.DirectoryName;
             int done = 0;
 
-            try
+            foreach (MisplacedObject one in plan.Objects)
             {
-                foreach (MisplacedObject one in plan.Objects)
-                {
-                    done++;
+                done++;
 
-                    progress?.Invoke("Moving " + done + " of " + plan.Count + " - " + one.Name);
+                progress?.Invoke("Moving " + done + " of " + plan.Count + " - " + one.Name);
 
-                    report.Add(Moved(software, into, one, scratch));
-                }
-            }
-            finally
-            {
-                if (report.Stranded == 0) Clear(scratch);
+                report.Add(Moved(software, into, one, project));
             }
 
             return report;
         }
 
         private MovedObject Moved(
-            PlcSoftware software, PlcUnitBase into, MisplacedObject planned, string scratch)
+            PlcSoftware software, PlcUnitBase into, MisplacedObject planned, string project)
         {
-            // Named after the object rather than reused like the map's read.xml: a file that is
-            // the only copy of something has to be recognisable in the folder it was left in.
-            string file = Path.Combine(scratch, "move-" + Core.Exports.ExportTree.Segment(planned.Name) + ".xml");
-
             try
             {
+                // Named after the object rather than reused like the map's read.xml: a file that
+                // is the only copy of something has to be recognisable in the folder it was left
+                // in. Asked for before anything is exported, so nowhere to keep it refuses the
+                // move while the object is still where it was.
+                string file = StrandedFiles.PathFor(project, "move", planned.Name);
+
                 switch (For(planned.Kind))
                 {
                     case Destination.Type:

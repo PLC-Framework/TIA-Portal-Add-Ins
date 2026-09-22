@@ -11,20 +11,51 @@ namespace Core.Config.Validation
         /// <summary>The one remote provider this framework can speak, and the default.</summary>
         public const string GitHub = "github";
 
-        public static ValidationResult ValidateRemote(
-            CoreRemoteRepositoryConfig remote, string path = "coreRemoteRepositoryConfig")
+        /// <summary>
+        /// The repository concern as an action reads it: <c>metadata.coreSource</c>, and the one
+        /// section it selects. What reading a core may refuse over, and nothing else - the rest
+        /// of <c>metadata</c> is not this concern's, so a mistyped <c>version</c> does not stop a
+        /// comparison.
+        ///
+        /// **It had two entry points until 2026-09-22, one per section, and nothing called
+        /// either**: `PlcCoreRefresh` checked `coreSource` by hand, `LocalSource` checked the
+        /// local fields by hand, and an empty remote field was caught three layers down in three
+        /// wordings - one of them *"An owner is required. Parameter name: owner"*, which names no
+        /// field of `config.json`. The same shape as the hierarchy's validator, which had no
+        /// caller either until that morning.
+        /// </summary>
+        public static ValidationResult Validate(Config config)
         {
             Issues issues = new Issues();
-            CollectRemote(remote, path, issues);
+
+            if (issues.RequiredObject("metadata", config?.Metadata))
+            {
+                MetadataValidator.CollectSource(config.Metadata, "metadata", issues);
+                CollectSelected(config, issues);
+            }
+
             return new ValidationResult(issues.All);
         }
 
-        public static ValidationResult ValidateLocal(
-            CoreLocalRepositoryConfig local, string path = "coreLocalRepositoryConfig")
+        /// <summary>
+        /// Only the section <c>coreSource</c> selects. The other one is left alone entirely - it
+        /// is normal for a project to carry both and use one, and reporting the unused half would
+        /// train the reader to ignore the report. Shared with <see cref="ConfigValidator"/>, so
+        /// the document and the action cannot disagree about which section counts.
+        /// </summary>
+        internal static void CollectSelected(Config config, Issues issues)
         {
-            Issues issues = new Issues();
-            CollectLocal(local, path, issues);
-            return new ValidationResult(issues.All);
+            string source = MetadataValidator.SourceOf(config.Metadata);
+
+            // Null means no repository - coreSource is null, or not one of the two, which is
+            // already reported and should not be complained about twice. Either way both
+            // sections are left alone, whatever state they are in.
+            if (source == null) return;
+
+            if (source == MetadataValidator.Remote)
+                CollectRemote(config.CoreRemoteRepositoryConfig, "coreRemoteRepositoryConfig", issues);
+            else
+                CollectLocal(config.CoreLocalRepositoryConfig, "coreLocalRepositoryConfig", issues);
         }
 
         internal static void CollectRemote(

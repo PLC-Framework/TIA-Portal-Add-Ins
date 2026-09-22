@@ -13,7 +13,9 @@ namespace Core.Repo
     /// +-- core.json         the core's graph, pinned: what every comparison is against
     /// +-- core.origin.json  where it came from and at which commit, for a remote core
     /// +-- project.json      what the TIA project actually holds, as this read it
-    /// +-- tmp\              the sources a download is about to import, and a move's export
+    /// +-- tmp\              the sources a download is about to import
+    /// +-- stranded\         an object's export while it is out of the project - and after,
+    ///                       when it could not go back in
     /// </code>
     ///
     /// **There is no copy of the core's sources here, and that was a correction** (2026-09-22,
@@ -51,11 +53,24 @@ namespace Core.Repo
         public const string ProjectFile = "project.json";
 
         /// <summary>
-        /// Where a source lands before TIA reads it, and where a move keeps its only copy of
-        /// an object while that object is out of the project. Cleared when a run ends, unless
-        /// something was left stranded in it.
+        /// Where a source lands before TIA reads it, and where V17-V20 reads a title out of an
+        /// export. **Cleared whenever a run ends**, because nothing in it is ever the only copy
+        /// of anything - that is what <see cref="Stranded"/> is for.
         /// </summary>
         public const string Tmp = "tmp";
+
+        /// <summary>
+        /// Where an object's export waits while the object is out of the project - a move, or a
+        /// download taking it out of the wrong folder - and where it stays when it could not go
+        /// back in. See <see cref="StrandedFiles"/>.
+        ///
+        /// **Its own folder since 2026-09-22, and that was a fix.** These exports lived in
+        /// <see cref="Tmp"/>, and a run that stranded one kept the folder rather than clearing
+        /// it; but the next run that ended well cleared it, and so did every V17-V20 Load, whose
+        /// map reads titles through the same folder. The only copy of a block went with it.
+        /// Nothing ever clears this one.
+        /// </summary>
+        public const string Stranded = "stranded";
 
         /// <summary>
         /// The folder the sources used to be mirrored into. Named only so that a Load can take
@@ -78,6 +93,9 @@ namespace Core.Repo
 
         /// <summary>Where a download works, or null when the project directory is unknown.</summary>
         public static string TmpFor(string projectDirectory) => Under(projectDirectory, Tmp);
+
+        /// <summary>Where an object waits out of the project, or null when the project directory is unknown.</summary>
+        public static string StrandedFor(string projectDirectory) => Under(projectDirectory, Stranded);
 
         /// <summary>
         /// Where one of the core's sources lands before an import reads it: <c>tmp\</c> and the

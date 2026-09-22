@@ -38,16 +38,7 @@ namespace Core.Config.Validation
         {
             if (!issues.RequiredObject(path, metadata)) return;
 
-            // Present means one of the two. An empty string is not null: it is a value outside
-            // the set, and reading it as "no repository" would turn a half-typed word into a
-            // decision nobody made.
-            if (metadata.CoreSource != null &&
-                !string.Equals(metadata.CoreSource, Local, System.StringComparison.Ordinal) &&
-                !string.Equals(metadata.CoreSource, Remote, System.StringComparison.Ordinal))
-            {
-                issues.Add(Issues.Field(path, "coreSource"),
-                    "Must be " + Local + ", " + Remote + ", or null for no repository.");
-            }
+            CollectSource(metadata, path, issues);
 
             // Optional, but a version that is present and unreadable is worse than none:
             // it looks like it means something.
@@ -60,6 +51,24 @@ namespace Core.Config.Validation
             }
 
             // author and description are informative and deliberately unchecked.
+        }
+
+        /// <summary>
+        /// <c>coreSource</c> alone, for <see cref="RepositoryValidator.Validate"/>: which core a
+        /// project names is that action's concern, and a mistyped <c>version</c> beside it is not.
+        /// </summary>
+        internal static void CollectSource(Metadata metadata, string path, Issues issues)
+        {
+            // Present means one of the two. An empty string is not null: it is a value outside
+            // the set, and reading it as "no repository" would turn a half-typed word into a
+            // decision nobody made.
+            if (metadata.CoreSource != null &&
+                !string.Equals(metadata.CoreSource, Local, System.StringComparison.Ordinal) &&
+                !string.Equals(metadata.CoreSource, Remote, System.StringComparison.Ordinal))
+            {
+                issues.Add(Issues.Field(path, "coreSource"),
+                    "Must be " + Local + ", " + Remote + ", or null for no repository.");
+            }
         }
 
         /// <summary>

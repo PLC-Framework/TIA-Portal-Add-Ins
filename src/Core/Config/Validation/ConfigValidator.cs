@@ -27,7 +27,7 @@ namespace Core.Config.Validation
 
             MetadataValidator.Collect(config.Metadata, "metadata", issues);
 
-            Repositories(config, issues);
+            RepositoryValidator.CollectSelected(config, issues);
 
             string projectConfig = "projectConfig";
             if (issues.RequiredObject(projectConfig, config.ProjectConfig))
@@ -40,32 +40,6 @@ namespace Core.Config.Validation
             }
 
             return new ValidationResult(issues.All);
-        }
-
-        /// <summary>
-        /// Only the section <c>coreSource</c> selects. The other one is left alone
-        /// entirely - it is normal for a project to carry both and use one, and reporting
-        /// the unused half would train the reader to ignore the report.
-        /// </summary>
-        private static void Repositories(Config config, Issues issues)
-        {
-            string source = MetadataValidator.SourceOf(config.Metadata);
-
-            // Null means no repository - coreSource is null, or not one of the two, which is
-            // already reported and should not be complained about twice. Either way both
-            // sections are left alone, whatever state they are in.
-            if (source == null) return;
-
-            if (source == MetadataValidator.Remote)
-            {
-                RepositoryValidator.CollectRemote(
-                    config.CoreRemoteRepositoryConfig, "coreRemoteRepositoryConfig", issues);
-            }
-            else
-            {
-                RepositoryValidator.CollectLocal(
-                    config.CoreLocalRepositoryConfig, "coreLocalRepositoryConfig", issues);
-            }
         }
     }
 }

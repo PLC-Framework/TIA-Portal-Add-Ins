@@ -37,8 +37,13 @@ namespace Core.Repo.Local
         /// <summary>Nothing was copied.</summary>
         public bool IsRefused => Refusal != null;
 
-        /// <summary>Everything that was asked for is here.</summary>
-        public bool IsComplete => !IsRefused && Problems.Count == 0;
+        /// <summary>
+        /// Everything that was asked for is here. **Named as its remote twin names it**,
+        /// <see cref="Remote.RemoteCopyResult.Ready"/>: two results of one contract, read by the
+        /// same callers, should not need two words for one fact. It was `IsComplete` until
+        /// 2026-09-22.
+        /// </summary>
+        public bool Ready => !IsRefused && Problems.Count == 0;
 
         internal static LocalCopyResult Done(string folder, int files, IReadOnlyList<string> problems) =>
             new LocalCopyResult(folder, files, problems, null);

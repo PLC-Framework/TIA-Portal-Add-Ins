@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-using Core.DependencyGraph;
-
-using CoreGraph = Core.DependencyGraph.DependencyGraph;
+using Core.Repo.PlcCore.Graph;
 
 namespace Core.Repo.PlcCore
 {
@@ -21,10 +19,6 @@ namespace Core.Repo.PlcCore
     /// `_queue`; the core holds `_queue-v3.0`, and may hold three versions of it at once.
     /// Cross-checked against the real repository: **`base` equals `name` on all 264 nodes**,
     /// so the TIA symbol of a block *is* its base and the join needs no heuristic.
-    ///
-    /// > The graph type is aliased to `CoreGraph` because `Core.DependencyGraph` is both a
-    /// > namespace and the type inside it, and an unqualified use resolves to the namespace.
-    /// > Same trap as `AddIn.Core`, one layer down.
     /// </summary>
     public sealed class PlcCoreCatalog
     {
@@ -35,7 +29,7 @@ namespace Core.Repo.PlcCore
         private readonly Dictionary<string, Node> _byId;
         private readonly Dictionary<string, List<Node>> _byBase;
 
-        private PlcCoreCatalog(CoreGraph graph, string sourceFolder, string folderInRepository)
+        private PlcCoreCatalog(DependencyGraph graph, string sourceFolder, string folderInRepository)
         {
             Graph = graph;
             SourceFolder = sourceFolder;
@@ -66,7 +60,7 @@ namespace Core.Repo.PlcCore
             }
         }
 
-        public CoreGraph Graph { get; }
+        public DependencyGraph Graph { get; }
 
         /// <summary>
         /// Where the core's sources are brought before an import reads them - the project's
@@ -95,7 +89,7 @@ namespace Core.Repo.PlcCore
         /// <summary>When the repository generated this graph, as it wrote it.</summary>
         public string GeneratedAt => Graph.GeneratedAt;
 
-        public static PlcCoreCatalog Of(CoreGraph graph, string sourceFolder, string folderInRepository) =>
+        public static PlcCoreCatalog Of(DependencyGraph graph, string sourceFolder, string folderInRepository) =>
             graph == null ? null : new PlcCoreCatalog(graph, sourceFolder, folderInRepository);
 
         /// <summary>One node by its id - <c>_queue-v3.0</c> - or null.</summary>
@@ -200,24 +194,5 @@ namespace Core.Repo.PlcCore
                 ? file.Substring(prefix.Length)
                 : null;
         }
-    }
-
-    /// <summary>
-    /// The closed set a node's <c>status</c> comes from, spelled once.
-    ///
-    /// Taken verbatim from a hand-written TITLE, so anything outside the two is **unknown**
-    /// rather than assumed current - a block whose status nobody can read is not a block to
-    /// report as up to date.
-    /// </summary>
-    public static class PlcCoreStatus
-    {
-        public const string Current = "current";
-        public const string Deprecated = "deprecated";
-
-        public static bool IsCurrent(string status) => string.Equals(status, Current, StringComparison.Ordinal);
-
-        public static bool IsDeprecated(string status) => string.Equals(status, Deprecated, StringComparison.Ordinal);
-
-        public static bool IsKnown(string status) => IsCurrent(status) || IsDeprecated(status);
     }
 }

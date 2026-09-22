@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 
 using Core.Config.Validation;
-using Core.DependencyGraph;
+using Core.Repo.PlcCore.Graph;
 
 namespace Core.Repo.PlcCore
 {

@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace Core.DependencyGraph
+namespace Core.Repo.PlcCore.Graph
 {
     /// <summary>
     /// One diagnostic about the graph. Level, Type and Message are always present;

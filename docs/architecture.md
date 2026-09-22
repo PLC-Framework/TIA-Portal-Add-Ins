@@ -57,6 +57,7 @@ src/Satellite.DataBlockSnapshot/
 src/Core/
 ├── Core.csproj               SDK-style net48, AnyCPU
 ├── Product.cs                literals shared by every consumer
+├── SafeFile.cs               write beside the destination and swap it in — every file repo\ writes
 ├── InstallPaths.cs           C:\Program Files\PLC-Framework\ and %LOCALAPPDATA%\...\ per user
 ├── Config/
 │   ├── ConfigLoader.cs       config.json → Config, and why it could not be read
@@ -71,24 +72,26 @@ src/Core/
 ├── Checks/                   the coding-style check, pure: handed names, returns rows
 │   ├── CodingStyleChecker.cs names against the rules, with a match timeout
 │   ├── SimaticMlInterface.cs an exported interface → members, each with its own name and its parents
-│   ├── CheckedObject.cs · CheckedMembers.cs · CheckRow.cs · ObjectFamily.cs
+│   ├── CheckedObject.cs · CheckedMember.cs · CheckedMembers.cs · CheckRow.cs · ObjectFamily.cs
 │   └── StyleReport.cs        the report document the Add-In sends and the satellite reads
 ├── Exports/
 │   └── ExportTree.cs         where an exported object goes: exports\ shaped like the project
 ├── Repo/                     the core a project is built on, and the workspace for it
 │   ├── RepoPaths.cs          what lives inside .plc-framework\repo\
+│   ├── StrandedFiles.cs      repo\stranded\: an object's export while it is out of the project
 │   ├── Local/                a core that is a folder on this machine
 │   │   ├── LocalSource.cs    where it is, resolved to paths
 │   │   ├── LocalCopy.cs      the graph into repo\ on a Load, a download's sources into tmp\
 │   │   └── LocalCopyResult.cs   how many files, and what would not copy
 │   ├── Remote/               a core that is a repository this machine has not got
-│   │   ├── IRemotePlcCore.cs    the port: open it, list a folder, read one file
+│   │   ├── IRemotePlcCore.cs    the port: open a repository — IRemoteFiles.cs lists and reads it
 │   │   ├── RemoteCopy.cs        the same two calls over a wire, fetching only what changed
 │   │   ├── RemoteCopyResult.cs  downloaded, kept, and the commit it read
 │   │   └── PlcCoreOrigin.cs     which commit, on which host — repo\core.origin.json
 │   ├── Git/                  what every git host shares, whoever hosts it
 │   │   └── GitBlobSha.cs     git's own content hash, so the copy is its own index
 │   ├── PlcCore/              the PLC core itself: core.json and what a core object carries
+│   │   ├── Graph/                   the core.json model: DependencyGraph, Node, Edge, Report
 │   │   ├── PlcCoreCatalog.cs        a core that has been read: the graph, plus lookup by id and base
 │   │   ├── PlcCoreCatalogLoader.cs  core.json → PlcCoreCatalog, and why it could not be read
 │   │   ├── PlcCoreValidator.cs      what is wrong with one that loaded — as ValidationIssues
@@ -106,11 +109,14 @@ src/Core/
 │   ├── ImportReport.cs       what it actually did, object by object
 │   └── SyncPlan.cs           what is in the wrong folder, where it belongs, and how a move went
 ├── Places.cs                 "*" for the general program, spelled once for every reader
-├── Secrets/
-│   ├── DotEnv.cs             the per-user .env: read, and written back surgically
-│   └── Variables.cs          ${NAME} references — pure, given a lookup
-└── DependencyGraph/          core.json model (DependencyGraph, Node, Edge, Report)
+└── Secrets/
+    ├── DotEnv.cs             the per-user .env: read, and written back surgically
+    └── Variables.cs          ${NAME} references — pure, given a lookup
 ```
+
+> **One file per type, so the tree above names the ones a reader looks for first rather than all 95.** Every class, interface and enum has a `.cs` of its own named after it — `PlcCoreRefreshResult.cs` beside `PlcCoreRefresh.cs`, `PlannedNode.cs` and `DownloadAction.cs` beside `DownloadPlan.cs` — which is the maintainer's rule since 2026-09-22. A private nested type stays inside its owner: it is part of that type, not a second one.
+
+> **The `core.json` model sits under `PlcCore\Graph\`** and not at `Core`'s root, where it was `Core.DependencyGraph` until 2026-09-22: it is what the PLC core's graph *is*, so it belongs on that side of the split like the catalogue that reads it. It also ends an alias — the namespace carried a type of its own name, so `DependencyGraph` unqualified resolved to the namespace, and two files needed `using CoreGraph = Core.DependencyGraph.DependencyGraph` to say which they meant. The four types kept their names: they mirror the generator's own models, and were checked against them field by field.
 
 ```
 src/AddIn.Shared/
@@ -406,7 +412,7 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `.gitignore` | `Satellite.ConfigEditor`, only when absent | **yes** |
 | `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx`, and the Add-In's export → a tree shaped like the project's, `<PLC>\Program blocks\03-ALL\_oc_seq2.xml` and every other format that block has beside it | no |
 | `logs\` | what a run recorded about itself | no |
-| `repo\` | the core update → `core.json` the core's graph as the last Load read it, `core.origin.json` which commit that was when the core is remote, `project.json` what the TIA project holds, `tmp\` the sources a download is about to import and what a move is carrying | no |
+| `repo\` | the core update → `core.json` the core's graph as the last Load read it, `core.origin.json` which commit that was when the core is remote, `project.json` what the TIA project holds, `tmp\` the sources a download is about to import, `stranded\` an object's export while it is out of the project — and after, when it could not go back in | no |
 | `tmp\` | the coding-style check, while it reads an interface → `coding-style-<timestamp>\`, deleted when the run ends | no |
 | `reports\` | `Satellite.CodingStyleReport`, on export → `<project>-coding-style-<timestamp>.xlsx` | no |
 

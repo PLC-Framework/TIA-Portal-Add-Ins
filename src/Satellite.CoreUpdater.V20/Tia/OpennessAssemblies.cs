@@ -270,8 +270,8 @@ namespace Satellite.CoreUpdater.Tia
         /// A subkey name as a comparable version.
         ///
         /// **`System.Version` written out, because this class has a constant called
-        /// `Version`** and a member name shadows the type - the same trap `AddIn.Core` and
-        /// the `CoreGraph` alias in `PlcCoreCatalog` already record, met a third time.
+        /// `Version`** and a member name shadows the type - the same trap `AddIn.Core` records, and the one
+        /// `Core.DependencyGraph` fell into until the core's graph moved under `PlcCore`.
         /// </summary>
         private static System.Version Compare(string name)
         {

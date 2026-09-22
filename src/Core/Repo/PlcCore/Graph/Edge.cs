@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Runtime.Serialization;
 
-namespace Core.DependencyGraph
+namespace Core.Repo.PlcCore.Graph
 {
     /// <summary>
     /// One declared dependency. An edge only ever takes one of three shapes, and

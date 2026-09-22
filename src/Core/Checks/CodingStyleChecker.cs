@@ -39,14 +39,12 @@ namespace Core.Checks
         private readonly CodingStyle _style;
         private readonly Dictionary<string, Regex> _objectRules;
         private readonly Dictionary<string, Regex> _interfaceRules;
-        private readonly HashSet<string> _broken;
 
         public CodingStyleChecker(CodingStyle style, TimeSpan? matchTimeout = null)
         {
             _style = style;
 
             TimeSpan timeout = matchTimeout ?? DefaultMatchTimeout;
-            _broken = new HashSet<string>(StringComparer.Ordinal);
 
             // Compiled once here, which is the other half of a note in CodingStyleValidator:
             // it throws its Regex away because caching belongs to whoever actually matches
@@ -55,9 +53,6 @@ namespace Core.Checks
             _objectRules = Compile(style?.Catalogue, timeout);
             _interfaceRules = Compile(style?.InterfaceRules, timeout);
         }
-
-        /// <summary>Rule ids whose pattern would not compile. They match nothing and say so.</summary>
-        public IReadOnlyCollection<string> BrokenRules => _broken;
 
         private Dictionary<string, Regex> Compile(IEnumerable<Rule> rules, TimeSpan timeout)
         {
@@ -76,9 +71,9 @@ namespace Core.Checks
                 catch (ArgumentException)
                 {
                     // The validator reports this properly, with a path into the document.
-                    // Here it only has to not throw: a broken rule matches nothing, and every
-                    // row that was offered it says so rather than quietly passing.
-                    _broken.Add(rule.Id);
+                    // Here it only has to not throw: a broken rule is left out of the compiled
+                    // set, so it matches nothing, and every row that was offered it says so
+                    // rather than quietly passing - see Match.
                 }
             }
 

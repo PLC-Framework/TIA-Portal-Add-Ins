@@ -170,49 +170,4 @@ namespace Core.Repo.PlcProject
             }
         }
     }
-
-    /// <summary>One kind the project holds, and what languages it is written in.</summary>
-    public sealed class SurveyedKind
-    {
-        public SurveyedKind(string name, int count, IReadOnlyList<Counted> languages)
-        {
-            Name = name;
-            Count = count;
-            Languages = languages ?? new List<Counted>();
-        }
-
-        /// <summary>As <c>Core.Config.CodingStyleNames</c> spells it.</summary>
-        public string Name { get; }
-
-        public int Count { get; }
-
-        /// <summary>
-        /// The languages found inside this kind, most numerous first. **Empty is an ordinary
-        /// answer**: a PLC data type and a tag table have no programming language at all.
-        /// </summary>
-        public IReadOnlyList<Counted> Languages { get; }
-
-        public override string ToString() => Name + " (" + Count + ")";
-    }
-
-    /// <summary>One name and how many of it there are.</summary>
-    public sealed class Counted
-    {
-        public Counted(string name, int count)
-        {
-            Name = name;
-            Count = count;
-        }
-
-        public string Name { get; }
-
-        public int Count { get; }
-
-        /// <summary>
-        /// What a tick box shows: <c>SCL (312)</c>. **`ToString` and not a template binding**,
-        /// because a bound object's `ToString` is also what a screen reader and a test read -
-        /// the trap `GroupNode` and `DataBlockItem` both hit before this.
-        /// </summary>
-        public override string ToString() => Name + " (" + Count + ")";
-    }
 }

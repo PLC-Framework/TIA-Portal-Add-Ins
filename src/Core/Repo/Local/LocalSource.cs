@@ -58,6 +58,10 @@ namespace Core.Repo.Local
         /// where a configuration prepared for another station is not wrong because a drive
         /// is not mapped here. <see cref="Exists"/> asks that question when somebody wants it
         /// asked.
+        ///
+        /// **Its empty-field checks are a guard, not the validation.** `PlcCoreRefresh` runs
+        /// `RepositoryValidator.Validate` first and refuses by path in the file; these stay so a
+        /// caller that did not cannot be handed a source built on nothing.
         /// </summary>
         public static LocalSource Of(CoreLocalRepositoryConfig local)
         {

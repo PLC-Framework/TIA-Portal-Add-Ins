@@ -4,8 +4,8 @@ using System.IO;
 
 using Core.Config;
 using Core.Config.Validation;
-using Core.DependencyGraph;
 using Core.Repo.Local;
+using Core.Repo.PlcCore.Graph;
 using Core.Repo.Remote;
 using Core.Secrets;
 
@@ -133,7 +133,7 @@ namespace Core.Repo.PlcCore
             if (read.Catalog == null) return PlcCoreRefreshResult.Failed(read.Error);
 
             return PlcCoreRefreshResult.Read(
-                read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied, repository.CoreFolder);
+                read.Catalog, PlcCoreValidator.Validate(read.Catalog), repository.CoreFolder);
         }
 
         /// <summary>
@@ -220,22 +220,30 @@ namespace Core.Repo.PlcCore
 
             if (loaded.Config == null) return Origin.Refused(loaded.Error);
 
-            string source = loaded.Config.Metadata?.CoreSource;
-
-            // Absent and null are the same answer, and it is an answer rather than a fault.
-            if (string.IsNullOrWhiteSpace(source))
+            // Absent and null are the same answer, and it is an answer rather than a fault. Only
+            // null, though: an empty string is a value outside the set, which is how the contract
+            // reads it and what the validator below says - this read it as "no core" until
+            // 2026-09-22, turning a half-typed word into a decision nobody made.
+            if (loaded.Config.Metadata != null && loaded.Config.Metadata.CoreSource == null)
                 return Origin.Refused(
                     "This project names no core: metadata.coreSource is null. " +
                     "Set it in the Config. Editor to compare against one.", false);
 
-            if (string.Equals(source, MetadataValidator.Remote, StringComparison.Ordinal))
-                return Remote(loaded.Config.CoreRemoteRepositoryConfig, remote);
+            // **This concern's own validator, before anything touches the disk or the wire** -
+            // the rule the hierarchy and the coding-style check already keep: hand-editing
+            // bypasses the editor, so what the editor would refuse is refused here too, each
+            // problem named by its path in the file.
+            ValidationResult check = RepositoryValidator.Validate(loaded.Config);
 
-            if (!string.Equals(source, MetadataValidator.Local, StringComparison.Ordinal))
-                return Origin.Refused("metadata.coreSource is '" + source + "', which is neither 'local' nor 'remote'.");
+            if (!check.IsValid) return Origin.Refused(Invalid(check));
+
+            if (MetadataValidator.SourceOf(loaded.Config.Metadata) == MetadataValidator.Remote)
+                return Remote(loaded.Config.CoreRemoteRepositoryConfig, remote);
 
             LocalSource repository = LocalSource.Of(loaded.Config.CoreLocalRepositoryConfig);
 
+            // The fields are all there by now; what is left is a path Windows will not take,
+            // which only resolving it can find.
             if (!repository.Resolved) return Origin.Refused(repository.Problem);
 
             // Environmental, and asked here rather than in LocalSource for the reason that type
@@ -247,22 +255,19 @@ namespace Core.Repo.PlcCore
             return missing != null ? Origin.Refused(missing) : new Origin { Local = repository };
         }
 
+        /// <summary>
+        /// A remote section the validator has already passed: present, every required field
+        /// filled, an absolute `apiUrl`, and a provider this framework speaks.
+        ///
+        /// **The provider is still refused before a client ever sees it**, which is the refusal
+        /// that matters - a client for one host handed another host's configuration would read
+        /// owner and repository off it and talk to the wrong place, the one failure that would
+        /// look like an empty core. It is simply the validator's refusal now rather than a second
+        /// copy of it written out here.
+        /// </summary>
         private static Origin Remote(CoreRemoteRepositoryConfig repository, IRemotePlcCore remote)
         {
-            if (repository == null)
-                return Origin.Refused(
-                    "This project reads its core from a repository, but names none: " +
-                    "coreRemoteRepositoryConfig is missing.");
-
             string provider = RepositoryValidator.ProviderOf(repository);
-
-            // Asked here rather than left to the port: a client for one host handed another
-            // host's configuration would read owner and repository off it and talk to the wrong
-            // place, which is the one failure that would look like an empty core.
-            if (!RepositoryValidator.Knows(provider))
-                return Origin.Refused(
-                    "This project reads its core from '" + provider + "', which this framework " +
-                    "cannot speak. Today it knows " + RepositoryValidator.GitHub + ".");
 
             if (remote == null)
                 return Origin.Refused(
@@ -270,6 +275,32 @@ namespace Core.Repo.PlcCore
                     "reach it. Open the core updater, which can.");
 
             return new Origin { Remote = repository, Port = remote, Token = Token(repository.Token) };
+        }
+
+        /// <summary>How many problems a refusal names before it counts the rest - the hierarchy's number.</summary>
+        private const int ListedProblems = 10;
+
+        /// <summary>
+        /// The validator's problems as one sentence, each by its path in the file. **One line**,
+        /// unlike the hierarchy's refusal: that one is a message box, and this lands under the
+        /// core tree in a caption that trims with the whole of it on hover.
+        /// </summary>
+        private static string Invalid(ValidationResult check)
+        {
+            List<string> named = new List<string>();
+
+            foreach (ValidationIssue issue in check.Issues)
+            {
+                if (named.Count == ListedProblems) break;
+                named.Add(issue.ToString());
+            }
+
+            int rest = check.Issues.Count - named.Count;
+
+            // Each message is a sentence already - "Required.", "Must be github, ..." - so they
+            // are strung together as sentences rather than joined with a separator.
+            return "The core cannot be read: " + ConfigPaths.File + " has problems - " + string.Join(" ", named) +
+                   (rest > 0 ? " And " + rest + " more." : string.Empty) + " Open the Config. Editor to fix them.";
         }
 
         /// <summary>
@@ -322,131 +353,5 @@ namespace Core.Repo.PlcCore
             // Still a reference: nobody answered it.
             return Variables.References(expanded).Count > 0 ? null : expanded;
         }
-    }
-
-    /// <summary>What came of refreshing a project's core: the catalogue, or why there is none.</summary>
-    public sealed class PlcCoreRefreshResult
-    {
-        private PlcCoreRefreshResult(
-            PlcCoreCatalog catalog, ValidationResult issues, LocalCopyResult copied, RemoteCopyResult fetched,
-            string source, string problem, bool names)
-        {
-            Catalog = catalog;
-            Issues = issues;
-            Copied = copied;
-            Fetched = fetched;
-            Source = source;
-            Problem = problem;
-            NamesCore = names;
-        }
-
-        /// <summary>
-        /// Where this core came from, in one line: the repository's core folder for a local one,
-        /// and <c>owner/repo@branch on host, commit abc1234</c> for a remote one.
-        ///
-        /// **It is the live answer, not the marker read back.** `repo\core.origin.json` records
-        /// the same thing for whoever opens the folder later; this is what the run that just
-        /// happened knows, and a result must never describe a core other than the one it read.
-        /// </summary>
-        public string Source { get; }
-
-        /// <summary>The core as the project now holds it, or null.</summary>
-        public PlcCoreCatalog Catalog { get; }
-
-        /// <summary>
-        /// What is wrong with the graph that loaded, as `ValidationIssue`s - the config
-        /// validators' own type, so one window shows both kinds.
-        ///
-        /// **Reported without stopping the comparison.** A core with a dangling edge still says
-        /// which versions are current, and refusing to compare over a problem in the repository
-        /// would punish the project for it.
-        /// </summary>
-        public ValidationResult Issues { get; }
-
-        /// <summary>What copying the local graph did, or null when the core is remote.</summary>
-        public LocalCopyResult Copied { get; }
-
-        /// <summary>
-        /// What came down the wire, or null when the core is local. **At most one of the two is
-        /// ever set**: a core comes from one place.
-        /// </summary>
-        public RemoteCopyResult Fetched { get; }
-
-        /// <summary>Why there is no catalogue, or null when there is one.</summary>
-        public string Problem { get; }
-
-        /// <summary>
-        /// Whether the project asks for a core at all.
-        ///
-        /// **False is not a failure**, and the difference matters on screen: "this project uses
-        /// no core" is a fact about the project, where "the repository is not on this machine"
-        /// is something to go and fix.
-        /// </summary>
-        public bool NamesCore { get; }
-
-        public bool Ready => Catalog != null;
-
-        public static PlcCoreRefreshResult Read(
-            PlcCoreCatalog catalog, ValidationResult issues, LocalCopyResult copied, string source) =>
-            new PlcCoreRefreshResult(catalog, issues, copied, null, source, null, true);
-
-        public static PlcCoreRefreshResult Fetch(
-            PlcCoreCatalog catalog, ValidationResult issues, RemoteCopyResult fetched, string source) =>
-            new PlcCoreRefreshResult(catalog, issues, null, fetched, source, null, true);
-
-        public static PlcCoreRefreshResult Failed(string problem) =>
-            new PlcCoreRefreshResult(null, null, null, null, null, problem ?? "The core could not be read.", true);
-
-        public static PlcCoreRefreshResult NoCore(string why) =>
-            new PlcCoreRefreshResult(null, null, null, null, null, why, false);
-    }
-
-    /// <summary>What came of bringing a download's sources into <c>repo\tmp\</c>.</summary>
-    public sealed class PlcCoreSourcesResult
-    {
-        private static readonly string[] Nothing = new string[0];
-
-        private PlcCoreSourcesResult(
-            string folder, string commit, int brought, int kept, IReadOnlyList<string> problems, string refusal)
-        {
-            Folder = folder;
-            Commit = commit;
-            Brought = brought;
-            Kept = kept;
-            Problems = problems ?? Nothing;
-            Refusal = refusal;
-        }
-
-        /// <summary>Where the sources are: the project's <c>repo\tmp\</c>.</summary>
-        public string Folder { get; }
-
-        /// <summary>
-        /// The commit they were read at - the branch's head at that moment - or null for a local
-        /// core, which has no commit to name. Held against the one the Load read, it says
-        /// whether the core moved under the comparison the download was planned from.
-        /// </summary>
-        public string Commit { get; }
-
-        /// <summary>How many were copied or came down.</summary>
-        public int Brought { get; }
-
-        /// <summary>How many were already there as the repository has them.</summary>
-        public int Kept { get; }
-
-        /// <summary>Sources that could not be brought, one line each.</summary>
-        public IReadOnlyList<string> Problems { get; }
-
-        /// <summary>Why nothing was attempted at all, or null.</summary>
-        public string Refusal { get; }
-
-        /// <summary>Every source asked for is there. Anything short of it should stop the import.</summary>
-        public bool Ready => Refusal == null && Problems.Count == 0;
-
-        internal static PlcCoreSourcesResult Done(
-            string folder, string commit, int brought, int kept, IReadOnlyList<string> problems) =>
-            new PlcCoreSourcesResult(folder, commit, brought, kept, problems, null);
-
-        internal static PlcCoreSourcesResult Refused(string refusal) =>
-            new PlcCoreSourcesResult(null, null, 0, 0, Nothing, refusal ?? "The sources could not be brought down.");
     }
 }

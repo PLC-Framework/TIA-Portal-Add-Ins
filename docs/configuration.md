@@ -158,12 +158,15 @@ The same reasoning caught a second file. `config.template.json` was first placed
 
 Built 2026-09-09, in `Core/Config/Validation/`. The contract above says what is required; this says how it is checked.
 
-**There are two entry points and choosing the wrong one is a design error, not a preference:**
+**The entry point is chosen by concern, and choosing the wrong one is a design error, not a preference:**
 
 ```csharp
 ConfigValidator.Validate(config);            // the whole document — the editor, before saving
 HierarchyValidator.Validate(hierarchy);      // one concern — an action, before acting
+RepositoryValidator.Validate(config);        // which core: coreSource, and the section it selects
 ```
+
+That third one is a concern rather than a section, which is why it takes the whole document: `metadata.coreSource` decides which repository section counts, so neither reads without the other. It deliberately leaves the rest of `metadata` alone — a mistyped `version` is not a reason to refuse a core. `PlcCoreRefresh` calls it before it touches the disk or the network, so an empty `owner` is reported as `coreRemoteRepositoryConfig.owner: Required.` rather than by the client, three layers down, in words that name no field of `config.json`.
 
 An action reads one section and must refuse to run only over problems *in that section*. `CreateProjectHierarchyAction` calling the composite would let a broken `codingStyle` stop a folder tree that is perfectly fine, and "required" would quietly become a property of the document rather than of the concern that needs it.
 

@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Runtime.Serialization.Json;
 
-using CoreGraph = Core.DependencyGraph.DependencyGraph;
+using Core.Repo.PlcCore.Graph;
 
 namespace Core.Repo.PlcCore
 {
@@ -92,7 +92,7 @@ namespace Core.Repo.PlcCore
 
                 using (MemoryStream payload = new MemoryStream(bytes, offset, bytes.Length - offset, false))
                 {
-                    CoreGraph graph = new DataContractJsonSerializer(typeof(CoreGraph)).ReadObject(payload) as CoreGraph;
+                    DependencyGraph graph = new DataContractJsonSerializer(typeof(DependencyGraph)).ReadObject(payload) as DependencyGraph;
 
                     return graph == null
                         ? PlcCoreLoadResult.Failed(Describe(source, "is not a dependency file."))

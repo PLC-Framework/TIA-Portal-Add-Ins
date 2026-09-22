@@ -11,11 +11,11 @@ using System.Windows.Threading;
 
 using Core;
 using Core.Config.Validation;
-using Core.DependencyGraph;
 using Core.Repo;
 using Core.Repo.Local;
-using Core.Repo.PlcProject;
 using Core.Repo.PlcCore;
+using Core.Repo.PlcCore.Graph;
+using Core.Repo.PlcProject;
 using Core.Repo.Remote;
 
 using Satellite.CoreUpdater.Compare;
@@ -931,7 +931,7 @@ namespace Satellite.CoreUpdater
                 foreach (ValidationIssue issue in done.Core.Issues.Issues)
                     problems.Add(issue.Path + ": " + issue.Message);
 
-            Problems(problems.Count == 0 ? null : Listed(problems));
+            Problems(Paragraphs(StrandedWarning(), problems.Count == 0 ? null : Listed(problems)));
 
             // What *Sync folders with core* would act on is exactly what the comparison just
             // found misplaced, so the button is decided here rather than kept in step by hand.
@@ -1988,7 +1988,54 @@ namespace Satellite.CoreUpdater
             if (problem != null) problems.Add(problem);
             if (map.Problems != null) problems.AddRange(map.Problems);
 
-            Problems(problems.Count == 0 ? null : Listed(problems));
+            Problems(Paragraphs(StrandedWarning(), problems.Count == 0 ? null : Listed(problems)));
+        }
+
+        /// <summary>
+        /// What is waiting in <c>repo\stranded\</c>, as a paragraph of its own, or null when
+        /// nothing is.
+        ///
+        /// **Said on every Load until somebody deals with it**, above anything else under the
+        /// panels. Each file there is an export that may be the only copy of an object that is no
+        /// longer in the project - a move or a download that took it out and could not put it
+        /// back - and the report that named it the first time is gone the moment the window
+        /// reloads. It used to sit in <c>repo\tmp\</c> and be cleared by the next run that ended
+        /// well; that it survives now is only worth anything if somebody is told it is there.
+        ///
+        /// **Not one of <see cref="Listed"/>'s lines**: those are things that would not read, and
+        /// this is the opposite - something that is there and must not be overlooked.
+        /// </summary>
+        private string StrandedWarning()
+        {
+            const int Most = 12;
+
+            IReadOnlyList<string> files = StrandedFiles.In(_projectDirectory);
+
+            if (files.Count == 0) return null;
+
+            List<string> lines = new List<string>
+            {
+                (files.Count == 1 ? "One export" : files.Count + " exports") + " in " +
+                RepoPaths.StrandedFor(_projectDirectory) +
+                " may be the only copy of an object no longer in the project:"
+            };
+
+            foreach (string file in files.Take(Most)) lines.Add("    " + System.IO.Path.GetFileName(file));
+
+            if (files.Count > Most) lines.Add("    …and " + (files.Count - Most) + " more");
+
+            lines.Add("Import each one back in TIA Portal, or delete it once its object is back.");
+
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        /// <summary>The parts that have something to say, a blank line between each.</summary>
+        private static string Paragraphs(params string[] parts)
+        {
+            string joined = string.Join(
+                Environment.NewLine + Environment.NewLine, parts.Where(part => !string.IsNullOrEmpty(part)));
+
+            return joined.Length == 0 ? null : joined;
         }
 
         /// <summary>
