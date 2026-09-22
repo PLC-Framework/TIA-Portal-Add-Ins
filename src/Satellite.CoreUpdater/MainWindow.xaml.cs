@@ -12,8 +12,10 @@ using System.Windows.Threading;
 using Core;
 using Core.Config.Validation;
 using Core.Repo;
+using Core.Repo.Local;
 using Core.Repo.PlcProject;
 using Core.Repo.PlcCore;
+using Core.Repo.Remote;
 
 using Satellite.CoreUpdater.Compare;
 using Satellite.CoreUpdater.Download;
@@ -908,7 +910,7 @@ namespace Satellite.CoreUpdater
             _scope = done.Map?.Unit;
 
             ProjectSays(Summary(done));
-            RepositorySays(Offered(done.Result));
+            RepositorySays(Offered(done));
 
             Chips(done.Result);
             Project(done.Result);
@@ -994,7 +996,69 @@ namespace Satellite.CoreUpdater
                 all - foreign, all);
         }
 
-        private static string Offered(CoreComparison result)
+        /// <summary>
+        /// The line under the core tree: **which core this was, what it cost to have it, and
+        /// what is in it.**
+        ///
+        /// **Which core comes first**, because it is what the rest of the line is about - and
+        /// because until this was written the panel could not say it at all: a local core and a
+        /// remote one at a named commit read identically, which is the half-truth this window
+        /// has spent six stages refusing everywhere else.
+        ///
+        /// **What it cost is only said when it was not nothing.** A remote refresh that
+        /// downloaded no file because the copy was already right is the ordinary second run, and
+        /// announcing "0 downloaded, 249 already here" every time would bury the one run where a
+        /// number is worth reading.
+        ///
+        /// It is one line, trimmed, whole in the tooltip - what this framework does to any
+        /// caption it cannot fit.
+        /// </summary>
+        private static string Offered(Comparison done)
+        {
+            string counts = Counted(done.Result);
+            string where = done.Core?.Source;
+
+            if (string.IsNullOrWhiteSpace(where)) return counts;
+
+            string cost = Cost(done.Core);
+
+            return "Repository — " + where + (cost == null ? string.Empty : " (" + cost + ")") +
+                   " — " + counts.Substring("Repository — ".Length);
+        }
+
+        /// <summary>
+        /// What the last refresh moved, or null when it moved nothing worth saying.
+        ///
+        /// **A remote one counts downloads against what it kept**, which is what makes the
+        /// hash-compared mirror visible: the second run fetches nothing at all. A local one
+        /// copies every file every time, so its own count says nothing - only what it *removed*
+        /// does, because that is the core having dropped a block.
+        /// </summary>
+        private static string Cost(PlcCoreRefreshResult core)
+        {
+            RemoteCopyResult fetched = core.Fetched;
+
+            if (fetched != null)
+            {
+                if (fetched.Downloaded == 0 && fetched.Removed == 0) return null;
+
+                string said = string.Format(
+                    CultureInfo.CurrentCulture, "{0} downloaded, {1} already here",
+                    fetched.Downloaded, fetched.Kept);
+
+                return fetched.Removed == 0
+                    ? said
+                    : said + string.Format(CultureInfo.CurrentCulture, ", {0} removed", fetched.Removed);
+            }
+
+            LocalCopyResult copied = core.Copied;
+
+            if (copied == null || copied.Removed == 0) return null;
+
+            return string.Format(CultureInfo.CurrentCulture, "{0} removed", copied.Removed);
+        }
+
+        private static string Counted(CoreComparison result)
         {
             int held = 0;
             int other = 0;

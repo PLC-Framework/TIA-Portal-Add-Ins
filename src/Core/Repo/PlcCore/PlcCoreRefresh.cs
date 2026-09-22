@@ -92,7 +92,8 @@ namespace Core.Repo.PlcCore
 
             if (read.Catalog == null) return PlcCoreRefreshResult.Failed(read.Error);
 
-            return PlcCoreRefreshResult.Read(read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied);
+            return PlcCoreRefreshResult.Read(
+                read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied, repository.CoreFolder);
         }
 
         /// <summary>
@@ -160,10 +161,15 @@ namespace Core.Repo.PlcCore
 
                     if (read.Catalog == null) return PlcCoreRefreshResult.Failed(read.Error);
 
-                    CoreOrigin.Write(
-                        CoreOrigin.Of(repository, copied, copied.Downloaded + copied.Kept), projectDirectory);
+                    // Built once and used twice: the marker on disk, for whoever looks into
+                    // `repo\` later, and the line the window puts under the core tree now. Two
+                    // renderings of one fact would be two things to keep in step.
+                    CoreOrigin origin = CoreOrigin.Of(repository, copied, copied.Downloaded + copied.Kept);
 
-                    return PlcCoreRefreshResult.Fetch(read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied);
+                    CoreOrigin.Write(origin, projectDirectory);
+
+                    return PlcCoreRefreshResult.Fetch(
+                        read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied, origin.ToString());
                 }
             }
             catch (Exception exception)
@@ -205,15 +211,30 @@ namespace Core.Repo.PlcCore
     {
         private PlcCoreRefreshResult(
             PlcCoreCatalog catalog, ValidationResult issues, LocalCopyResult copied, RemoteCopyResult fetched,
-            string problem, bool names)
+            string source, string problem, bool names)
         {
             Catalog = catalog;
             Issues = issues;
             Copied = copied;
             Fetched = fetched;
+            Source = source;
             Problem = problem;
             NamesCore = names;
         }
+
+        /// <summary>
+        /// Where this core came from, in one line: the repository folder for a local one, and
+        /// <c>owner/repo@branch on host, commit abc1234</c> for a remote one.
+        ///
+        /// **It is the live answer, not the marker read back.** `repo\core.origin.json` records
+        /// the same thing for whoever opens the folder later; this is what the run that just
+        /// happened knows, and a result must never describe a core other than the one it read.
+        ///
+        /// **Both halves answer it, which is the point.** Until now nothing could say which core
+        /// a comparison was against - and a local core is exactly the case that needed it most,
+        /// being named by a folder that moves on with nothing recording which state it was in.
+        /// </summary>
+        public string Source { get; }
 
         /// <summary>The core as the project now holds it, or null.</summary>
         public PlcCoreCatalog Catalog { get; }
@@ -252,16 +273,18 @@ namespace Core.Repo.PlcCore
 
         public bool Ready => Catalog != null;
 
-        public static PlcCoreRefreshResult Read(PlcCoreCatalog catalog, ValidationResult issues, LocalCopyResult copied) =>
-            new PlcCoreRefreshResult(catalog, issues, copied, null, null, true);
+        public static PlcCoreRefreshResult Read(
+            PlcCoreCatalog catalog, ValidationResult issues, LocalCopyResult copied, string source) =>
+            new PlcCoreRefreshResult(catalog, issues, copied, null, source, null, true);
 
-        public static PlcCoreRefreshResult Fetch(PlcCoreCatalog catalog, ValidationResult issues, RemoteCopyResult fetched) =>
-            new PlcCoreRefreshResult(catalog, issues, null, fetched, null, true);
+        public static PlcCoreRefreshResult Fetch(
+            PlcCoreCatalog catalog, ValidationResult issues, RemoteCopyResult fetched, string source) =>
+            new PlcCoreRefreshResult(catalog, issues, null, fetched, source, null, true);
 
         public static PlcCoreRefreshResult Failed(string problem) =>
-            new PlcCoreRefreshResult(null, null, null, null, problem ?? "The core could not be read.", true);
+            new PlcCoreRefreshResult(null, null, null, null, null, problem ?? "The core could not be read.", true);
 
         public static PlcCoreRefreshResult NoCore(string why) =>
-            new PlcCoreRefreshResult(null, null, null, null, why, false);
+            new PlcCoreRefreshResult(null, null, null, null, null, why, false);
     }
 }
