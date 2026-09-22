@@ -467,7 +467,7 @@ The `Coding style` section is where the editor stops being a form and starts pre
 - **A value the set does not hold is shown as it is**, not blanked, and `Save` stays off with the problem named in the status line. Blanking it would let the next edit anywhere on the form write a decision nobody made over somebody's typo.
 - **It is written only into a remote section that already exists.** The other fields write back empty and create nothing; a provider always has a value, so writing it unconditionally would plant a whole remote section in a purely local configuration.
 
-`config.json` always carries the token as a `${VARIABLE}` reference — `${GITHUB_TOKEN}` for `github` — never the secret, which goes to the per-user `.env`. The field is masked with the same twin-control eye as the PLC password, and the `.env` is written **before** the JSON — there is no point leaving a `config.json` behind that references a variable nobody managed to set.
+`config.json` always carries the token as a `${VARIABLE}` reference — `${REPO_TOKEN}` for `github` — never the secret, which goes to the per-user `.env`. The field is masked with the same twin-control eye as the PLC password, and the `.env` is written **before** the JSON — there is no point leaving a `config.json` behind that references a variable nobody managed to set.
 
 ### One editor per TIA Portal
 

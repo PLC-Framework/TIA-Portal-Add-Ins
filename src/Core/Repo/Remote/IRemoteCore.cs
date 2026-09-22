@@ -15,7 +15,7 @@ namespace Core.Repo.Remote
     ///
     /// **It is opened from the configuration rather than handed a built client**, so nothing
     /// outside reads `coreRemoteRepositoryConfig` twice: `PlcCoreRefresh` already has it, and
-    /// resolving `${GITHUB_TOKEN}` out of the per-user `.env` is `Core.Secrets`' job.
+    /// resolving `${REPO_TOKEN}` out of the per-user `.env` is `Core.Secrets`' job.
     /// </summary>
     public interface IRemoteCore
     {

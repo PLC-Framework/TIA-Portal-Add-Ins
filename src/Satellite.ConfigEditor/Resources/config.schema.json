@@ -171,7 +171,7 @@
         },
         "token": {
           "type": "string",
-          "description": "Always a ${VARIABLE} reference and never the secret - ${GITHUB_TOKEN} for github: this file lives in a TIA project and TIA projects are under version control, so the value goes to the per-user .env instead. Nothing in the framework knows the variable's name, so a second provider names its own. Absent or empty means a public repository."
+          "description": "Always a ${VARIABLE} reference and never the secret - ${REPO_TOKEN} for github: this file lives in a TIA project and TIA projects are under version control, so the value goes to the per-user .env instead. Nothing in the framework knows the variable's name, so a second provider names its own. Absent or empty means a public repository."
         }
       }
     },

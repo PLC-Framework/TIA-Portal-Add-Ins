@@ -275,7 +275,7 @@ namespace GitHubApi
                 if (!_repository.HasToken)
                     throw new GitHubAuthException(
                         "GitHub answered 'not found' for '" + _repository + "'" + Where() + ", which is also what " +
-                        "it answers for a private repository read without a token. Set GITHUB_TOKEN, or check the name.",
+                        "it answers for a private repository read without a token. Set REPO_TOKEN, or check the name.",
                         status);
 
                 throw new GitHubNotFoundException("GitHub has no '" + _repository + "'" + Where() + ". " + said);

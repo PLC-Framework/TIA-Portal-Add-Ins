@@ -7,7 +7,7 @@ namespace GitHubApi
     /// carries under <c>coreRemoteRepositoryConfig</c>, plus the token that never goes in it.
     ///
     /// **The token is handed in rather than read here.** It lives in the per-user `.env` as
-    /// `${GITHUB_TOKEN}`, and reading a secret is `Core.Secrets`' job - this project knows
+    /// `${REPO_TOKEN}`, and reading a secret is `Core.Secrets`' job - this project knows
     /// nothing about where the framework keeps anything. It is also why this type is the
     /// only place the token appears: one field, passed in once.
     ///

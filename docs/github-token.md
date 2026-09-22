@@ -46,7 +46,7 @@ GitHub has two kinds. You want a **fine-grained** one, which is the kind that ca
   "branch":   "main",
   "folder":   "plc/s7-1x00/core",
   "dependencyFile": "core.json",
-  "token":    "${GITHUB_TOKEN}"
+  "token":    "${REPO_TOKEN}"
 }
 ```
 
@@ -61,7 +61,7 @@ The value goes in a file of your own, outside any project:
 By hand, the file is one line:
 
 ```
-GITHUB_TOKEN=github_pat_...
+REPO_TOKEN=github_pat_...
 ```
 
 That file is **per Windows user**. Another engineer on the same station has their own, and none of it travels with the project, which is the point.
@@ -72,14 +72,14 @@ The Core updater says what happened rather than "failed". These are the four you
 
 | What you see | What it means |
 | --- | --- |
-| *"GitHub answered 'not found' for `owner/repo@branch`, which is also what it answers for a private repository read without a token. Set GITHUB_TOKEN, or check the name."* | no token reached the framework — or the owner, repository or branch is misspelt. GitHub deliberately does not distinguish the two |
+| *"GitHub answered 'not found' for `owner/repo@branch`, which is also what it answers for a private repository read without a token. Set REPO_TOKEN, or check the name."* | no token reached the framework — or the owner, repository or branch is misspelt. GitHub deliberately does not distinguish the two |
 | *"GitHub refused the token."* | the token is wrong, was deleted, or has expired |
 | *"GitHub refused the request for `owner/repo@branch`, which usually means the token cannot read it."* | the token is valid but does not cover **this** repository: it was made for a different one, or it is waiting for an organization owner to approve it |
 | *"GitHub's rate limit has been reached — and without a token it is sixty calls an hour."* | you are reading without a token. Wait, or make one |
 
 Two things worth knowing when you are hunting one of these down:
 
-- **An unresolved `${GITHUB_TOKEN}` is read as "no token", not as an empty one.** If the `.env` has no such line, the framework behaves exactly as it does for a public repository — which is why a private repository then answers *not found* rather than *unauthorized*.
+- **An unresolved `${REPO_TOKEN}` is read as "no token", not as an empty one.** If the `.env` has no such line, the framework behaves exactly as it does for a public repository — which is why a private repository then answers *not found* rather than *unauthorized*.
 - **The framework only ever reads.** Nothing it does with this token can change the repository, so a token that works is a token that is safe to leave in place until it expires.
 
 ## Replacing or revoking it

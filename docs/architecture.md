@@ -387,7 +387,7 @@ That is five rows for more than five places, because the two Add-In rows are one
 |  | Written by |  |
 | --- | --- | --- |
 | `credentials.json` | `Satellite.DataBlockSnapshot`, only after a login the CPU accepted | web server user and password per project + PLC; the password under DPAPI `CurrentUser` |
-| `.env` | `Satellite.ConfigEditor` | `GITHUB_TOKEN`. Here because the token is personal **and** because the install folder is not writable by the engineer who owns it |
+| `.env` | `Satellite.ConfigEditor` | `REPO_TOKEN`. Here because the token is personal **and** because the install folder is not writable by the engineer who owns it |
 | `config.template.json` | `Satellite.ConfigEditor`, when creating from the system template and no such file exists | the user template: offered beside the system one when a project has no `config.json`, written out from the embedded copy so it can be customised, and never overwritten |
 
 **`...\Portal V2x\UserAddIns\`** or **`...\Portal V2x\AddIns\`** — one or the other, never both
@@ -412,7 +412,7 @@ That is five rows for more than five places, because the two Add-In rows are one
 
 The five folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and `ConfigPaths.FolderFor(projectDirectory, name)` resolves one; what goes *inside* `repo\` is `Core.Repo.RepoPaths`, because that folder has a layout of its own rather than being a place to drop files. **One of them has no writer yet — `logs\` — which is exactly when two components drift apart on a string** — the same reason the other literals are there. Nothing creates them: whoever writes the first file creates it then, so a project that never ran an action does not collect four empty folders, and git would not record them anyway.
 
-**Not one secret lives here, and that is deliberate**: this folder is under version control, with `.version-control\` sitting right beside it. It is why the PLC credentials live under `%LOCALAPPDATA%` and why `config.json` carries the literal `${GITHUB_TOKEN}` rather than the token.
+**Not one secret lives here, and that is deliberate**: this folder is under version control, with `.version-control\` sitting right beside it. It is why the PLC credentials live under `%LOCALAPPDATA%` and why `config.json` carries the literal `${REPO_TOKEN}` rather than the token.
 
 #### The `.gitignore` the editor leaves behind
 
@@ -448,7 +448,7 @@ C:\Program Files\PLC-Framework\      ← Core.InstallPaths.Root
 
 > **"Satellite" is a role, not a location.** It names a WPF app the Add-In launches from the menu — as opposed to a command-line helper. Both live in the same folder. The word stays in project names (`Satellite.About`) and in the architecture decisions, because it describes what a thing *is*; the folder only says where it sits.
 
-> **The `.env` moved out of here** on 2026-09-09, to `%LOCALAPPDATA%\PLC-Framework\.env`. This section used to say a station-wide `.env` was right for a shared team credential, "and a personal token would belong somewhere per-user instead". The only thing in it turned out to be `GITHUB_TOKEN`, which is exactly that personal token, and the install folder is not writable by the engineer who owns it. `InstallPaths.EnvFile` now hangs off `UserRoot`. The executables stay: an installed binary genuinely is per machine.
+> **The `.env` moved out of here** on 2026-09-09, to `%LOCALAPPDATA%\PLC-Framework\.env`. This section used to say a station-wide `.env` was right for a shared team credential, "and a personal token would belong somewhere per-user instead". The only thing in it turned out to be `REPO_TOKEN`, which is exactly that personal token, and the install folder is not writable by the engineer who owns it. `InstallPaths.EnvFile` now hangs off `UserRoot`. The executables stay: an installed binary genuinely is per machine.
 
 `PLC_FRAMEWORK_HOME` overrides the root, which is how you point a test run — or the VM — at a staging folder without installing or needing elevation. **`step2-deploy-vm.ps1` honours it too**, by the same two rules `InstallPaths.Root` uses; an installer and an Add-In that disagreed about where the framework lives would produce a "not installed" error on an install that looks perfectly fine.
 

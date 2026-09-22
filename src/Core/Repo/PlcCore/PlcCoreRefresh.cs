@@ -182,7 +182,7 @@ namespace Core.Repo.PlcCore
         }
 
         /// <summary>
-        /// The token behind whatever reference the configuration holds - <c>${GITHUB_TOKEN}</c>
+        /// The token behind whatever reference the configuration holds - <c>${REPO_TOKEN}</c>
         /// today, <c>${GITLAB_TOKEN}</c> the day there is one - or null.
         ///
         /// **Nothing here knows the variable's name**, which is what lets a second provider

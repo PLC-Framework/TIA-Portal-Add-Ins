@@ -17,8 +17,8 @@ namespace Core.Secrets
     /// file is edited by hand:
     ///
     ///     # a comment
-    ///     GITHUB_TOKEN=ghp_xxx
-    ///     export GITHUB_TOKEN=ghp_xxx      the export prefix is tolerated
+    ///     REPO_TOKEN=ghp_xxx
+    ///     export REPO_TOKEN=ghp_xxx      the export prefix is tolerated
     ///     QUOTED="value with spaces"       matching quotes are stripped
     /// </summary>
     public static class DotEnv
@@ -112,8 +112,8 @@ namespace Core.Secrets
         public static IReadOnlyDictionary<string, string> Parse(string text)
         {
             // Ordinal, not ignore-case: environment variable names are case sensitive
-            // everywhere except the Windows shell, and treating GITHUB_TOKEN and
-            // github_token as one would be a surprise the day this reads a file written
+            // everywhere except the Windows shell, and treating REPO_TOKEN and
+            // REPO_TOKEN as one would be a surprise the day this reads a file written
             // on another system.
             Dictionary<string, string> values = new Dictionary<string, string>(StringComparer.Ordinal);
             if (string.IsNullOrEmpty(text)) return values;

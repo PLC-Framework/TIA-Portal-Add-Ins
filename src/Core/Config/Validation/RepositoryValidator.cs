@@ -50,7 +50,7 @@ namespace Core.Config.Validation
             issues.Required(Issues.Field(path, "dependencyFile"), remote.DependencyFile);
 
             // token is optional and intentionally unchecked here. Empty means a public
-            // repository, and a file carrying a literal token instead of ${GITHUB_TOKEN}
+            // repository, and a file carrying a literal token instead of ${REPO_TOKEN}
             // still works - it is a secret in the wrong place, which is the editor's
             // warning to give, not a reason for the Add-In to refuse the file.
         }

@@ -38,7 +38,7 @@ Two kinds of check, kept apart because only one of them touches the disk:
 | `branch` | **Yes** | string | Branch. The template ships `main`; empty is an error |
 | `folder` | **Yes** | string | Path inside the repository down to the core |
 | `dependencyFile` | **Yes** | string | Dependency graph file name, today `core.json` |
-| `token` | No | string | **Always a `${VARIABLE}` reference and never the secret** — `${GITHUB_TOKEN}` for `github`; see below. Absent or empty means a public repository |
+| `token` | No | string | **Always a `${VARIABLE}` reference and never the secret** — `${REPO_TOKEN}` for `github`; see below. Absent or empty means a public repository |
 
 **`provider` is a separate key rather than a wider `coreSource`, and that was the choice** (2026-09-22). Extending the closed set to `github | gitlab` would have broken every `config.json` already saying `remote`, and it would have mixed two questions: `coreSource` answers *a folder on this machine or a repository over a wire*, `provider` answers *whose API*. Absent reads as `github` because that is what a file written before the key existed says by omission, and those files must go on working — so the reading is "the only provider there was", not "nobody decided". An empty string is **not** absent: it is a value outside the set, reported like any other, for the reason `coreSource` records.
 
@@ -144,7 +144,7 @@ That only works while a name matches one rule. Where two could match, the checke
 
 ### The token never lands in `config.json`
 
-`config.json` lives inside the TIA project, and TIA projects are under version control. So the file **always** carries the literal `${GITHUB_TOKEN}` and never the secret itself. The editor shows the field masked with a show/hide eye — the same twin-control pattern as the PLC password — and what the operator types goes to the `.env`, never to the JSON. Reading the field means reading the `.env` back.
+`config.json` lives inside the TIA project, and TIA projects are under version control. So the file **always** carries the literal `${REPO_TOKEN}` and never the secret itself. The editor shows the field masked with a show/hide eye — the same twin-control pattern as the PLC password — and what the operator types goes to the `.env`, never to the JSON. Reading the field means reading the `.env` back.
 
 **How to make a token that can do nothing but read the one repository, and where to put it, is [github-token.md](github-token.md)** — written for whoever has to set one up rather than for whoever wrote this.
 
@@ -249,13 +249,13 @@ It deliberately does **not** reach the network. Whether GitHub answers is a ques
 `Core/Secrets/` holds both halves, and the split matters: `Variables` is **pure** — it is handed a lookup and never opens a file — while `DotEnv` is the one that knows where the file is. That is what lets the same expansion run inside TIA, inside a satellite, and inside a test with three values in a dictionary.
 
 ```csharp
-DotEnv.Get("GITHUB_TOKEN");                       // the .env, then the process environment
-DotEnv.Set("GITHUB_TOKEN", "ghp_…");              // null on success, or a sentence
-Variables.Expand("Bearer ${GITHUB_TOKEN}", lookup);
+DotEnv.Get("REPO_TOKEN");                       // the .env, then the process environment
+DotEnv.Set("REPO_TOKEN", "ghp_…");              // null on success, or a sentence
+Variables.Expand("Bearer ${REPO_TOKEN}", lookup);
 ```
 
 - **The file is written surgically.** `Set` replaces the one line that defines the name and leaves everything else — comments, order, unrelated entries, spacing — exactly as it was. A rewrite from a dictionary would silently eat the comments explaining what each secret is for. Same principle as the config editor's own writes.
-- **An unresolved `${VAR}` is left standing, not blanked.** An empty string travels on and fails far away as an unexplained HTTP 401; a literal `${GITHUB_TOKEN}` arriving where a token was expected says exactly what went wrong. Reporting it is the environmental validator's job, and its message names the `.env` to add it to.
+- **An unresolved `${VAR}` is left standing, not blanked.** An empty string travels on and fails far away as an unexplained HTTP 401; a literal `${REPO_TOKEN}` arriving where a token was expected says exactly what went wrong. Reporting it is the environmental validator's job, and its message names the `.env` to add it to.
 - **Empty counts as unresolved**, everywhere. `DotEnv.Get` returns null for a key present with no value, the validator reports that case as missing, and `Expand` leaves the reference alone — three places that would otherwise disagree about the same fact.
 - **The process environment sits behind the file**, which is what lets a build server or a test override a secret without editing anything. That read is wrapped: it is denied outright under partial trust.
 - **Nothing here throws.** A missing file, an unreadable one, a line that makes no sense: all mean "that secret is not available", which callers already handle.

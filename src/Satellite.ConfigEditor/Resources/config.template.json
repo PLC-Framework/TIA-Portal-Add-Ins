@@ -15,7 +15,7 @@
     "branch": "main",
     "folder" : "plc/s7-1x00/core",
     "dependencyFile" :  "core.json",
-    "token" : "${GITHUB_TOKEN}"
+    "token" : "${REPO_TOKEN}"
   },
   "coreLocalRepositoryConfig" :
   {

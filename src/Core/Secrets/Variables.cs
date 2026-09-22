@@ -51,7 +51,7 @@ namespace Core.Secrets
         ///
         /// **A reference that does not resolve is left exactly as it was**, rather than
         /// replaced with nothing. An empty string would travel on and fail somewhere far
-        /// away - an HTTP 401 with no explanation - whereas a literal <c>${GITHUB_TOKEN}</c>
+        /// away - an HTTP 401 with no explanation - whereas a literal <c>${REPO_TOKEN}</c>
         /// arriving where a token was expected says precisely what went wrong. Reporting it
         /// as a problem is the environmental validator's job.
         /// </summary>

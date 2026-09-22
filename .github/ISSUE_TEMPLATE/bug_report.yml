@@ -60,7 +60,7 @@ body:
       description: >
         Please check it for anything you would not publish before pasting it. It should never
         hold a secret — the GitHub token belongs in the per-user `.env` and the file carries
-        only the literal `${GITHUB_TOKEN}` — but a local repository path can still name a
+        only the literal `${REPO_TOKEN}` — but a local repository path can still name a
         customer.
       render: json
 

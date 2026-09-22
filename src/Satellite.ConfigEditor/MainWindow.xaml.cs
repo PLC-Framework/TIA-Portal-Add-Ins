@@ -30,10 +30,10 @@ namespace Satellite.ConfigEditor
     {
         /// <summary>
         /// The one secret this editor owns. config.json always carries the literal
-        /// <c>${GITHUB_TOKEN}</c>; the value lives in the per-user .env, because the
+        /// <c>${REPO_TOKEN}</c>; the value lives in the per-user .env, because the
         /// project folder is under version control.
         /// </summary>
-        private const string TokenVariable = "GITHUB_TOKEN";
+        private const string TokenVariable = "REPO_TOKEN";
         private const string TokenReference = "${" + TokenVariable + "}";
 
         /// <summary>
