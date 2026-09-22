@@ -20,7 +20,7 @@ namespace Satellite.CoreUpdater.Remote
     /// **It lives here rather than in `Core` because of one assembly**: the client pulls
     /// `System.Net.Http`, and `Core` is loaded inside TIA Portal's process.
     /// </summary>
-    public sealed class GitHubCore : IRemoteCore
+    public sealed class GitHubPlcCore : IRemotePlcCore
     {
         public IRemoteFiles Open(CoreRemoteRepositoryConfig repository, string token)
         {

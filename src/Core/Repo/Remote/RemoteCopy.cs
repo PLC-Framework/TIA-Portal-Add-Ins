@@ -188,13 +188,11 @@ namespace Core.Repo.Remote
             string.Equals(GitBlobSha.OfFile(path), hash, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
-        /// One file, written beside its destination and moved over it, so a connection that drops
-        /// mid-file cannot leave half an <c>.scl</c> under a name an import will read.
+        /// One file, written through <see cref="SafeFile"/>, so a connection that drops mid-file
+        /// cannot leave half an <c>.scl</c> under a name an import will read.
         /// </summary>
         private static string Fetch(IRemoteFiles files, RemoteFile file, string target)
         {
-            string temporary = target + "." + Short(file.Hash) + ".downloading";
-
             try
             {
                 byte[] content = files.Read(file.Hash);
@@ -209,40 +207,13 @@ namespace Core.Repo.Remote
                     return "what came back is not what was asked for (" + Short(got) + " instead of " +
                            Short(file.Hash) + ").";
 
-                Directory.CreateDirectory(Path.GetDirectoryName(target));
-
-                File.WriteAllBytes(temporary, content);
-
-                if (File.Exists(target))
-                {
-                    File.SetAttributes(target, FileAttributes.Normal);
-                    File.Delete(target);
-                }
-
-                File.Move(temporary, target);
-                temporary = null;
+                SafeFile.WriteBytes(target, content);
 
                 return null;
             }
             catch (Exception exception)
             {
                 return exception.Message;
-            }
-            finally
-            {
-                Discard(temporary);
-            }
-        }
-
-        private static void Discard(string path)
-        {
-            try
-            {
-                if (path != null && File.Exists(path)) File.Delete(path);
-            }
-            catch (Exception)
-            {
-                // It carries a .downloading suffix, so nothing reads it as part of the core.
             }
         }
 

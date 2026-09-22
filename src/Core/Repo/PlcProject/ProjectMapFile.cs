@@ -20,10 +20,9 @@ namespace Core.Repo.PlcProject
         /// <summary>
         /// Writes the map into the project's own workspace, and answers why it could not be.
         ///
-        /// **It writes to a temporary file and moves it into place**, so a run that fails
-        /// half way leaves the previous map rather than a truncated one - the same rule the
-        /// report export follows, and for the same reason: what is left behind gets read as
-        /// though it were whole.
+        /// **It goes through <see cref="SafeFile"/>**, so a run that fails half way leaves the
+        /// previous map rather than a truncated one - the same rule the report export follows,
+        /// and for the same reason: what is left behind gets read as though it were whole.
         /// </summary>
         /// <returns>Null when written, or a sentence.</returns>
         public static string Write(ProjectMap map, string projectDirectory)
@@ -35,30 +34,23 @@ namespace Core.Repo.PlcProject
             if (path == null)
                 return "This project has no folder yet, so there is nowhere to write the map.";
 
-            string scratch = path + ".writing";
-
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
-
-                using (FileStream stream = File.Create(scratch))
-                using (XmlDictionaryWriter writer =
-                       JsonReaderWriterFactory.CreateJsonWriter(stream, Encoding.UTF8, false, true, "  "))
+                SafeFile.Write(path, temporary =>
                 {
-                    new DataContractJsonSerializer(typeof(ProjectMap)).WriteObject(writer, map);
-                    writer.Flush();
-                }
-
-                if (File.Exists(path)) File.Delete(path);
-
-                File.Move(scratch, path);
+                    using (FileStream stream = File.Create(temporary))
+                    using (XmlDictionaryWriter writer =
+                           JsonReaderWriterFactory.CreateJsonWriter(stream, Encoding.UTF8, false, true, "  "))
+                    {
+                        new DataContractJsonSerializer(typeof(ProjectMap)).WriteObject(writer, map);
+                        writer.Flush();
+                    }
+                });
 
                 return null;
             }
             catch (Exception exception)
             {
-                Discard(scratch);
-
                 return "The map could not be written to '" + path + "': " + exception.Message;
             }
         }
@@ -111,19 +103,6 @@ namespace Core.Repo.PlcProject
             {
                 problem = "'" + path + "' could not be read: " + exception.Message;
                 return null;
-            }
-        }
-
-        private static void Discard(string path)
-        {
-            try
-            {
-                if (File.Exists(path)) File.Delete(path);
-            }
-            catch (Exception)
-            {
-                // A half-written file that will not go is not worth failing over: it carries
-                // the .writing suffix, so nothing reads it as a map.
             }
         }
     }

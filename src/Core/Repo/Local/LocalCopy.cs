@@ -26,8 +26,8 @@ namespace Core.Repo.Local
     {
         /// <summary>
         /// Copies the core's graph to <paramref name="into"/>, the project's
-        /// <c>repo\core.json</c>. **Written beside it and moved over it**, so a copy that fails
-        /// half way leaves the previous graph rather than a truncated one a comparison would read.
+        /// <c>repo\core.json</c>, through <see cref="SafeFile"/>: a copy that fails half way leaves
+        /// the previous graph rather than a truncated one a comparison would read.
         /// </summary>
         public static LocalCopyResult Graph(LocalSource source, string into)
         {
@@ -36,25 +36,17 @@ namespace Core.Repo.Local
 
             if (string.IsNullOrWhiteSpace(into)) return LocalCopyResult.Refused("There is nowhere to copy the core to.");
 
-            string writing = into + ".writing";
-
             try
             {
                 if (!File.Exists(source.GraphFile))
                     return LocalCopyResult.Refused("The dependency file does not exist: " + source.GraphFile);
 
-                Directory.CreateDirectory(Path.GetDirectoryName(into));
-
-                File.Copy(source.GraphFile, writing, true);
-                File.SetAttributes(writing, FileAttributes.Normal);
-
-                Replace(writing, into);
+                SafeFile.Copy(source.GraphFile, into);
 
                 return LocalCopyResult.Done(into, 1, null);
             }
             catch (Exception exception)
             {
-                Discard(writing);
                 return LocalCopyResult.Refused("The core's graph could not be copied: " + exception.Message);
             }
         }
@@ -105,11 +97,10 @@ namespace Core.Repo.Local
                         continue;
                     }
 
-                    File.Copy(from, target, true);
-
-                    // Off a read-only checkout it arrives read-only, and then neither the next
-                    // download nor the clean-up at the end of this one could write or remove it.
-                    File.SetAttributes(target, FileAttributes.Normal);
+                    // Swapped in whole, so an import never reads half a source; made writable
+                    // on the way, since off a read-only checkout it arrives read-only and then
+                    // neither the next download nor the clean-up after this one could touch it.
+                    SafeFile.Copy(from, target);
 
                     files++;
                 }
@@ -157,29 +148,6 @@ namespace Core.Repo.Local
             foreach (string name in clashed) named.Remove(name);
 
             return named;
-        }
-
-        private static void Replace(string writing, string into)
-        {
-            if (File.Exists(into))
-            {
-                File.SetAttributes(into, FileAttributes.Normal);
-                File.Delete(into);
-            }
-
-            File.Move(writing, into);
-        }
-
-        private static void Discard(string path)
-        {
-            try
-            {
-                if (File.Exists(path)) File.Delete(path);
-            }
-            catch (Exception)
-            {
-                // It carries a .writing suffix, so nothing reads it as the core.
-            }
         }
     }
 }

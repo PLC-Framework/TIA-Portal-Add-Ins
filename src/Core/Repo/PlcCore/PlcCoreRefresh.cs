@@ -48,7 +48,7 @@ namespace Core.Repo.PlcCore
         /// </param>
         /// <param name="progress">Told what is happening while it waits on a wire.</param>
         public static PlcCoreRefreshResult Run(
-            string projectDirectory, IRemoteCore remote = null, Action<string> progress = null)
+            string projectDirectory, IRemotePlcCore remote = null, Action<string> progress = null)
         {
             Origin origin = Resolve(projectDirectory, remote);
 
@@ -80,7 +80,7 @@ namespace Core.Repo.PlcCore
         /// have arrived, and the object that needed it fails to build as the import's fault.
         /// </summary>
         public static PlcCoreSourcesResult Sources(
-            string projectDirectory, IEnumerable<Node> nodes, IRemoteCore remote = null, Action<string> progress = null)
+            string projectDirectory, IEnumerable<Node> nodes, IRemotePlcCore remote = null, Action<string> progress = null)
         {
             Origin origin = Resolve(projectDirectory, remote);
 
@@ -173,9 +173,9 @@ namespace Core.Repo.PlcCore
                     // Built once and used twice: the marker on disk, for whoever looks into
                     // `repo\` later, and the line the window puts under the core tree now. Two
                     // renderings of one fact would be two things to keep in step.
-                    CoreOrigin marker = CoreOrigin.Of(repository, copied);
+                    PlcCoreOrigin marker = PlcCoreOrigin.Of(repository, copied);
 
-                    CoreOrigin.Write(marker, projectDirectory);
+                    PlcCoreOrigin.Write(marker, projectDirectory);
 
                     return PlcCoreRefreshResult.Fetch(
                         read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied, marker.ToString());
@@ -204,14 +204,14 @@ namespace Core.Repo.PlcCore
             public LocalSource Local;
 
             public CoreRemoteRepositoryConfig Remote;
-            public IRemoteCore Port;
+            public IRemotePlcCore Port;
             public string Token;
 
             public static Origin Refused(string problem, bool namesCore = true) =>
                 new Origin { Problem = problem, NamesCore = namesCore };
         }
 
-        private static Origin Resolve(string projectDirectory, IRemoteCore remote)
+        private static Origin Resolve(string projectDirectory, IRemotePlcCore remote)
         {
             if (string.IsNullOrWhiteSpace(projectDirectory))
                 return Origin.Refused("This project has no folder yet, so there is nowhere to copy a core into.");
@@ -247,7 +247,7 @@ namespace Core.Repo.PlcCore
             return missing != null ? Origin.Refused(missing) : new Origin { Local = repository };
         }
 
-        private static Origin Remote(CoreRemoteRepositoryConfig repository, IRemoteCore remote)
+        private static Origin Remote(CoreRemoteRepositoryConfig repository, IRemotePlcCore remote)
         {
             if (repository == null)
                 return Origin.Refused(

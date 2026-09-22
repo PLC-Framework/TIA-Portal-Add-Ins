@@ -881,7 +881,7 @@ namespace Satellite.CoreUpdater
             // The GitHub client travels with the window, because `Core` may not hold it: it is
             // loaded inside TIA Portal's process and cannot take `System.Net.Http`. A project
             // with a local core never touches it.
-            PlcCoreRefreshResult core = PlcCoreRefresh.Run(directory, new GitHubCore(), progress);
+            PlcCoreRefreshResult core = PlcCoreRefresh.Run(directory, new GitHubPlcCore(), progress);
 
             if (!core.Ready) return Comparison.Without(core);
 
@@ -1595,7 +1595,7 @@ namespace Satellite.CoreUpdater
             // Off the UI thread and off the worker's: this is a folder copy or a few requests,
             // and neither is an Openness call - the worker's thread is the one Openness objects
             // belong to, and a download queued behind it would wait on nothing.
-            Task.Run(() => PlcCoreRefresh.Sources(directory, needed, new GitHubCore(), progress)).ContinueWith(done =>
+            Task.Run(() => PlcCoreRefresh.Sources(directory, needed, new GitHubPlcCore(), progress)).ContinueWith(done =>
                 dispatcher.BeginInvoke(new Action(() =>
                 {
                     if (done.Exception != null)

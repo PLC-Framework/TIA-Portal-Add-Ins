@@ -35,7 +35,7 @@ namespace Core.Repo.Remote
     /// exactly the half-truth it exists to close.
     /// </summary>
     [DataContract(Name = "origin", Namespace = "")]
-    public sealed class CoreOrigin
+    public sealed class PlcCoreOrigin
     {
         /// <summary>The file, beside the copy it describes.</summary>
         public const string FileName = "core.origin.json";
@@ -118,8 +118,12 @@ namespace Core.Repo.Remote
         /// Writes the marker. **Never fails a run**: what it records is worth having and
         /// nothing depends on it, so a folder that will not take it costs a caption rather
         /// than a core.
+        ///
+        /// **Through <see cref="SafeFile"/> all the same** - it was written in place until
+        /// 2026-09-22, so a run killed mid-write left a marker that read back as nothing, and
+        /// the one question it exists to answer went unanswered on the next look into `repo\`.
         /// </summary>
-        public static void Write(CoreOrigin origin, string projectDirectory)
+        public static void Write(PlcCoreOrigin origin, string projectDirectory)
         {
             string path = PathFor(projectDirectory);
 
@@ -127,15 +131,16 @@ namespace Core.Repo.Remote
 
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
-
-                using (FileStream stream = File.Create(path))
-                using (XmlDictionaryWriter writer =
-                       JsonReaderWriterFactory.CreateJsonWriter(stream, Encoding.UTF8, false, true, "  "))
+                SafeFile.Write(path, temporary =>
                 {
-                    new DataContractJsonSerializer(typeof(CoreOrigin)).WriteObject(writer, origin);
-                    writer.Flush();
-                }
+                    using (FileStream stream = File.Create(temporary))
+                    using (XmlDictionaryWriter writer =
+                           JsonReaderWriterFactory.CreateJsonWriter(stream, Encoding.UTF8, false, true, "  "))
+                    {
+                        new DataContractJsonSerializer(typeof(PlcCoreOrigin)).WriteObject(writer, origin);
+                        writer.Flush();
+                    }
+                });
             }
             catch (Exception)
             {
@@ -144,7 +149,7 @@ namespace Core.Repo.Remote
         }
 
         /// <summary>What the last remote refresh wrote, or null when there is none to read.</summary>
-        public static CoreOrigin Read(string projectDirectory)
+        public static PlcCoreOrigin Read(string projectDirectory)
         {
             string path = PathFor(projectDirectory);
 
@@ -153,7 +158,7 @@ namespace Core.Repo.Remote
                 if (path == null || !File.Exists(path)) return null;
 
                 using (FileStream stream = File.OpenRead(path))
-                    return new DataContractJsonSerializer(typeof(CoreOrigin)).ReadObject(stream) as CoreOrigin;
+                    return new DataContractJsonSerializer(typeof(PlcCoreOrigin)).ReadObject(stream) as PlcCoreOrigin;
             }
             catch (Exception)
             {
@@ -164,8 +169,8 @@ namespace Core.Repo.Remote
         }
 
         /// <summary>The marker for a graph that has just come down.</summary>
-        public static CoreOrigin Of(Config.CoreRemoteRepositoryConfig repository, RemoteCopyResult copied) =>
-            new CoreOrigin
+        public static PlcCoreOrigin Of(Config.CoreRemoteRepositoryConfig repository, RemoteCopyResult copied) =>
+            new PlcCoreOrigin
             {
                 Provider = Config.Validation.RepositoryValidator.ProviderOf(repository),
                 ApiUrl = repository?.ApiUrl,

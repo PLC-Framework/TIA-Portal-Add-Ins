@@ -17,7 +17,7 @@ namespace Core.Repo.Remote
     /// outside reads `coreRemoteRepositoryConfig` twice: `PlcCoreRefresh` already has it, and
     /// resolving `${REPO_TOKEN}` out of the per-user `.env` is `Core.Secrets`' job.
     /// </summary>
-    public interface IRemoteCore
+    public interface IRemotePlcCore
     {
         /// <param name="token">
         /// The token, already resolved - or null, which is how a public repository is read.

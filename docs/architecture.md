@@ -82,10 +82,10 @@ src/Core/
 │   │   ├── LocalCopy.cs      the graph into repo\ on a Load, a download's sources into tmp\
 │   │   └── LocalCopyResult.cs   how many files, and what would not copy
 │   ├── Remote/               a core that is a repository this machine has not got
-│   │   ├── IRemoteCore.cs    the port: open it, list a folder, read one file
-│   │   ├── RemoteCopy.cs     the same two calls over a wire, fetching only what changed
+│   │   ├── IRemotePlcCore.cs    the port: open it, list a folder, read one file
+│   │   ├── RemoteCopy.cs        the same two calls over a wire, fetching only what changed
 │   │   ├── RemoteCopyResult.cs  downloaded, kept, and the commit it read
-│   │   └── CoreOrigin.cs     which commit, on which host — repo\core.origin.json
+│   │   └── PlcCoreOrigin.cs     which commit, on which host — repo\core.origin.json
 │   ├── Git/                  what every git host shares, whoever hosts it
 │   │   └── GitBlobSha.cs     git's own content hash, so the copy is its own index
 │   ├── PlcCore/              the PLC core itself: core.json and what a core object carries
@@ -101,7 +101,7 @@ src/Core/
 │   │   ├── ProjectMap.cs     the map itself
 │   │   ├── ProjectMapFile.cs that map, written indented and read back
 │   │   └── SimaticMlTitle.cs a title read out of an export — the only way to one in V17-V20
-│   ├── CoreComparison.cs     that core held against that map — metadata only, nothing written
+│   ├── PlcCoreComparison.cs  that core held against that map — metadata only, nothing written
 │   ├── DownloadPlan.cs       what a download would touch, and who else depends on it
 │   ├── ImportReport.cs       what it actually did, object by object
 │   └── SyncPlan.cs           what is in the wrong folder, where it belongs, and how a move went
