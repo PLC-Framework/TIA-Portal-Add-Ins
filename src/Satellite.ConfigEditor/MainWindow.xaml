@@ -60,7 +60,7 @@
         </Style>
 
         <Style TargetType="TextBlock" x:Key="SectionNote">
-            <Setter Property="Foreground" Value="#7E8899" />
+            <Setter Property="Foreground" Value="{StaticResource InkMuted}" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,0,0,18" />
         </Style>
@@ -219,7 +219,7 @@
                                            SelectionChanged="OnCoreSourceChanged" />
 
                                 <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,6,0,0" TextWrapping="Wrap"
-                                           Foreground="#7E8899"
+                                           Foreground="{StaticResource InkMuted}"
                                            Text="Which repository section the Add-In reads. None means no repository - only actions that read a core need one - and is written as null. A section not in use is kept but never validated." />
 
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Version" Style="{StaticResource FieldLabel}" Margin="0,14,10,0" />
@@ -336,7 +336,7 @@
                                 </Grid>
 
                                 <TextBlock Grid.Row="8" Grid.Column="1" x:Name="TokenNote" Margin="0,6,0,0"
-                                           TextWrapping="Wrap" Foreground="#7E8899" />
+                                           TextWrapping="Wrap" Foreground="{StaticResource InkMuted}" />
                             </Grid>
                         </StackPanel>
                         </ScrollViewer>
@@ -571,7 +571,7 @@
                                     <Grid Grid.Row="3">
                                         <TextBlock Text="Description" Style="{StaticResource GroupTitle}" />
                                         <TextBlock HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                                   Margin="0,0,0,8" Foreground="#7E8899"
+                                                   Margin="0,0,0,8" Foreground="{StaticResource InkMuted}"
                                                    Text="one line each, optional" />
                                     </Grid>
 
@@ -809,7 +809,7 @@
                             <TextBlock x:Name="MissingText" HorizontalAlignment="Center" TextAlignment="Center"
                                        TextWrapping="Wrap" Foreground="{StaticResource Ink}" FontSize="14" />
                             <TextBlock x:Name="MissingPath" HorizontalAlignment="Center" TextAlignment="Center"
-                                       TextWrapping="Wrap" Foreground="#7E8899" Margin="0,8,0,0" />
+                                       TextWrapping="Wrap" Foreground="{StaticResource InkMuted}" Margin="0,8,0,0" />
                             <!-- Both templates on offer, the operator choosing. The user one is
                                  always shown, and disabled when there is no such file, so where it
                                  would come from is visible even before it exists. -->
