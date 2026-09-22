@@ -8,6 +8,9 @@ namespace Core.Config.Validation
     /// </summary>
     public static class RepositoryValidator
     {
+        /// <summary>The one remote provider this framework can speak, and the default.</summary>
+        public const string GitHub = "github";
+
         public static ValidationResult ValidateRemote(
             CoreRemoteRepositoryConfig remote, string path = "coreRemoteRepositoryConfig")
         {
@@ -28,6 +31,13 @@ namespace Core.Config.Validation
             CoreRemoteRepositoryConfig remote, string path, Issues issues)
         {
             if (!issues.RequiredObject(path, remote)) return;
+
+            // Absent is github, so no key is not a problem. A key with something else in it is:
+            // an empty string is not null here either, for the reason coreSource records - a
+            // half-typed word must not be read as a decision nobody made.
+            if (remote.Provider != null && !Knows(ProviderOf(remote)))
+                issues.Add(Issues.Field(path, "provider"),
+                    "Must be " + GitHub + ", or absent for " + GitHub + ".");
 
             string apiUrl = Issues.Field(path, "apiUrl");
             if (issues.Required(apiUrl, remote.ApiUrl) && !IsAbsoluteUrl(remote.ApiUrl))
@@ -57,6 +67,23 @@ namespace Core.Config.Validation
             issues.Required(Issues.Field(path, "folder"), local.Folder);
             issues.Required(Issues.Field(path, "dependencyFile"), local.DependencyFile);
         }
+
+        /// <summary>
+        /// Which API dialect a remote section asks for, trimmed - <see cref="GitHub"/> when the
+        /// key is absent, and whatever it says when it is there. **Never null**, so a caller can
+        /// name it in a sentence, and never silently corrected: an empty string comes back empty
+        /// and is refused by <see cref="Knows"/> rather than read as the default.
+        /// </summary>
+        public static string ProviderOf(CoreRemoteRepositoryConfig remote) =>
+            remote?.Provider == null ? GitHub : remote.Provider.Trim();
+
+        /// <summary>
+        /// Whether this framework can speak it. **Ordinal**, like every other closed set here:
+        /// <c>GitHub</c> is refused exactly as <c>Local</c> is on <c>coreSource</c>, and the
+        /// message says what to write instead.
+        /// </summary>
+        public static bool Knows(string provider) =>
+            string.Equals(provider, GitHub, StringComparison.Ordinal);
 
         private static bool IsAbsoluteUrl(string value)
         {

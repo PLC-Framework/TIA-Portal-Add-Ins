@@ -2,7 +2,6 @@ using System;
 
 using Core.Config;
 using Core.Config.Validation;
-using Core.Repo.GitHub;
 using Core.Repo.Local;
 using Core.Repo.Remote;
 using Core.Secrets;
@@ -62,7 +61,7 @@ namespace Core.Repo.PlcCore
                     "Set it in the Config. Editor to compare against one.");
 
             if (string.Equals(source, MetadataValidator.Remote, StringComparison.Ordinal))
-                return FromGitHub(projectDirectory, loaded.Config.CoreRemoteRepositoryConfig, remote, progress);
+                return FromRemote(projectDirectory, loaded.Config.CoreRemoteRepositoryConfig, remote, progress);
 
             if (!string.Equals(source, MetadataValidator.Local, StringComparison.Ordinal))
                 return PlcCoreRefreshResult.Failed(
@@ -97,8 +96,13 @@ namespace Core.Repo.PlcCore
         }
 
         /// <summary>
-        /// The same thing from a repository on GitHub: bring the core down into
+        /// The same thing from a repository nobody here hosts: bring the core down into
         /// <c>repo\core\</c>, then read it out of the copy exactly as the local one is.
+        ///
+        /// **Nothing in here names a host**, and that is deliberate. Which API is spoken is
+        /// <c>coreRemoteRepositoryConfig.provider</c>, answered by whoever supplies the port;
+        /// this layer only checks that the framework knows the name and says it back in every
+        /// sentence, so a GitLab project is never told about GitHub.
         ///
         /// **Everything past the download is shared with the local core**, which is the whole
         /// point of a copy: the catalogue, the validator, the comparison and a download's own
@@ -108,18 +112,28 @@ namespace Core.Repo.PlcCore
         /// about what the core defines, so a file short would be read as the core not defining
         /// something - "you are missing a block" told about a download that failed.
         /// </summary>
-        private static PlcCoreRefreshResult FromGitHub(
+        private static PlcCoreRefreshResult FromRemote(
             string projectDirectory, CoreRemoteRepositoryConfig repository, IRemoteCore remote, Action<string> progress)
         {
             if (repository == null)
                 return PlcCoreRefreshResult.Failed(
-                    "This project reads its core from GitHub, but names no repository: " +
+                    "This project reads its core from a repository, but names none: " +
                     "coreRemoteRepositoryConfig is missing.");
+
+            string provider = RepositoryValidator.ProviderOf(repository);
+
+            // Asked here rather than left to the port: a client for one host handed another
+            // host's configuration would read owner and repository off it and talk to the wrong
+            // place, which is the one failure that would look like an empty core.
+            if (!RepositoryValidator.Knows(provider))
+                return PlcCoreRefreshResult.Failed(
+                    "This project reads its core from '" + provider + "', which this framework " +
+                    "cannot speak. Today it knows " + RepositoryValidator.GitHub + ".");
 
             if (remote == null)
                 return PlcCoreRefreshResult.Failed(
-                    "This project reads its core from GitHub, and this program cannot reach it. " +
-                    "Open the core updater, which can.");
+                    "This project reads its core from " + provider + ", and this program cannot " +
+                    "reach it. Open the core updater, which can.");
 
             string token = Token(repository.Token);
 
@@ -162,7 +176,11 @@ namespace Core.Repo.PlcCore
         }
 
         /// <summary>
-        /// The token behind <c>${GITHUB_TOKEN}</c>, or null.
+        /// The token behind whatever reference the configuration holds - <c>${GITHUB_TOKEN}</c>
+        /// today, <c>${GITLAB_TOKEN}</c> the day there is one - or null.
+        ///
+        /// **Nothing here knows the variable's name**, which is what lets a second provider
+        /// arrive without touching this: the file names the variable and the `.env` answers it.
         ///
         /// **`config.json` never holds the secret** - it holds the reference, because that
         /// file lives inside a TIA project and TIA projects are under version control. The

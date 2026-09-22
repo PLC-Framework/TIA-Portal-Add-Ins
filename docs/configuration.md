@@ -31,13 +31,18 @@ Two kinds of check, kept apart because only one of them touches the disk:
 
 | Field | Required | Type | Description |
 | --- | --- | --- | --- |
-| `apiUrl` | **Yes** | string | GitHub API endpoint. Must be an absolute URI |
+| `provider` | No | string | Closed set: `github`. **Absent means `github`** — which is what every file written before this key existed says by omission |
+| `apiUrl` | **Yes** | string | The provider's API endpoint. Must be an absolute URI, `http` or `https` — `https://api.github.com/`, or a self-hosted instance's own |
 | `owner` | **Yes** | string | Repository owner |
 | `repository` | **Yes** | string | Repository name |
 | `branch` | **Yes** | string | Branch. The template ships `main`; empty is an error |
 | `folder` | **Yes** | string | Path inside the repository down to the core |
 | `dependencyFile` | **Yes** | string | Dependency graph file name, today `core.json` |
-| `token` | No | string | **Always the literal `${GITHUB_TOKEN}`** — see below. Absent or empty means a public repository |
+| `token` | No | string | **Always a `${VARIABLE}` reference and never the secret** — `${GITHUB_TOKEN}` for `github`; see below. Absent or empty means a public repository |
+
+**`provider` is a separate key rather than a wider `coreSource`, and that was the choice** (2026-09-22). Extending the closed set to `github | gitlab` would have broken every `config.json` already saying `remote`, and it would have mixed two questions: `coreSource` answers *a folder on this machine or a repository over a wire*, `provider` answers *whose API*. Absent reads as `github` because that is what a file written before the key existed says by omission, and those files must go on working — so the reading is "the only provider there was", not "nobody decided". An empty string is **not** absent: it is a value outside the set, reported like any other, for the reason `coreSource` records.
+
+**Nothing in the framework knows the token's variable name.** `config.json` names it and the per-user `.env` answers it, so a second provider writes `${GITLAB_TOKEN}` and no code changes. Today `github` is the only value `Core` accepts; a configuration naming another is refused by the validator, by the schema, and again by `PlcCoreRefresh` before it reaches a client — which would otherwise read owner and repository off it and talk to the wrong host, the one failure that would look like an empty core.
 
 ### `coreLocalRepositoryConfig` — required only when `coreSource = local`
 

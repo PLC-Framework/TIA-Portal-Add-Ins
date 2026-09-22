@@ -104,6 +104,9 @@ const mustFail = {
     "branch empty":                     (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.branch", ""),
     "branch only whitespace":           (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.branch", "   "),
     "remote dependencyFile missing":    (d) => drop(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.dependencyFile"),
+    "provider outside the set":         (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.provider", "gitlab"),
+    "provider in the wrong case":       (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.provider", "GitHub"),
+    "provider empty":                   (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.provider", ""),
     "local folder missing":             (d) => drop(d, "coreLocalRepositoryConfig.folder"),
     "projectConfig missing":            (d) => drop(d, "projectConfig"),
     "hierarchy missing":                (d) => drop(d, "projectConfig.hierarchy"),
@@ -229,7 +232,14 @@ const mustPass = {
     "no repository, with a half-written section":
         (d) => drop(set(d, "metadata.coreSource", null), "coreLocalRepositoryConfig.folder"),
     "local selected, the remote section half-written":
-        (d) => set(drop(set(d, "metadata.coreSource", "local"), "coreRemoteRepositoryConfig.owner"), "coreRemoteRepositoryConfig.branch", "")
+        (d) => set(drop(set(d, "metadata.coreSource", "local"), "coreRemoteRepositoryConfig.owner"), "coreRemoteRepositoryConfig.branch", ""),
+
+    // Absent is github, because that is what every configuration written before the key existed
+    // says by omission - and those files must go on working. Core reads it the same way.
+    "remote with no provider key":
+        (d) => drop(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.provider"),
+    "remote naming its provider":
+        (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.provider", "github")
 };
 
 console.log("\n--- must be rejected ---");

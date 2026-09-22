@@ -3,7 +3,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Core.Repo.GitHub
+namespace Core.Repo.Git
 {
     /// <summary>
     /// The hash git gives a file's contents, computed here so a file already on disk can be
@@ -22,6 +22,11 @@ namespace Core.Repo.GitHub
     ///
     /// **SHA-1 here is not a security claim.** It is the identifier git uses, so this has to
     /// be the same function to compare with it at all.
+    ///
+    /// **It lives under <c>Git\</c> rather than under a host's name**, because nothing in it is
+    /// one host's: GitHub, GitLab, Gitea and Azure DevOps all answer this same blob id in their
+    /// listings, so a second provider needs no second hash. A remote that was not git would be
+    /// the thing that changed, and it would change <see cref="Remote.RemoteCopy"/>, not this.
     /// </summary>
     public static class GitBlobSha
     {

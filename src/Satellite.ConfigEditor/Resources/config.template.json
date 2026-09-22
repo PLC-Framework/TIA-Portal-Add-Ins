@@ -8,6 +8,7 @@
   },
   "coreRemoteRepositoryConfig" :
   {
+    "provider" : "github",
     "apiUrl" : "https://api.github.com/",
     "owner" : "PLC-Framework",
     "repository" : "code",

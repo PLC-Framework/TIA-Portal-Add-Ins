@@ -56,7 +56,7 @@ namespace Core.Repo.Remote
     ///
     /// **The hash is the whole design.** It is git's own, over the content, so the same hash
     /// can be computed from the file already on disk - which is what lets the copy be its own
-    /// index and a second download fetch nothing. See <see cref="GitBlobSha"/>.
+    /// index and a second download fetch nothing. See <see cref="Git.GitBlobSha"/>.
     /// </summary>
     public sealed class RemoteFile
     {

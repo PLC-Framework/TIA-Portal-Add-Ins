@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-// The hash is git's rather than this layer's, and it is what the listing gives: see the note
-// in `GitBlobSha`. A remote that was not a git host would answer some other identifier, and
-// this file would be the one to learn it.
-using Core.Repo.GitHub;
+// The hash is git's rather than this layer's or any one host's, and it is what the listing
+// gives: see the note in `GitBlobSha`. Every git host answers the same blob id, so a second
+// provider costs nothing here - a remote that was not a git host at all would answer some other
+// identifier, and this file is the one that would have to learn it.
+using Core.Repo.Git;
 
 namespace Core.Repo.Remote
 {
@@ -13,7 +14,7 @@ namespace Core.Repo.Remote
     /// Brings a project's <c>repo\core\</c> up to date from a repository that is not on this
     /// machine, and leaves it holding exactly what that repository holds.
     ///
-    /// **The same contract as <see cref="RepoCopy"/>, over a wire instead of a folder**: what
+    /// **The same contract as <see cref="Local.LocalCopy"/>, over a wire instead of a folder**: what
     /// the source does not list is removed, because a block retired from the core that
     /// survived in the copy would be compared against and the project told it is missing
     /// something the core no longer defines.

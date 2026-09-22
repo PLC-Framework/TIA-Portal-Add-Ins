@@ -20,7 +20,7 @@
     },
     "coreRemoteRepositoryConfig": {
       "type": "object",
-      "description": "The GitHub repository holding the core. Validated only when coreSource is remote; kept but ignored otherwise, as Core ignores it."
+      "description": "The hosted repository holding the core. Validated only when coreSource is remote; kept but ignored otherwise, as Core ignores it."
     },
     "coreLocalRepositoryConfig": {
       "type": "object",
@@ -123,7 +123,7 @@
 
     "remoteRepository": {
       "type": "object",
-      "description": "The GitHub repository holding the core. Required and validated when coreSource is remote, ignored otherwise.",
+      "description": "The hosted repository holding the core. Required and validated when coreSource is remote, ignored otherwise.",
       "required": [
         "apiUrl",
         "owner",
@@ -133,10 +133,16 @@
         "dependencyFile"
       ],
       "properties": {
+        "provider": {
+          "enum": [
+            "github"
+          ],
+          "description": "Which host's API to speak. Absent means github, which is what every configuration written before this key existed says by omission. It is here rather than in coreSource because that one answers a different question: a folder on this machine, or a repository over a wire."
+        },
         "apiUrl": {
           "type": "string",
           "pattern": "^https?://",
-          "description": "GitHub API endpoint, absolute and http or https: https://api.github.com/"
+          "description": "The provider's API endpoint, absolute and http or https: https://api.github.com/ for github.com, or a self-hosted instance's own."
         },
         "owner": {
           "type": "string",
@@ -165,7 +171,7 @@
         },
         "token": {
           "type": "string",
-          "description": "Always the literal ${GITHUB_TOKEN}: this file lives in a TIA project and TIA projects are under version control, so the secret goes to the per-user .env instead. Absent or empty means a public repository."
+          "description": "Always a ${VARIABLE} reference and never the secret - ${GITHUB_TOKEN} for github: this file lives in a TIA project and TIA projects are under version control, so the value goes to the per-user .env instead. Nothing in the framework knows the variable's name, so a second provider names its own. Absent or empty means a public repository."
         }
       }
     },

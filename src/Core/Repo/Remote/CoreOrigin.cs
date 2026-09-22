@@ -25,6 +25,11 @@ namespace Core.Repo.Remote
     ///
     /// **Only written when the copy is whole.** A run that could not fetch every file leaves
     /// the previous marker alone rather than claiming a commit the folder does not hold.
+    ///
+    /// **It records the host as well as the path inside it**, because owner, repository and
+    /// branch are not an answer on their own: <c>acme/code@main</c> on GitHub and the same on
+    /// GitLab are two different cores, and a marker that could not tell them apart would be
+    /// exactly the half-truth it exists to close.
     /// </summary>
     [DataContract(Name = "origin", Namespace = "")]
     public sealed class CoreOrigin
@@ -32,36 +37,75 @@ namespace Core.Repo.Remote
         /// <summary>The file, beside the copy it describes.</summary>
         public const string FileName = "core.origin.json";
 
-        [DataMember(Name = "owner", Order = 1)]
+        /// <summary>Whose API it was read with - <c>github</c> today.</summary>
+        [DataMember(Name = "provider", Order = 1)]
+        public string Provider { get; set; }
+
+        /// <summary>
+        /// The endpoint it was read from, as the configuration spelled it. **Kept verbatim**
+        /// rather than reduced to a host, so a self-hosted instance behind a path is still
+        /// named in full by the file even where a caption only has room for the host.
+        /// </summary>
+        [DataMember(Name = "apiUrl", Order = 2)]
+        public string ApiUrl { get; set; }
+
+        [DataMember(Name = "owner", Order = 3)]
         public string Owner { get; set; }
 
-        [DataMember(Name = "repository", Order = 2)]
+        [DataMember(Name = "repository", Order = 4)]
         public string Repository { get; set; }
 
-        [DataMember(Name = "branch", Order = 3)]
+        [DataMember(Name = "branch", Order = 5)]
         public string Branch { get; set; }
 
-        [DataMember(Name = "folder", Order = 4)]
+        [DataMember(Name = "folder", Order = 6)]
         public string Folder { get; set; }
 
         /// <summary>The commit the copy holds.</summary>
-        [DataMember(Name = "commit", Order = 5)]
+        [DataMember(Name = "commit", Order = 7)]
         public string Commit { get; set; }
 
         /// <summary>When it was brought down, in UTC.</summary>
-        [DataMember(Name = "when", Order = 6)]
+        [DataMember(Name = "when", Order = 8)]
         public string When { get; set; }
 
-        [DataMember(Name = "files", Order = 7)]
+        [DataMember(Name = "files", Order = 9)]
         public int Files { get; set; }
 
         /// <summary>The first seven characters, which is how a commit is read out loud.</summary>
         public string ShortCommit =>
             string.IsNullOrEmpty(Commit) ? string.Empty : (Commit.Length <= 7 ? Commit : Commit.Substring(0, 7));
 
-        /// <summary>What a caption says: <c>owner/repo@branch, commit abc1234</c>.</summary>
-        public override string ToString() =>
-            Owner + "/" + Repository + "@" + Branch + ", commit " + ShortCommit;
+        /// <summary>
+        /// What a line says it was read from: the endpoint's host, the provider's name when
+        /// there is no endpoint, and nothing at all when a marker written before this key
+        /// existed is read back - where saying nothing is the only honest answer.
+        /// </summary>
+        public string Host
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(ApiUrl)) return Provider ?? string.Empty;
+
+                Uri parsed;
+
+                return Uri.TryCreate(ApiUrl.Trim(), UriKind.Absolute, out parsed)
+                    ? parsed.Host
+                    : ApiUrl.Trim();
+            }
+        }
+
+        /// <summary>
+        /// What a caption says: <c>owner/repo@branch on api.github.com, commit abc1234</c>.
+        /// </summary>
+        public override string ToString()
+        {
+            string where = Host;
+
+            return Owner + "/" + Repository + "@" + Branch +
+                   (where.Length == 0 ? string.Empty : " on " + where) +
+                   ", commit " + ShortCommit;
+        }
 
         public static string PathFor(string projectDirectory)
         {
@@ -123,6 +167,8 @@ namespace Core.Repo.Remote
         public static CoreOrigin Of(Config.CoreRemoteRepositoryConfig repository, RemoteCopyResult copied, int files) =>
             new CoreOrigin
             {
+                Provider = Config.Validation.RepositoryValidator.ProviderOf(repository),
+                ApiUrl = repository?.ApiUrl,
                 Owner = repository?.Owner,
                 Repository = repository?.Repository,
                 Branch = repository?.Branch,
