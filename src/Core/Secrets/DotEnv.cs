@@ -66,14 +66,32 @@ namespace Core.Secrets
         /// name is replaced in place and everything else — comments, order, unrelated
         /// entries, the user's own spacing — survives untouched. A rewrite from a
         /// dictionary would silently eat the comments explaining what each secret is for.
+        ///
+        /// **Written beside the file and swapped in** (2026-09-22), through <see cref="SafeFile"/>
+        /// like everything <c>repo\</c> writes. It went straight over the file until then, so a
+        /// write cut half way — a full disk, a machine that stops — left a truncated `.env`, and
+        /// what is in there is a token nobody has a second copy of. The whole file is rewritten
+        /// on every call, which is what makes that window real rather than theoretical.
         /// </summary>
         /// <returns>Null on success, or a sentence naming what went wrong.</returns>
         public static string Set(string name, string value)
         {
-            if (string.IsNullOrWhiteSpace(name)) return "A variable name is required.";
-
             string path = InstallPaths.EnvFile;
-            if (string.IsNullOrEmpty(path)) return "The per-user folder could not be determined.";
+
+            return string.IsNullOrEmpty(path)
+                ? "The per-user folder could not be determined."
+                : Set(path, name, value);
+        }
+
+        /// <summary>
+        /// The same write against a named file, **so it can be exercised without the real one** -
+        /// the seam <see cref="Parse"/> already has, for a stronger reason: the per-user `.env`
+        /// holds a token nobody has a second copy of, and `SpecialFolder.LocalApplicationData`
+        /// does not follow <c>%LOCALAPPDATA%</c>, so a test cannot simply point this elsewhere.
+        /// </summary>
+        internal static string Set(string path, string name, string value)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "A variable name is required.";
 
             try
             {
@@ -94,11 +112,9 @@ namespace Core.Secrets
 
                 if (!replaced) lines.Add(replacement);
 
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
-
                 // No BOM: this file is read by other tools too, and a byte order mark on
                 // the first line turns the first key into something no parser recognises.
-                File.WriteAllLines(path, lines, new UTF8Encoding(false));
+                SafeFile.Write(path, temporary => File.WriteAllLines(temporary, lines, new UTF8Encoding(false)));
 
                 return null;
             }

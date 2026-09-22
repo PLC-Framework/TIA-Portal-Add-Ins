@@ -38,7 +38,7 @@
       integer fields and no way to have three, and the assembly part names inside the .addin
       inherit that. Nobody sees those, and they are not an inconsistency to go and fix.
     -->
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
 
     <Product>PLC-Framework</Product>
     <Company>PLC-Framework</Company>

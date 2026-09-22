@@ -110,7 +110,7 @@ src/Core/
 │   └── SyncPlan.cs           what is in the wrong folder, where it belongs, and how a move went
 ├── Places.cs                 "*" for the general program, spelled once for every reader
 └── Secrets/
-    ├── DotEnv.cs             the per-user .env: read, and written back surgically
+    ├── DotEnv.cs             the per-user .env: read, and written back surgically through SafeFile
     └── Variables.cs          ${NAME} references — pure, given a lookup
 ```
 
