@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 
 using Core.Config;
 using Core.Config.Validation;
+using Core.DependencyGraph;
 using Core.Repo.Local;
 using Core.Repo.Remote;
 using Core.Secrets;
@@ -9,19 +12,23 @@ using Core.Secrets;
 namespace Core.Repo.PlcCore
 {
     /// <summary>
-    /// Brings a project's copy of the core up to date and reads it back: configuration, then
-    /// the repository, then the mirror into <c>repo\core\</c>, then <c>core.json</c>.
+    /// Brings what a project needs out of its core, in the two moments it needs it: the graph
+    /// when the project is loaded, and a handful of sources when something is about to import
+    /// them.
     ///
-    /// **Every piece of this was built and tested in stage 1 and called by nothing.** This is
-    /// the line that joins them, and it is deliberately one call rather than five steps a
-    /// window has to get in the right order - the copy has to happen before the catalogue is
-    /// read out of the copy, and a caller that got that backwards would compare against
-    /// whatever the last run left behind.
+    /// **A Load copies the graph and nothing else** (2026-09-22, the maintainer's decision).
+    /// It used to mirror the whole core folder into <c>repo\core\</c> and read the graph out of
+    /// the mirror - 275 files for a comparison that reads one, since it is metadata only. The
+    /// graph now lands at <c>repo\core.json</c> and every comparison runs against that copy,
+    /// which keeps what the mirror was really for: the repository moves on, and a result has to
+    /// be able to point at the core it was against.
     ///
-    /// **It always copies first.** Reading the repository in place would describe a core nobody
-    /// can point at afterwards: the repository moves on and the result keeps claiming something
-    /// it can no longer reproduce. With a copy, both halves of the comparison are on disk side
-    /// by side for as long as the project keeps them.
+    /// **A download brings its own sources**, through <see cref="Sources"/>, into
+    /// <c>repo\tmp\</c> - exactly the ones it will write, from the branch's head, and flat.
+    ///
+    /// **Both go through one reading of the configuration**, so a Load and the download that
+    /// follows it cannot disagree about which repository the core is in, which provider speaks
+    /// for it or which token it takes.
     ///
     /// **A project that names no core is a normal state**, not a failure. Only the actions that
     /// read one need one, which is why `coreSource` may be null at all.
@@ -29,6 +36,7 @@ namespace Core.Repo.PlcCore
     public static class PlcCoreRefresh
     {
         /// <summary>
+        /// Copies the core's graph into the project and reads it back.
         /// <paramref name="projectDirectory"/> is the TIA project's own folder, the one holding
         /// <c>.plc-framework\</c>.
         /// </summary>
@@ -38,57 +46,89 @@ namespace Core.Repo.PlcCore
         /// caller with a window supplies it and a caller without one simply cannot use a
         /// `remote` core, which is what the sentence says.
         /// </param>
-        /// <param name="progress">
-        /// Told what is happening while a couple of hundred files come down a wire. A local
-        /// core never needs it; a remote one on a slow line very much does.
-        /// </param>
+        /// <param name="progress">Told what is happening while it waits on a wire.</param>
         public static PlcCoreRefreshResult Run(
             string projectDirectory, IRemoteCore remote = null, Action<string> progress = null)
         {
-            if (string.IsNullOrWhiteSpace(projectDirectory))
-                return PlcCoreRefreshResult.Failed("This project has no folder yet, so there is nowhere to copy a core into.");
+            Origin origin = Resolve(projectDirectory, remote);
 
-            ConfigLoadResult loaded = ConfigLoader.LoadFromProject(projectDirectory);
+            if (origin.Problem != null)
+                return origin.NamesCore
+                    ? PlcCoreRefreshResult.Failed(origin.Problem)
+                    : PlcCoreRefreshResult.NoCore(origin.Problem);
 
-            if (loaded.Config == null) return PlcCoreRefreshResult.Failed(loaded.Error);
+            Retire(projectDirectory);
 
-            string source = loaded.Config.Metadata?.CoreSource;
+            return origin.Local != null
+                ? FromLocal(projectDirectory, origin.Local)
+                : FromRemote(projectDirectory, origin, progress);
+        }
 
-            // Absent and null are the same answer, and it is an answer rather than a fault.
-            if (string.IsNullOrWhiteSpace(source))
-                return PlcCoreRefreshResult.NoCore(
-                    "This project names no core: metadata.coreSource is null. " +
-                    "Set it in the Config. Editor to compare against one.");
+        /// <summary>
+        /// Brings the sources of <paramref name="nodes"/> into the project's <c>repo\tmp\</c>,
+        /// under the names <see cref="PlcCoreCatalog.FileOf"/> gives them - which is where the
+        /// import that follows reads them.
+        ///
+        /// **From the branch's head, not from the commit the Load read** (the maintainer's
+        /// rule: the repository is the source of truth). A source the head no longer lists is a
+        /// problem named in the result, never something fetched from an older commit; and the
+        /// result carries the commit it read, so a caller can see that the core moved since the
+        /// comparison it is acting on.
+        ///
+        /// **A result that is not <c>Ready</c> should stop the import**, and both halves say why
+        /// in their problems: an import missing one source is one whose dependency may never
+        /// have arrived, and the object that needed it fails to build as the import's fault.
+        /// </summary>
+        public static PlcCoreSourcesResult Sources(
+            string projectDirectory, IEnumerable<Node> nodes, IRemoteCore remote = null, Action<string> progress = null)
+        {
+            Origin origin = Resolve(projectDirectory, remote);
 
-            if (string.Equals(source, MetadataValidator.Remote, StringComparison.Ordinal))
-                return FromRemote(projectDirectory, loaded.Config.CoreRemoteRepositoryConfig, remote, progress);
+            if (origin.Problem != null) return PlcCoreSourcesResult.Refused(origin.Problem);
 
-            if (!string.Equals(source, MetadataValidator.Local, StringComparison.Ordinal))
-                return PlcCoreRefreshResult.Failed(
-                    "metadata.coreSource is '" + source + "', which is neither 'local' nor 'remote'.");
+            string tmp = RepoPaths.TmpFor(projectDirectory);
+            List<string> paths = new List<string>();
 
-            LocalSource repository = LocalSource.Of(loaded.Config.CoreLocalRepositoryConfig);
+            foreach (Node node in nodes ?? new Node[0])
+                if (!string.IsNullOrWhiteSpace(node?.File)) paths.Add(node.File);
 
-            if (!repository.Resolved) return PlcCoreRefreshResult.Failed(repository.Problem);
+            if (paths.Count == 0) return PlcCoreSourcesResult.Done(tmp, null, 0, 0, null);
 
-            // Environmental, and asked here rather than in LocalSource for the reason that type
-            // records: a configuration prepared for another station is not wrong because a drive
-            // is not mapped on this one. It is still a sentence, because nothing can be compared
-            // until it is.
-            string missing = repository.Exists();
+            if (origin.Local != null)
+            {
+                LocalCopyResult copied = LocalCopy.Sources(origin.Local, paths, tmp);
 
-            if (missing != null) return PlcCoreRefreshResult.Failed(missing);
+                return copied.IsRefused
+                    ? PlcCoreSourcesResult.Refused(copied.Refusal)
+                    : PlcCoreSourcesResult.Done(tmp, null, copied.Files, 0, copied.Problems);
+            }
 
-            LocalCopyResult copied = LocalCopy.Mirror(repository.CoreFolder, RepoPaths.CoreFor(projectDirectory));
+            try
+            {
+                using (IRemoteFiles files = origin.Port.Open(origin.Remote, origin.Token))
+                {
+                    RemoteCopyResult fetched = RemoteCopy.Sources(files, origin.Remote.Folder, paths, tmp, progress);
+
+                    return fetched.IsRefused
+                        ? PlcCoreSourcesResult.Refused(fetched.Refusal)
+                        : PlcCoreSourcesResult.Done(tmp, fetched.Commit, fetched.Downloaded, fetched.Kept, fetched.Problems);
+                }
+            }
+            catch (Exception exception)
+            {
+                return PlcCoreSourcesResult.Refused(exception.Message);
+            }
+        }
+
+        private static PlcCoreRefreshResult FromLocal(string projectDirectory, LocalSource repository)
+        {
+            LocalCopyResult copied = LocalCopy.Graph(repository, RepoPaths.GraphFor(projectDirectory));
 
             if (copied.IsRefused) return PlcCoreRefreshResult.Failed(copied.Refusal);
 
             // Read out of the copy, never out of the repository - which is the whole point of
             // having made one.
-            PlcCoreLoadResult read = PlcCoreCatalogLoader.LoadFromProject(
-                projectDirectory,
-                repository.Folder,
-                loaded.Config.CoreLocalRepositoryConfig?.DependencyFile);
+            PlcCoreLoadResult read = PlcCoreCatalogLoader.LoadFromProject(projectDirectory, repository.Folder);
 
             if (read.Catalog == null) return PlcCoreRefreshResult.Failed(read.Error);
 
@@ -97,79 +137,48 @@ namespace Core.Repo.PlcCore
         }
 
         /// <summary>
-        /// The same thing from a repository nobody here hosts: bring the core down into
-        /// <c>repo\core\</c>, then read it out of the copy exactly as the local one is.
+        /// The same thing from a repository nobody here hosts.
         ///
         /// **Nothing in here names a host**, and that is deliberate. Which API is spoken is
         /// <c>coreRemoteRepositoryConfig.provider</c>, answered by whoever supplies the port;
         /// this layer only checks that the framework knows the name and says it back in every
         /// sentence, so a GitLab project is never told about GitHub.
         ///
-        /// **Everything past the download is shared with the local core**, which is the whole
-        /// point of a copy: the catalogue, the validator, the comparison and a download's own
-        /// sources all read a folder, and none of them learns where it came from.
-        ///
-        /// **A core that did not come down whole is refused.** The copy is read as the truth
-        /// about what the core defines, so a file short would be read as the core not defining
-        /// something - "you are missing a block" told about a download that failed.
+        /// **A graph that did not come down is refused**, and the previous copy is not compared
+        /// against in its place: a Load that says "compared" is saying the core is the one the
+        /// repository holds now.
         /// </summary>
-        private static PlcCoreRefreshResult FromRemote(
-            string projectDirectory, CoreRemoteRepositoryConfig repository, IRemoteCore remote, Action<string> progress)
+        private static PlcCoreRefreshResult FromRemote(string projectDirectory, Origin origin, Action<string> progress)
         {
-            if (repository == null)
-                return PlcCoreRefreshResult.Failed(
-                    "This project reads its core from a repository, but names none: " +
-                    "coreRemoteRepositoryConfig is missing.");
-
-            string provider = RepositoryValidator.ProviderOf(repository);
-
-            // Asked here rather than left to the port: a client for one host handed another
-            // host's configuration would read owner and repository off it and talk to the wrong
-            // place, which is the one failure that would look like an empty core.
-            if (!RepositoryValidator.Knows(provider))
-                return PlcCoreRefreshResult.Failed(
-                    "This project reads its core from '" + provider + "', which this framework " +
-                    "cannot speak. Today it knows " + RepositoryValidator.GitHub + ".");
-
-            if (remote == null)
-                return PlcCoreRefreshResult.Failed(
-                    "This project reads its core from " + provider + ", and this program cannot " +
-                    "reach it. Open the core updater, which can.");
-
-            string token = Token(repository.Token);
+            CoreRemoteRepositoryConfig repository = origin.Remote;
 
             try
             {
-                using (IRemoteFiles files = remote.Open(repository, token))
+                using (IRemoteFiles files = origin.Port.Open(repository, origin.Token))
                 {
-                    RemoteCopyResult copied = RemoteCopy.Mirror(
-                        files,
-                        repository.Folder,
-                        RepoPaths.CoreFor(projectDirectory),
-                        RepoPaths.TmpFor(projectDirectory),
-                        progress);
+                    RemoteCopyResult copied = RemoteCopy.Graph(
+                        files, repository.Folder, repository.DependencyFile, RepoPaths.GraphFor(projectDirectory), progress);
 
                     if (copied.IsRefused) return PlcCoreRefreshResult.Failed(copied.Refusal);
 
                     if (!copied.Ready)
                         return PlcCoreRefreshResult.Failed(
-                            "The core did not come down whole, so it is not compared against. " +
+                            "The core's graph did not come down, so it is not compared against. " +
                             string.Join(" ", copied.Problems));
 
-                    PlcCoreLoadResult read = PlcCoreCatalogLoader.LoadFromProject(
-                        projectDirectory, repository.Folder, repository.DependencyFile);
+                    PlcCoreLoadResult read = PlcCoreCatalogLoader.LoadFromProject(projectDirectory, repository.Folder);
 
                     if (read.Catalog == null) return PlcCoreRefreshResult.Failed(read.Error);
 
                     // Built once and used twice: the marker on disk, for whoever looks into
                     // `repo\` later, and the line the window puts under the core tree now. Two
                     // renderings of one fact would be two things to keep in step.
-                    CoreOrigin origin = CoreOrigin.Of(repository, copied, copied.Downloaded + copied.Kept);
+                    CoreOrigin marker = CoreOrigin.Of(repository, copied);
 
-                    CoreOrigin.Write(origin, projectDirectory);
+                    CoreOrigin.Write(marker, projectDirectory);
 
                     return PlcCoreRefreshResult.Fetch(
-                        read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied, origin.ToString());
+                        read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied, marker.ToString());
                 }
             }
             catch (Exception exception)
@@ -182,8 +191,117 @@ namespace Core.Repo.PlcCore
         }
 
         /// <summary>
+        /// Where the core comes from, read once for a Load and once for the download after it,
+        /// and read the same way both times.
+        /// </summary>
+        private sealed class Origin
+        {
+            public string Problem;
+
+            /// <summary>False only for "this project names no core", which is not a failure.</summary>
+            public bool NamesCore = true;
+
+            public LocalSource Local;
+
+            public CoreRemoteRepositoryConfig Remote;
+            public IRemoteCore Port;
+            public string Token;
+
+            public static Origin Refused(string problem, bool namesCore = true) =>
+                new Origin { Problem = problem, NamesCore = namesCore };
+        }
+
+        private static Origin Resolve(string projectDirectory, IRemoteCore remote)
+        {
+            if (string.IsNullOrWhiteSpace(projectDirectory))
+                return Origin.Refused("This project has no folder yet, so there is nowhere to copy a core into.");
+
+            ConfigLoadResult loaded = ConfigLoader.LoadFromProject(projectDirectory);
+
+            if (loaded.Config == null) return Origin.Refused(loaded.Error);
+
+            string source = loaded.Config.Metadata?.CoreSource;
+
+            // Absent and null are the same answer, and it is an answer rather than a fault.
+            if (string.IsNullOrWhiteSpace(source))
+                return Origin.Refused(
+                    "This project names no core: metadata.coreSource is null. " +
+                    "Set it in the Config. Editor to compare against one.", false);
+
+            if (string.Equals(source, MetadataValidator.Remote, StringComparison.Ordinal))
+                return Remote(loaded.Config.CoreRemoteRepositoryConfig, remote);
+
+            if (!string.Equals(source, MetadataValidator.Local, StringComparison.Ordinal))
+                return Origin.Refused("metadata.coreSource is '" + source + "', which is neither 'local' nor 'remote'.");
+
+            LocalSource repository = LocalSource.Of(loaded.Config.CoreLocalRepositoryConfig);
+
+            if (!repository.Resolved) return Origin.Refused(repository.Problem);
+
+            // Environmental, and asked here rather than in LocalSource for the reason that type
+            // records: a configuration prepared for another station is not wrong because a drive
+            // is not mapped on this one. It is still a sentence, because nothing can be read
+            // until it is.
+            string missing = repository.Exists();
+
+            return missing != null ? Origin.Refused(missing) : new Origin { Local = repository };
+        }
+
+        private static Origin Remote(CoreRemoteRepositoryConfig repository, IRemoteCore remote)
+        {
+            if (repository == null)
+                return Origin.Refused(
+                    "This project reads its core from a repository, but names none: " +
+                    "coreRemoteRepositoryConfig is missing.");
+
+            string provider = RepositoryValidator.ProviderOf(repository);
+
+            // Asked here rather than left to the port: a client for one host handed another
+            // host's configuration would read owner and repository off it and talk to the wrong
+            // place, which is the one failure that would look like an empty core.
+            if (!RepositoryValidator.Knows(provider))
+                return Origin.Refused(
+                    "This project reads its core from '" + provider + "', which this framework " +
+                    "cannot speak. Today it knows " + RepositoryValidator.GitHub + ".");
+
+            if (remote == null)
+                return Origin.Refused(
+                    "This project reads its core from " + provider + ", and this program cannot " +
+                    "reach it. Open the core updater, which can.");
+
+            return new Origin { Remote = repository, Port = remote, Token = Token(repository.Token) };
+        }
+
+        /// <summary>
+        /// Takes away the <c>repo\core\</c> a project loaded before 2026-09-22 still carries: the
+        /// whole core, mirrored, that nothing reads any more. **Best effort and silent** - it is
+        /// generated, it is not versioned, and one that will not go today is tried again on the
+        /// next Load; a failure here is never a reason to refuse a comparison.
+        /// </summary>
+        private static void Retire(string projectDirectory)
+        {
+            string retired = RepoPaths.RetiredCoreFor(projectDirectory);
+
+            try
+            {
+                if (retired == null || !Directory.Exists(retired)) return;
+
+                // A file copied off a read-only checkout arrived read-only, and Directory.Delete
+                // refuses a whole tree over one of those.
+                foreach (string file in Directory.GetFiles(retired, "*", SearchOption.AllDirectories))
+                    File.SetAttributes(file, FileAttributes.Normal);
+
+                Directory.Delete(retired, true);
+            }
+            catch (Exception)
+            {
+                // See above.
+            }
+        }
+
+        /// <summary>
         /// The token behind whatever reference the configuration holds - <c>${REPO_TOKEN}</c>
-        /// today, <c>${GITLAB_TOKEN}</c> the day there is one - or null.
+        /// today, a provider's own the day there is a second one - or null.
         ///
         /// **Nothing here knows the variable's name**, which is what lets a second provider
         /// arrive without touching this: the file names the variable and the `.env` answers it.
@@ -223,16 +341,12 @@ namespace Core.Repo.PlcCore
         }
 
         /// <summary>
-        /// Where this core came from, in one line: the repository folder for a local one, and
-        /// <c>owner/repo@branch on host, commit abc1234</c> for a remote one.
+        /// Where this core came from, in one line: the repository's core folder for a local one,
+        /// and <c>owner/repo@branch on host, commit abc1234</c> for a remote one.
         ///
         /// **It is the live answer, not the marker read back.** `repo\core.origin.json` records
         /// the same thing for whoever opens the folder later; this is what the run that just
         /// happened knows, and a result must never describe a core other than the one it read.
-        ///
-        /// **Both halves answer it, which is the point.** Until now nothing could say which core
-        /// a comparison was against - and a local core is exactly the case that needed it most,
-        /// being named by a folder that moves on with nothing recording which state it was in.
         /// </summary>
         public string Source { get; }
 
@@ -249,13 +363,12 @@ namespace Core.Repo.PlcCore
         /// </summary>
         public ValidationResult Issues { get; }
 
-        /// <summary>What the local mirror copied and removed, or null when the core is remote.</summary>
+        /// <summary>What copying the local graph did, or null when the core is remote.</summary>
         public LocalCopyResult Copied { get; }
 
         /// <summary>
-        /// What came down the wire, or null when the core is local. **At most one of the two
-        /// is ever set**: a core comes from one place, and which one is the difference between
-        /// "17 files copied" and "17 downloaded, 232 already here".
+        /// What came down the wire, or null when the core is local. **At most one of the two is
+        /// ever set**: a core comes from one place.
         /// </summary>
         public RemoteCopyResult Fetched { get; }
 
@@ -286,5 +399,54 @@ namespace Core.Repo.PlcCore
 
         public static PlcCoreRefreshResult NoCore(string why) =>
             new PlcCoreRefreshResult(null, null, null, null, null, why, false);
+    }
+
+    /// <summary>What came of bringing a download's sources into <c>repo\tmp\</c>.</summary>
+    public sealed class PlcCoreSourcesResult
+    {
+        private static readonly string[] Nothing = new string[0];
+
+        private PlcCoreSourcesResult(
+            string folder, string commit, int brought, int kept, IReadOnlyList<string> problems, string refusal)
+        {
+            Folder = folder;
+            Commit = commit;
+            Brought = brought;
+            Kept = kept;
+            Problems = problems ?? Nothing;
+            Refusal = refusal;
+        }
+
+        /// <summary>Where the sources are: the project's <c>repo\tmp\</c>.</summary>
+        public string Folder { get; }
+
+        /// <summary>
+        /// The commit they were read at - the branch's head at that moment - or null for a local
+        /// core, which has no commit to name. Held against the one the Load read, it says
+        /// whether the core moved under the comparison the download was planned from.
+        /// </summary>
+        public string Commit { get; }
+
+        /// <summary>How many were copied or came down.</summary>
+        public int Brought { get; }
+
+        /// <summary>How many were already there as the repository has them.</summary>
+        public int Kept { get; }
+
+        /// <summary>Sources that could not be brought, one line each.</summary>
+        public IReadOnlyList<string> Problems { get; }
+
+        /// <summary>Why nothing was attempted at all, or null.</summary>
+        public string Refusal { get; }
+
+        /// <summary>Every source asked for is there. Anything short of it should stop the import.</summary>
+        public bool Ready => Refusal == null && Problems.Count == 0;
+
+        internal static PlcCoreSourcesResult Done(
+            string folder, string commit, int brought, int kept, IReadOnlyList<string> problems) =>
+            new PlcCoreSourcesResult(folder, commit, brought, kept, problems, null);
+
+        internal static PlcCoreSourcesResult Refused(string refusal) =>
+            new PlcCoreSourcesResult(null, null, 0, 0, Nothing, refusal ?? "The sources could not be brought down.");
     }
 }

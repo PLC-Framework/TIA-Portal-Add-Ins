@@ -8,23 +8,26 @@ using System.Xml;
 namespace Core.Repo.Remote
 {
     /// <summary>
-    /// Where the copy in <c>repo\core\</c> came from, written beside it after a remote core
-    /// has been brought down whole: <c>repo\core.origin.json</c>.
+    /// Where the project's <c>repo\core.json</c> came from, written beside it after a remote
+    /// core's graph has been brought down: <c>repo\core.origin.json</c>.
     ///
     /// **It is a record, not a shortcut**, and that was a decision rather than an oversight.
-    /// The obvious use is to skip the download when the branch has not moved - one request
-    /// instead of two and a listing. It is not taken, because the listing is what repairs a
-    /// copy somebody edited, truncated or half-deleted: the file hashes are compared against
-    /// the repository's on every run, and trusting a commit marker instead would hand a
-    /// comparison a copy nobody has checked. Two requests and a few hundred hashes are
-    /// cheaper than that.
+    /// The obvious use is to skip the listing when the branch has not moved - one request
+    /// instead of two. It is not taken, because the listing is what repairs a copy somebody
+    /// edited or truncated: the graph's hash is compared against the repository's on every
+    /// Load, and trusting a commit marker instead would hand a comparison a copy nobody has
+    /// checked. One request is cheaper than that.
     ///
     /// **What it is for is saying which core a result was against.** Until now nothing could:
     /// a local core is named by a folder that has moved on since, and a remote one by a branch
     /// that has. A commit is the one answer that stays true.
     ///
-    /// **Only written when the copy is whole.** A run that could not fetch every file leaves
-    /// the previous marker alone rather than claiming a commit the folder does not hold.
+    /// **Only written when the graph came down whole.** A Load that could not fetch it leaves
+    /// the previous marker alone rather than claiming a commit the copy does not hold.
+    ///
+    /// **It no longer counts files** (2026-09-22): it recorded how many the mirror held, and
+    /// there is no mirror - the graph comes down alone and a source only when an import reads
+    /// it. A marker written before still reads; the count is simply ignored.
     ///
     /// **It records the host as well as the path inside it**, because owner, repository and
     /// branch are not an answer on their own: <c>acme/code@main</c> on GitHub and the same on
@@ -68,9 +71,6 @@ namespace Core.Repo.Remote
         /// <summary>When it was brought down, in UTC.</summary>
         [DataMember(Name = "when", Order = 8)]
         public string When { get; set; }
-
-        [DataMember(Name = "files", Order = 9)]
-        public int Files { get; set; }
 
         /// <summary>The first seven characters, which is how a commit is read out loud.</summary>
         public string ShortCommit =>
@@ -157,14 +157,14 @@ namespace Core.Repo.Remote
             }
             catch (Exception)
             {
-                // A marker that will not read says nothing about the copy beside it, which is
-                // checked file by file anyway.
+                // A marker that will not read says nothing about the graph beside it, which is
+                // checked against the repository on every Load anyway.
                 return null;
             }
         }
 
-        /// <summary>The marker for a mirror that has just finished.</summary>
-        public static CoreOrigin Of(Config.CoreRemoteRepositoryConfig repository, RemoteCopyResult copied, int files) =>
+        /// <summary>The marker for a graph that has just come down.</summary>
+        public static CoreOrigin Of(Config.CoreRemoteRepositoryConfig repository, RemoteCopyResult copied) =>
             new CoreOrigin
             {
                 Provider = Config.Validation.RepositoryValidator.ProviderOf(repository),
@@ -174,8 +174,7 @@ namespace Core.Repo.Remote
                 Branch = repository?.Branch,
                 Folder = repository?.Folder,
                 Commit = copied?.Commit,
-                When = DateTime.UtcNow.ToString("o"),
-                Files = files
+                When = DateTime.UtcNow.ToString("o")
             };
     }
 }

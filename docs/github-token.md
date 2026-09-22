@@ -11,7 +11,7 @@ The Core updater can read a project's core library straight out of a GitHub repo
 | **Public** | nothing. It is read without a token |
 | **Private** | a token — GitHub answers *"not found"* to anyone reading a private repository without one |
 
-There is one reason to make a token for a **public** repository too: without one GitHub allows **sixty API calls an hour** from your address, and a core of a few hundred files spends that on the first download. With a token it is 5,000 an hour. If you share an office network, you will meet the limit sooner than you expect.
+There is one reason to make a token for a **public** repository too: without one GitHub allows **sixty API calls an hour** from your address, shared by everybody behind it. A **Load** costs three, and a download two more plus one for each source it brings, so one engineer rarely meets the limit — an office sharing one address does, and sooner than it expects. With a token it is 5,000 an hour, per token.
 
 ## Make the token
 

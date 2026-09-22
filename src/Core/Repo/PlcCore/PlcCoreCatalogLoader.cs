@@ -20,38 +20,42 @@ namespace Core.Repo.PlcCore
     /// </summary>
     public static class PlcCoreCatalogLoader
     {
-        /// <summary>Reads the core a <see cref="Local.LocalSource"/> points at.</summary>
+        /// <summary>
+        /// Reads the graph a <see cref="Local.LocalSource"/> points at, **in place** - for a
+        /// tool or a test that wants to look at a repository. It has nowhere to bring a source,
+        /// so the catalogue it returns resolves no files; a project always reads its own copy.
+        /// </summary>
         public static PlcCoreLoadResult Load(Local.LocalSource source)
         {
             if (source == null) return PlcCoreLoadResult.Failed("No repository was given.");
             if (!source.Resolved) return PlcCoreLoadResult.Failed(source.Problem);
 
-            return LoadFile(source.GraphFile, source.CoreFolder, source.Folder);
+            return LoadFile(source.GraphFile, null, source.Folder);
         }
 
         /// <summary>
-        /// Reads the core copied into a project's own <c>repo\core\</c>, which is what every
+        /// Reads the graph copied into a project's own <c>repo\core.json</c>, which is what every
         /// comparison runs against - never the repository itself.
+        ///
+        /// **The sources resolve into <c>repo\tmp\</c>**, which is where a download brings them
+        /// and the only place anything reads them from.
         /// </summary>
         /// <param name="folderInRepository">
-        /// The core's path inside its repository, from <c>coreLocalRepositoryConfig.folder</c>.
-        /// The copy mirrors the core folder, but a node's <c>file</c> is still written
-        /// relative to the repository root, so the prefix is needed to resolve one.
+        /// The core's path inside its repository, from the configuration's <c>folder</c>. A
+        /// node's <c>file</c> is written relative to the repository root, so this is the prefix
+        /// that says which part of it is the core - and so which folder in TIA it belongs in.
         /// </param>
-        public static PlcCoreLoadResult LoadFromProject(string projectDirectory, string folderInRepository, string dependencyFile)
+        public static PlcCoreLoadResult LoadFromProject(string projectDirectory, string folderInRepository)
         {
-            string coreFolder = RepoPaths.CoreFor(projectDirectory);
+            string graph = RepoPaths.GraphFor(projectDirectory);
 
-            if (coreFolder == null)
+            if (graph == null)
                 return PlcCoreLoadResult.Failed("This project has no folder yet, so there is no core copied into it.");
 
-            if (string.IsNullOrWhiteSpace(dependencyFile))
-                return PlcCoreLoadResult.Failed("coreLocalRepositoryConfig.dependencyFile is empty.");
-
-            return LoadFile(Path.Combine(coreFolder, dependencyFile.Trim()), coreFolder, folderInRepository);
+            return LoadFile(graph, RepoPaths.TmpFor(projectDirectory), folderInRepository);
         }
 
-        public static PlcCoreLoadResult LoadFile(string path, string coreFolder, string folderInRepository)
+        public static PlcCoreLoadResult LoadFile(string path, string sourceFolder, string folderInRepository)
         {
             if (string.IsNullOrWhiteSpace(path)) return PlcCoreLoadResult.Failed("No dependency file was given.");
 
@@ -61,7 +65,7 @@ namespace Core.Repo.PlcCore
             try
             {
                 using (FileStream stream = File.OpenRead(path))
-                    return Load(stream, coreFolder, folderInRepository, path);
+                    return Load(stream, sourceFolder, folderInRepository, path);
             }
             catch (Exception exception)
             {
@@ -74,7 +78,7 @@ namespace Core.Repo.PlcCore
         /// exercised without a repository on disk.
         /// </summary>
         /// <param name="source">Only used to name the file in a message.</param>
-        public static PlcCoreLoadResult Load(Stream json, string coreFolder, string folderInRepository, string source = null)
+        public static PlcCoreLoadResult Load(Stream json, string sourceFolder, string folderInRepository, string source = null)
         {
             if (json == null) return PlcCoreLoadResult.Failed("No dependency stream was given.");
 
@@ -92,7 +96,7 @@ namespace Core.Repo.PlcCore
 
                     return graph == null
                         ? PlcCoreLoadResult.Failed(Describe(source, "is not a dependency file."))
-                        : PlcCoreLoadResult.Loaded(PlcCoreCatalog.Of(graph, coreFolder, folderInRepository));
+                        : PlcCoreLoadResult.Loaded(PlcCoreCatalog.Of(graph, sourceFolder, folderInRepository));
                 }
             }
             catch (Exception exception)

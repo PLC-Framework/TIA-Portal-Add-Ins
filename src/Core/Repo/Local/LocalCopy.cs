@@ -5,235 +5,181 @@ using System.IO;
 namespace Core.Repo.Local
 {
     /// <summary>
-    /// Copies a core folder into the project's own <c>repo\core\</c>, and leaves it holding
-    /// exactly what the source holds.
+    /// Brings what a project needs out of a core that is a folder on this machine: its graph
+    /// when the project is loaded, and a handful of its sources when something is about to
+    /// import them.
     ///
-    /// **A mirror, not an addition, and that is a correctness property rather than tidiness.**
-    /// A block deleted from the repository that survived here would be compared against, and
-    /// the project would be told it is missing something the core no longer defines. So
-    /// whatever the copy does not write, it removes.
+    /// **It used to mirror the whole core into <c>repo\core\</c>**, and that stopped on
+    /// 2026-09-22 (the maintainer's decision). The comparison reads one file, <c>core.json</c>;
+    /// the sources are read only by an import, and only the few it is importing. Copying the
+    /// rest of the library into every project on every Load was work nobody used - and a project
+    /// uses a handful of the core's libraries, never all of them.
     ///
-    /// **The same contract as <see cref="Remote.RemoteCopy"/>, over a folder instead of a
-    /// wire** - one core comes from each, and everything downstream reads the copy without
-    /// learning which. What differs is what each can afford. A remote mirror asks before it
-    /// fetches, because a file costs a request; here the file is already under the reader's
-    /// hand, and comparing it with the source costs the same read as copying over it. So this
-    /// one copies every file, every time, and needs no hash to decide.
+    /// **The same two calls as <see cref="Remote.RemoteCopy"/>**, over a folder instead of a
+    /// wire, so a download reads the same whichever half brought its sources.
     ///
-    /// **It only ever removes inside the destination it was given**, and it refuses outright
-    /// when the two folders overlap - a destination inside the source would have the copy
-    /// feeding itself, and a source inside the destination would be deleted by the clean-up
-    /// that follows. Both are one wrong path in a configuration away.
+    /// **Nothing here deletes anything**, which is what the old mirror had to guard so hard
+    /// against - a destination overlapping its source could have had the clean-up delete the
+    /// repository itself. A copy that only ever writes named files has nothing left to guard.
     /// </summary>
     public static class LocalCopy
     {
         /// <summary>
-        /// Deep enough for any repository laid out by hand, and a guarantee that a junction
-        /// pointing back up its own tree cannot spin forever.
+        /// Copies the core's graph to <paramref name="into"/>, the project's
+        /// <c>repo\core.json</c>. **Written beside it and moved over it**, so a copy that fails
+        /// half way leaves the previous graph rather than a truncated one a comparison would read.
         /// </summary>
-        private const int MaxDepth = 32;
-
-        /// <summary>
-        /// Makes <paramref name="destination"/> hold what <paramref name="source"/> holds.
-        /// **Never throws**: a file that could not be copied is one line in the result, and
-        /// the rest of the core still arrives.
-        /// </summary>
-        public static LocalCopyResult Mirror(string source, string destination)
+        public static LocalCopyResult Graph(LocalSource source, string into)
         {
-            if (string.IsNullOrWhiteSpace(source)) return LocalCopyResult.Refused("No core folder was given.");
-            if (string.IsNullOrWhiteSpace(destination)) return LocalCopyResult.Refused("There is nowhere to copy to.");
+            if (source == null || !source.Resolved)
+                return LocalCopyResult.Refused(source?.Problem ?? "No repository was given.");
 
-            string from, to;
-            try
-            {
-                from = Path.GetFullPath(source);
-                to = Path.GetFullPath(destination);
-            }
-            catch (Exception exception)
-            {
-                return LocalCopyResult.Refused("The paths could not be read: " + exception.Message);
-            }
+            if (string.IsNullOrWhiteSpace(into)) return LocalCopyResult.Refused("There is nowhere to copy the core to.");
 
-            if (!Directory.Exists(from))
-                return LocalCopyResult.Refused("The core folder does not exist: " + from);
-
-            if (Same(from, to))
-                return LocalCopyResult.Refused("The core folder and the copy are the same folder: " + from);
-
-            if (Inside(to, from))
-                return LocalCopyResult.Refused("The copy would sit inside the core folder it is copying: " + to);
-
-            if (Inside(from, to))
-                return LocalCopyResult.Refused("The core folder sits inside the copy, which would delete it: " + from);
-
-            List<string> problems = new List<string>();
-            HashSet<string> written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string writing = into + ".writing";
 
             try
             {
-                Directory.CreateDirectory(to);
+                if (!File.Exists(source.GraphFile))
+                    return LocalCopyResult.Refused("The dependency file does not exist: " + source.GraphFile);
+
+                Directory.CreateDirectory(Path.GetDirectoryName(into));
+
+                File.Copy(source.GraphFile, writing, true);
+                File.SetAttributes(writing, FileAttributes.Normal);
+
+                Replace(writing, into);
+
+                return LocalCopyResult.Done(into, 1, null);
             }
             catch (Exception exception)
             {
-                return LocalCopyResult.Refused("The copy folder could not be created: " + exception.Message);
+                Discard(writing);
+                return LocalCopyResult.Refused("The core's graph could not be copied: " + exception.Message);
             }
-
-            int files = Copy(from, to, 0, written, problems);
-            int removed = Clean(to, written, problems);
-
-            return LocalCopyResult.Done(to, files, removed, problems);
         }
 
-        private static int Copy(string from, string to, int depth, HashSet<string> written, List<string> problems)
+        /// <summary>
+        /// Copies the named sources into <paramref name="into"/>, the project's <c>repo\tmp\</c>,
+        /// each under its own file name and **flat**.
+        ///
+        /// **Two sources with one file name are refused, not overwritten.** Every name is unique
+        /// in today's core, measured; but that is a fact about one core, and the second copy
+        /// landing on the first would import one block's source as another's with nothing saying
+        /// so. Neither is copied, and the problem names both.
+        ///
+        /// **Never throws**: a file that would not copy is a line in the result, and whoever
+        /// asked decides whether an import with a hole in it goes ahead - which it should not.
+        /// </summary>
+        /// <param name="repositoryPaths">Nodes' <c>file</c>s, relative to the repository root.</param>
+        public static LocalCopyResult Sources(LocalSource source, IEnumerable<string> repositoryPaths, string into)
         {
-            if (depth >= MaxDepth)
-            {
-                problems.Add("Stopped at " + MaxDepth + " folders deep: " + from);
-                return 0;
-            }
+            if (source == null || !source.Resolved)
+                return LocalCopyResult.Refused(source?.Problem ?? "No repository was given.");
 
-            int files = 0;
+            if (string.IsNullOrWhiteSpace(into)) return LocalCopyResult.Refused("There is nowhere to put the sources.");
 
-            string[] entries;
             try
             {
-                entries = Directory.GetFiles(from);
+                Directory.CreateDirectory(into);
             }
             catch (Exception exception)
             {
-                problems.Add(from + ": " + exception.Message);
-                return 0;
+                return LocalCopyResult.Refused("The folder for the sources could not be made: " + exception.Message);
             }
 
-            foreach (string file in entries)
+            List<string> problems = new List<string>();
+            Dictionary<string, string> named = Flat(repositoryPaths, problems);
+            int files = 0;
+
+            foreach (KeyValuePair<string, string> one in named)
             {
-                string target = Path.Combine(to, Path.GetFileName(file));
+                string from = Path.Combine(source.Root, one.Value.Replace('/', Path.DirectorySeparatorChar));
+                string target = Path.Combine(into, one.Key);
 
                 try
                 {
-                    File.Copy(file, target, true);
+                    if (!File.Exists(from))
+                    {
+                        problems.Add(one.Key + " is not in the repository: " + from);
+                        continue;
+                    }
 
-                    // A file copied off a read-only checkout arrives read-only, and the next
-                    // mirror could then neither overwrite nor delete it.
+                    File.Copy(from, target, true);
+
+                    // Off a read-only checkout it arrives read-only, and then neither the next
+                    // download nor the clean-up at the end of this one could write or remove it.
                     File.SetAttributes(target, FileAttributes.Normal);
 
-                    written.Add(target);
                     files++;
                 }
                 catch (Exception exception)
                 {
-                    problems.Add(Path.GetFileName(file) + ": " + exception.Message);
+                    problems.Add(one.Key + ": " + exception.Message);
                 }
             }
 
-            string[] folders;
-            try
-            {
-                folders = Directory.GetDirectories(from);
-            }
-            catch (Exception exception)
-            {
-                problems.Add(from + ": " + exception.Message);
-                return files;
-            }
+            return LocalCopyResult.Done(into, files, problems);
+        }
 
-            foreach (string folder in folders)
-            {
-                string target = Path.Combine(to, Path.GetFileName(folder));
+        /// <summary>
+        /// The file names a set of repository paths would land under, each once. A name two paths
+        /// share is reported and dropped from both.
+        /// </summary>
+        internal static Dictionary<string, string> Flat(IEnumerable<string> repositoryPaths, List<string> problems)
+        {
+            Dictionary<string, string> named = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> clashed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                try
+            foreach (string path in repositoryPaths ?? new string[0])
+            {
+                if (string.IsNullOrWhiteSpace(path)) continue;
+
+                string normal = path.Replace('\\', '/').TrimStart('/');
+                string name = Path.GetFileName(normal.Replace('/', Path.DirectorySeparatorChar));
+
+                if (string.IsNullOrEmpty(name)) continue;
+
+                string earlier;
+                if (named.TryGetValue(name, out earlier))
                 {
-                    Directory.CreateDirectory(target);
-                }
-                catch (Exception exception)
-                {
-                    problems.Add(Path.GetFileName(folder) + ": " + exception.Message);
+                    if (string.Equals(earlier, normal, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    problems.Add("Two sources are both called '" + name + "' - " + earlier + " and " + normal +
+                                 " - so neither is brought down: one would land on the other.");
+                    clashed.Add(name);
                     continue;
                 }
 
-                files += Copy(folder, target, depth + 1, written, problems);
+                named.Add(name, normal);
             }
 
-            return files;
+            foreach (string name in clashed) named.Remove(name);
+
+            return named;
         }
 
-        /// <summary>
-        /// Removes what this run did not write. Empty folders go with their files, because a
-        /// folder emptied by a removal says nothing and reads as a family the core still has.
-        /// </summary>
-        private static int Clean(string folder, HashSet<string> written, List<string> problems)
+        private static void Replace(string writing, string into)
         {
-            int removed = 0;
-
-            string[] files;
-            try
+            if (File.Exists(into))
             {
-                files = Directory.GetFiles(folder);
-            }
-            catch (Exception exception)
-            {
-                problems.Add(folder + ": " + exception.Message);
-                return 0;
+                File.SetAttributes(into, FileAttributes.Normal);
+                File.Delete(into);
             }
 
-            foreach (string file in files)
-            {
-                if (written.Contains(file)) continue;
-
-                try
-                {
-                    File.SetAttributes(file, FileAttributes.Normal);
-                    File.Delete(file);
-                    removed++;
-                }
-                catch (Exception exception)
-                {
-                    problems.Add(Path.GetFileName(file) + " could not be removed: " + exception.Message);
-                }
-            }
-
-            string[] folders;
-            try
-            {
-                folders = Directory.GetDirectories(folder);
-            }
-            catch (Exception exception)
-            {
-                problems.Add(folder + ": " + exception.Message);
-                return removed;
-            }
-
-            foreach (string child in folders)
-            {
-                removed += Clean(child, written, problems);
-
-                try
-                {
-                    if (Directory.GetFileSystemEntries(child).Length == 0) Directory.Delete(child);
-                }
-                catch (Exception)
-                {
-                    // A folder that will not go is not worth a line of its own: it is empty,
-                    // it holds nothing that can be mistaken for the core, and the next mirror
-                    // will try again.
-                }
-            }
-
-            return removed;
+            File.Move(writing, into);
         }
 
-        private static bool Same(string left, string right) =>
-            string.Equals(Ending(left), Ending(right), StringComparison.OrdinalIgnoreCase);
-
-        /// <summary>Whether <paramref name="inner"/> sits under <paramref name="outer"/>.</summary>
-        private static bool Inside(string inner, string outer) =>
-            Ending(inner).StartsWith(Ending(outer), StringComparison.OrdinalIgnoreCase);
-
-        /// <summary>
-        /// A path that ends in a separator, so a prefix test cannot read <c>C:\coreX</c> as
-        /// sitting inside <c>C:\core</c>.
-        /// </summary>
-        private static string Ending(string path) =>
-            path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        private static void Discard(string path)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch (Exception)
+            {
+                // It carries a .writing suffix, so nothing reads it as the core.
+            }
+        }
     }
 }

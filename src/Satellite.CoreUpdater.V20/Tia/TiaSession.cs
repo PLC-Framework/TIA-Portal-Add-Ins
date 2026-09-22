@@ -500,8 +500,10 @@ namespace Satellite.CoreUpdater.Tia
 
         private ImportedNode One(PlcSoftware software, PlcUnitBase into, PlannedNode planned, string scratch)
         {
+            // Checked rather than trusted: an import started without its sources brought down
+            // would otherwise fail inside CreateFromFile with a message naming nothing.
             if (string.IsNullOrWhiteSpace(planned.Source) || !File.Exists(planned.Source))
-                return ImportedNode.Refused(planned, "Its source is not in the copied core: " + planned.Source);
+                return ImportedNode.Refused(planned, "Its source was not brought down from the core: " + planned.Source);
 
             try
             {
@@ -723,12 +725,12 @@ namespace Satellite.CoreUpdater.Tia
         private static ImportedNode FromSource(
             PlcSoftware software, PlcUnitBase into, PlannedNode planned, string scratch)
         {
-            // Copied under the project's own repo\tmp\ first: CreateFromFile reads from where it
-            // is pointed, and pointing it at the copied core would leave TIA holding a file the
-            // next mirror wants to replace.
-            string path = Path.Combine(scratch, Path.GetFileName(planned.Source));
-
-            File.Copy(planned.Source, path, true);
+            // Already in the project's repo\tmp\: the download brought it there before this ran,
+            // and TIA is pointed at it where it landed. There used to be a copy step here, from a
+            // mirror of the whole core into tmp\, because pointing TIA at the mirror would have
+            // left it holding a file the next Load wanted to replace; with no mirror the file is
+            // born where TIA reads it.
+            string path = planned.Source;
 
             PlcExternalSourceSystemGroup sources =
                 into == null ? software.ExternalSourceGroup : into.ExternalSourceGroup;

@@ -8,10 +8,11 @@ namespace Core.Repo.Local
     /// <summary>
     /// Where a core comes from, resolved to paths something can actually open.
     ///
-    /// **Only the local repository today**, and the shape is chosen so the remote one slots
-    /// in beside it rather than through it: whatever fetches from GitHub ends by producing a
-    /// folder on disk, and from that point the two are the same thing. So everything past
-    /// this type - the copy, the catalogue, the comparison - never learns which it was.
+    /// **The local half, beside <see cref="Remote.RemoteCopy"/> rather than through it.** Both
+    /// end in the same two places in the project - the graph at <c>repo\core.json</c>, and the
+    /// sources a download needs in <c>repo\tmp\</c> - so the catalogue, the comparison and the
+    /// import never learn which half brought them. That used to be said of one mirrored folder;
+    /// since 2026-09-22 nothing is mirrored, and it is true of those two places instead.
     ///
     /// **`folder` is the path inside the repository, and it is written with forward slashes**
     /// in a file that Windows will resolve. `plc/s7-1x00/core` is what the real configuration

@@ -271,7 +271,7 @@ namespace Satellite.CoreUpdater.Tia
         ///
         /// **`System.Version` written out, because this class has a constant called
         /// `Version`** and a member name shadows the type - the same trap `AddIn.Core` and
-        /// `Core.Repo.RepoPaths.CoreFolder` already record, met a third time.
+        /// the `CoreGraph` alias in `PlcCoreCatalog` already record, met a third time.
         /// </summary>
         private static System.Version Compare(string name)
         {

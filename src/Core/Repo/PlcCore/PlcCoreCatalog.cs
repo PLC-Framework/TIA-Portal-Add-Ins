@@ -35,10 +35,10 @@ namespace Core.Repo.PlcCore
         private readonly Dictionary<string, Node> _byId;
         private readonly Dictionary<string, List<Node>> _byBase;
 
-        private PlcCoreCatalog(CoreGraph graph, string coreFolder, string folderInRepository)
+        private PlcCoreCatalog(CoreGraph graph, string sourceFolder, string folderInRepository)
         {
             Graph = graph;
-            CoreFolder = coreFolder;
+            SourceFolder = sourceFolder;
             FolderInRepository = folderInRepository ?? string.Empty;
 
             _byId = new Dictionary<string, Node>(StringComparer.Ordinal);
@@ -68,8 +68,16 @@ namespace Core.Repo.PlcCore
 
         public CoreGraph Graph { get; }
 
-        /// <summary>The folder <c>core.json</c> was read from.</summary>
-        public string CoreFolder { get; }
+        /// <summary>
+        /// Where the core's sources are brought before an import reads them - the project's
+        /// <c>repo\tmp\</c> - or null for a catalogue that will never import anything.
+        ///
+        /// **Not where <c>core.json</c> was read from**, which is what this was called and what
+        /// it meant while the whole core was mirrored beside the graph. Now the graph is copied
+        /// alone and a source only arrives when something is about to use it, so this is the
+        /// one place a node's source will be, not the place it already is.
+        /// </summary>
+        public string SourceFolder { get; }
 
         /// <summary>
         /// The core's path inside its repository, forward slashes and all - because a node's
@@ -87,8 +95,8 @@ namespace Core.Repo.PlcCore
         /// <summary>When the repository generated this graph, as it wrote it.</summary>
         public string GeneratedAt => Graph.GeneratedAt;
 
-        public static PlcCoreCatalog Of(CoreGraph graph, string coreFolder, string folderInRepository) =>
-            graph == null ? null : new PlcCoreCatalog(graph, coreFolder, folderInRepository);
+        public static PlcCoreCatalog Of(CoreGraph graph, string sourceFolder, string folderInRepository) =>
+            graph == null ? null : new PlcCoreCatalog(graph, sourceFolder, folderInRepository);
 
         /// <summary>One node by its id - <c>_queue-v3.0</c> - or null.</summary>
         public Node ById(string id)
@@ -141,19 +149,31 @@ namespace Core.Repo.PlcCore
         }
 
         /// <summary>
-        /// Where a node's source sits inside <see cref="CoreFolder"/>, or null when the node's
-        /// <c>file</c> does not sit under the core at all - which <see cref="PlcCoreValidator"/>
-        /// reports rather than this silently resolving to somewhere plausible.
+        /// Where a node's source will be once it is brought down for an import: in
+        /// <see cref="SourceFolder"/>, under its own file name and **flat** - or null when the
+        /// node's <c>file</c> does not sit under the core at all, which
+        /// <see cref="PlcCoreValidator"/> reports rather than this silently resolving to
+        /// somewhere plausible.
+        ///
+        /// **Flat because the import needs nothing the folder says.** Where an object goes in
+        /// TIA comes from this graph, not from where its source waited; and the file names are
+        /// unique across the core, measured on all 268 of today's and guarded where the sources
+        /// are brought down, since that is a fact about one core rather than a contract.
+        ///
+        /// It is the same answer <see cref="RepoPaths.SourceFor"/> gives, and has to be: the
+        /// plan names the file here and the download writes it there.
         /// </summary>
         public string FileOf(Node node)
         {
             string inside = InsideCore(node);
 
-            if (inside == null || CoreFolder == null) return null;
+            if (inside == null || SourceFolder == null) return null;
 
             try
             {
-                return Path.Combine(CoreFolder, inside.Replace('/', Path.DirectorySeparatorChar));
+                string name = Path.GetFileName(inside.Replace('/', Path.DirectorySeparatorChar));
+
+                return string.IsNullOrEmpty(name) ? null : Path.Combine(SourceFolder, name);
             }
             catch (Exception)
             {

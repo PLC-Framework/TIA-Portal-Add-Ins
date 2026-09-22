@@ -11,6 +11,7 @@ using System.Windows.Threading;
 
 using Core;
 using Core.Config.Validation;
+using Core.DependencyGraph;
 using Core.Repo;
 using Core.Repo.Local;
 using Core.Repo.PlcProject;
@@ -309,8 +310,8 @@ namespace Satellite.CoreUpdater
         /// **One window per project** — the guard that was deferred until this window could
         /// change anything, and it now can: it imports blocks and moves them between folders.
         /// Two windows over one project would each compare a map the other is about to make
-        /// stale, and both write the same `repo\project.json`, the same copied core and the same
-        /// `repo\tmp\` a move keeps its only copy in. That is the config editor's reason for its
+        /// stale, and both write the same `repo\project.json`, the same `repo\core.json` and the
+        /// same `repo\tmp\` - where a download's sources wait and a move keeps its only copy. That is the config editor's reason for its
         /// own guard — two windows over one document lose each other's changes in silence —
         /// with a project in place of a file.
         ///
@@ -841,12 +842,12 @@ namespace Satellite.CoreUpdater
             // On the repository caption, because that is what is being read - and because a map
             // now always compares, so the left caption is holding the counts that walk just
             // produced and this would be the second thing in a row to wipe them.
-            RepositorySays("Copying the core into the project and reading it back.");
+            RepositorySays("Copying the core's graph into the project and reading it back.");
 
             Dispatcher dispatcher = Dispatcher;
 
-            // A local core is a folder copy and says nothing while it happens; a remote one is
-            // a couple of hundred files off a wire, and a window that goes quiet for a minute
+            // A local core is one file copy and says nothing while it happens; a remote one is
+            // three requests on a line that may be slow or refused, and a window that goes quiet
             // is one an operator concludes has died - which this project has paid for once.
             Action<string> progress = text => dispatcher.BeginInvoke(new Action(() => StatusText.Text = text));
 
@@ -997,18 +998,17 @@ namespace Satellite.CoreUpdater
         }
 
         /// <summary>
-        /// The line under the core tree: **which core this was, what it cost to have it, and
-        /// what is in it.**
+        /// The line under the core tree: **which core this was, whether it changed, and what is
+        /// in it.**
         ///
         /// **Which core comes first**, because it is what the rest of the line is about - and
         /// because until this was written the panel could not say it at all: a local core and a
         /// remote one at a named commit read identically, which is the half-truth this window
         /// has spent six stages refusing everywhere else.
         ///
-        /// **What it cost is only said when it was not nothing.** A remote refresh that
-        /// downloaded no file because the copy was already right is the ordinary second run, and
-        /// announcing "0 downloaded, 249 already here" every time would bury the one run where a
-        /// number is worth reading.
+        /// **Whether it changed is only said when it did.** A remote graph whose hash already
+        /// matched is the ordinary Load, and a word about it every time would bury the one Load
+        /// where the core moved.
         ///
         /// It is one line, trimmed, whole in the tooltip - what this framework does to any
         /// caption it cannot fit.
@@ -1027,35 +1027,19 @@ namespace Satellite.CoreUpdater
         }
 
         /// <summary>
-        /// What the last refresh moved, or null when it moved nothing worth saying.
+        /// Whether the Load found the core changed, or null when there is nothing worth saying.
         ///
-        /// **A remote one counts downloads against what it kept**, which is what makes the
-        /// hash-compared mirror visible: the second run fetches nothing at all. A local one
-        /// copies every file every time, so its own count says nothing - only what it *removed*
-        /// does, because that is the core having dropped a block.
+        /// **A Load brings one file now, the graph**, so what used to be a count of a mirror is
+        /// one fact: a remote graph that came down is a core that moved since the last Load,
+        /// and that is worth a word; one whose hash already matched is the ordinary case, and
+        /// saying so every time would bury the one where it is not. A local graph is copied
+        /// every time - it costs nothing - so there is nothing to report either way.
         /// </summary>
         private static string Cost(PlcCoreRefreshResult core)
         {
             RemoteCopyResult fetched = core.Fetched;
 
-            if (fetched != null)
-            {
-                if (fetched.Downloaded == 0 && fetched.Removed == 0) return null;
-
-                string said = string.Format(
-                    CultureInfo.CurrentCulture, "{0} downloaded, {1} already here",
-                    fetched.Downloaded, fetched.Kept);
-
-                return fetched.Removed == 0
-                    ? said
-                    : said + string.Format(CultureInfo.CurrentCulture, ", {0} removed", fetched.Removed);
-            }
-
-            LocalCopyResult copied = core.Copied;
-
-            if (copied == null || copied.Removed == 0) return null;
-
-            return string.Format(CultureInfo.CurrentCulture, "{0} removed", copied.Removed);
+            return fetched != null && fetched.Downloaded > 0 ? "core.json updated" : null;
         }
 
         private static string Counted(CoreComparison result)
@@ -1586,24 +1570,83 @@ namespace Satellite.CoreUpdater
 
             string plc = _shown.Map?.Plc;
             string unit = _shown.Map?.Unit;
+            string directory = _projectDirectory;
+            string readAt = _shown.Core.Fetched?.Commit;
 
             Working(true);
             DownloadButton.IsEnabled = false;
-            StatusText.Text = "Importing…";
+            StatusText.Text = "Bringing the sources…";
 
             _notice = string.Empty;
             Problems(null);
             ProjectSays("Writing " + plan.Nodes.Count + " objects into the project.");
 
-            _worker.Post(
-                session => session.Import(plc, unit, plan, Say),
-                report => { Working(false); Wrote(report, plan, plc, unit); },
-                exception =>
+            // Only what the import will write. A skipped entry is one the project keeps as it is,
+            // and bringing its source would be a request - remotely, one of sixty an hour without
+            // a token - for a file nothing reads.
+            List<Node> needed = new List<Node>();
+
+            foreach (PlannedNode one in plan.Nodes)
+                if (one.Action != DownloadAction.Skip) needed.Add(one.Node);
+
+            Dispatcher dispatcher = Dispatcher;
+            Action<string> progress = text => dispatcher.BeginInvoke(new Action(() => StatusText.Text = text));
+
+            // Off the UI thread and off the worker's: this is a folder copy or a few requests,
+            // and neither is an Openness call - the worker's thread is the one Openness objects
+            // belong to, and a download queued behind it would wait on nothing.
+            Task.Run(() => PlcCoreRefresh.Sources(directory, needed, new GitHubCore(), progress)).ContinueWith(done =>
+                dispatcher.BeginInvoke(new Action(() =>
                 {
-                    Working(false);
-                    Failed(exception);
-                });
+                    if (done.Exception != null)
+                    {
+                        Working(false);
+                        Failed(done.Exception.GetBaseException());
+                        return;
+                    }
+
+                    PlcCoreSourcesResult sources = done.Result;
+
+                    // **All of them, or none of it.** An import missing a source is one whose
+                    // dependency may never arrive, and the object that needed it would fail to
+                    // build as the import's fault rather than the download's. Nothing has been
+                    // written yet, so stopping here costs the project nothing.
+                    if (!sources.Ready)
+                    {
+                        Working(false);
+                        Told(
+                            "Nothing was imported: the core's sources did not all come down. " +
+                            (sources.Refusal ?? string.Join(" ", sources.Problems)),
+                            "Not imported.");
+                        return;
+                    }
+
+                    // The head is the source of truth, and a core that moved since the Load is
+                    // still imported from it - but not in silence: what is on screen was compared
+                    // against another commit, and the reload after the import is what brings the
+                    // two back together.
+                    if (!string.IsNullOrEmpty(readAt) && !string.IsNullOrEmpty(sources.Commit) &&
+                        !string.Equals(readAt, sources.Commit, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _notice = "The core moved since it was loaded - compared at " + Short(readAt) +
+                                  ", imported from " + Short(sources.Commit) + ".";
+                    }
+
+                    StatusText.Text = "Importing…";
+
+                    _worker.Post(
+                        session => session.Import(plc, unit, plan, Say),
+                        report => { Working(false); Wrote(report, plan, plc, unit); },
+                        exception =>
+                        {
+                            Working(false);
+                            Failed(exception);
+                        });
+                })));
         }
+
+        private static string Short(string commit) =>
+            string.IsNullOrEmpty(commit) ? "?" : (commit.Length <= 7 ? commit : commit.Substring(0, 7));
 
         private void Wrote(ImportReport report, DownloadPlan plan, string plc, string unit)
         {
@@ -1625,6 +1668,11 @@ namespace Satellite.CoreUpdater
                 report.Failed);
 
             List<string> lines = new List<string> { summary };
+
+            // Said before the import started - that the core moved since it was loaded - and it
+            // outlives the import for the same reason the summary does: the reload that follows
+            // rewrites everything else on screen.
+            if (!string.IsNullOrEmpty(_notice)) lines.Add("    " + _notice);
 
             foreach (string problem in report.Problems) lines.Add("    " + problem);
 

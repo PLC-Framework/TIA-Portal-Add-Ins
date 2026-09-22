@@ -10,16 +10,24 @@ namespace Core.Repo
     ///
     /// <code>
     /// &lt;TIA project&gt;\.plc-framework\repo\
-    /// +-- core\          the core, copied out of the repository exactly as it was
-    /// +-- project.json   what the TIA project actually holds, as this Add-In read it
-    /// +-- tmp\           what a download is writing before anything is imported
+    /// +-- core.json         the core's graph, pinned: what every comparison is against
+    /// +-- core.origin.json  where it came from and at which commit, for a remote core
+    /// +-- project.json      what the TIA project actually holds, as this read it
+    /// +-- tmp\              the sources a download is about to import, and a move's export
     /// </code>
     ///
-    /// **The copy is not a cache, it is the answer to "against what".** A comparison that
-    /// read the repository directly would describe a core nobody can point at afterwards -
-    /// the repository moves on, and the report keeps claiming a result it can no longer
-    /// reproduce. Copying first means the two halves of every comparison are both on disk,
-    /// side by side, for as long as the project keeps them.
+    /// **There is no copy of the core's sources here, and that was a correction** (2026-09-22,
+    /// the maintainer's decision). Until then a Load mirrored the whole core folder into
+    /// <c>repo\core\</c> - 275 files, in every project - although the comparison reads exactly
+    /// one of them: it is metadata only, and the metadata is <c>core.json</c>. A project uses a
+    /// handful of the core's libraries, so the rest was copied for nothing, and remotely it
+    /// cost a request per file on an hourly budget of sixty without a token.
+    ///
+    /// **What the old rule protected still holds.** A comparison is made against a copy in
+    /// the project rather than against the repository in place, because a repository moves on
+    /// and a result must be able to point at what it was against - and what it was against is
+    /// the graph, which is still copied, and still pinned by its commit. The sources are
+    /// brought into <c>tmp\</c> only when an import is about to read them, and only those.
     ///
     /// **None of it is versioned**, and nothing has to be done for that: the `.gitignore`
     /// the config editor writes is an allow-list of three files, so everything here is
@@ -30,14 +38,11 @@ namespace Core.Repo
     public static class RepoPaths
     {
         /// <summary>
-        /// The core as it was copied out of the repository.
-        ///
-        /// **Named `CoreFolder` rather than `Core`**, which is what it holds: inside
-        /// <c>namespace Core.Repo</c> a member called `Core` shadows the global namespace,
-        /// so the next line that wrote <c>Core.Config.Something</c> in this file would fail
-        /// to compile with a message about a missing type. Same trap as `AddIn.Core`.
+        /// The core's graph, copied out of the repository whatever the repository calls it -
+        /// <c>dependencyFile</c> names the file there; here it is always this one name, so
+        /// nothing downstream has to read the configuration to find it.
         /// </summary>
-        public const string CoreFolder = "core";
+        public const string GraphFile = "core.json";
 
         /// <summary>
         /// What the TIA project holds, written by the walk rather than by the repository -
@@ -45,8 +50,18 @@ namespace Core.Repo
         /// </summary>
         public const string ProjectFile = "project.json";
 
-        /// <summary>Where a download lands before anything is imported into the project.</summary>
+        /// <summary>
+        /// Where a source lands before TIA reads it, and where a move keeps its only copy of
+        /// an object while that object is out of the project. Cleared when a run ends, unless
+        /// something was left stranded in it.
+        /// </summary>
         public const string Tmp = "tmp";
+
+        /// <summary>
+        /// The folder the sources used to be mirrored into. Named only so that a Load can take
+        /// it away from a project that still has one - it holds nothing anything reads.
+        /// </summary>
+        internal const string RetiredCoreFolder = "core";
 
         /// <summary>
         /// The workspace folder of one TIA project, or null when the project directory is
@@ -55,14 +70,36 @@ namespace Core.Repo
         public static string For(string projectDirectory) =>
             ConfigPaths.FolderFor(projectDirectory, ConfigPaths.Repo);
 
-        /// <summary>Where the copied core goes, or null when the project directory is unknown.</summary>
-        public static string CoreFor(string projectDirectory) => Under(projectDirectory, CoreFolder);
+        /// <summary>Where the core's graph goes, or null when the project directory is unknown.</summary>
+        public static string GraphFor(string projectDirectory) => Under(projectDirectory, GraphFile);
 
         /// <summary>Where the project map goes, or null when the project directory is unknown.</summary>
         public static string ProjectFor(string projectDirectory) => Under(projectDirectory, ProjectFile);
 
         /// <summary>Where a download works, or null when the project directory is unknown.</summary>
         public static string TmpFor(string projectDirectory) => Under(projectDirectory, Tmp);
+
+        /// <summary>
+        /// Where one of the core's sources lands before an import reads it: <c>tmp\</c> and the
+        /// file's own name, **flat**. The folder it sits in inside the repository says nothing
+        /// the import needs - where an object goes in TIA comes from <c>core.json</c> - and
+        /// the names are unique across the whole core, which is measured rather than assumed
+        /// and still guarded where the sources are brought down.
+        /// </summary>
+        /// <param name="repositoryPath">A node's <c>file</c>, relative to the repository root.</param>
+        public static string SourceFor(string projectDirectory, string repositoryPath)
+        {
+            string tmp = TmpFor(projectDirectory);
+
+            if (tmp == null || string.IsNullOrWhiteSpace(repositoryPath)) return null;
+
+            string name = Path.GetFileName(repositoryPath.Replace('/', Path.DirectorySeparatorChar));
+
+            return string.IsNullOrEmpty(name) ? null : Path.Combine(tmp, name);
+        }
+
+        /// <summary>The folder a project from before the change may still carry.</summary>
+        internal static string RetiredCoreFor(string projectDirectory) => Under(projectDirectory, RetiredCoreFolder);
 
         private static string Under(string projectDirectory, string name)
         {

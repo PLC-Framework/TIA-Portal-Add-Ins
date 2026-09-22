@@ -29,9 +29,9 @@ namespace Core.Repo.Remote
     /// One repository, open: which commit it is at, what is in it, and one file's bytes.
     ///
     /// **Three questions in that order, and the first two are what make the third rare.** A
-    /// core is two hundred and fifty files; asking for all of them every time is how a
-    /// comparison comes to cost minutes. The commit says whether anything moved at all, and
-    /// a file's own hash says whether *that* one did.
+    /// core is a few hundred files and a project uses a handful of them, so the third question
+    /// is asked for exactly what is needed: the graph on a Load, and the sources an import is
+    /// about to read. A file's own hash then says whether even that one has to come down.
     /// </summary>
     public interface IRemoteFiles : IDisposable
     {

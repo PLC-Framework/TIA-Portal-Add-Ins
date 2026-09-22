@@ -23,7 +23,7 @@ namespace Core.Repo
     ///
     /// **Nothing here is written to disk.** `project.json` is the durable half - a snapshot of
     /// the project that took minutes to read - and this is recomputed from it and from the
-    /// copied core in the time it takes to open a window.
+    /// project's copy of the core's graph in the time it takes to open a window.
     ///
     /// **Pure**: it is handed a catalogue and a map and opens nothing. That is what lets it be
     /// exercised against the real 264-node core with no TIA Portal anywhere near it.

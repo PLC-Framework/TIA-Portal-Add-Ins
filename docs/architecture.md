@@ -79,12 +79,12 @@ src/Core/
 │   ├── RepoPaths.cs          what lives inside .plc-framework\repo\
 │   ├── Local/                a core that is a folder on this machine
 │   │   ├── LocalSource.cs    where it is, resolved to paths
-│   │   ├── LocalCopy.cs      mirrored into the project, removing what it no longer has
-│   │   └── LocalCopyResult.cs   how many files, how many removed, what would not copy
+│   │   ├── LocalCopy.cs      the graph into repo\ on a Load, a download's sources into tmp\
+│   │   └── LocalCopyResult.cs   how many files, and what would not copy
 │   ├── Remote/               a core that is a repository this machine has not got
 │   │   ├── IRemoteCore.cs    the port: open it, list a folder, read one file
-│   │   ├── RemoteCopy.cs     the same mirror over a wire, fetching only what changed
-│   │   ├── RemoteCopyResult.cs  downloaded, kept, removed, and the commit it now holds
+│   │   ├── RemoteCopy.cs     the same two calls over a wire, fetching only what changed
+│   │   ├── RemoteCopyResult.cs  downloaded, kept, and the commit it read
 │   │   └── CoreOrigin.cs     which commit, on which host — repo\core.origin.json
 │   ├── Git/                  what every git host shares, whoever hosts it
 │   │   └── GitBlobSha.cs     git's own content hash, so the copy is its own index
@@ -406,7 +406,7 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `.gitignore` | `Satellite.ConfigEditor`, only when absent | **yes** |
 | `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx`, and the Add-In's export → a tree shaped like the project's, `<PLC>\Program blocks\03-ALL\_oc_seq2.xml` and every other format that block has beside it | no |
 | `logs\` | what a run recorded about itself | no |
-| `repo\` | the core update → `core\` the core as copied out of the repository, `project.json` what the TIA project holds, `tmp\` what a download is writing | no |
+| `repo\` | the core update → `core.json` the core's graph as the last Load read it, `core.origin.json` which commit that was when the core is remote, `project.json` what the TIA project holds, `tmp\` the sources a download is about to import and what a move is carrying | no |
 | `tmp\` | the coding-style check, while it reads an interface → `coding-style-<timestamp>\`, deleted when the run ends | no |
 | `reports\` | `Satellite.CodingStyleReport`, on export → `<project>-coding-style-<timestamp>.xlsx` | no |
 

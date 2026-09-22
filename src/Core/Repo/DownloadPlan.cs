@@ -306,14 +306,29 @@ namespace Core.Repo
         {
             string inside = core.InsideCore(node);
 
-            if (inside == null) return RepoPaths.CoreFolder;
+            if (inside == null) return CoreFolderInTia;
 
             int slash = inside.LastIndexOf(Places.Separator, StringComparison.Ordinal);
 
             return slash < 0
-                ? RepoPaths.CoreFolder
-                : RepoPaths.CoreFolder + Places.Separator + inside.Substring(0, slash);
+                ? CoreFolderInTia
+                : CoreFolderInTia + Places.Separator + inside.Substring(0, slash);
         }
+
+        /// <summary>
+        /// The folder inside the TIA project that every core object is placed under -
+        /// <c>Program blocks/core/…</c>, <c>PLC data types/core/…</c> - which is the
+        /// hierarchy's own <c>core</c> folder, the one <c>config.json</c> declares beside
+        /// <c>custom</c>, <c>vendor</c> and <c>provisional</c>.
+        ///
+        /// **Its own constant, and it borrowed one until 2026-09-22.** It was spelled with
+        /// <c>RepoPaths.CoreFolder</c>, the name of the folder the core used to be mirrored into
+        /// under <c>repo\</c>: two unrelated folders that happened to share a word. Removing
+        /// that mirror would have left this one naming nothing, or - worse - kept one constant
+        /// meaning both, so that renaming either would put imported objects in the wrong folder
+        /// with nothing failing.
+        /// </summary>
+        public const string CoreFolderInTia = "core";
 
         private static bool SameVersion(ProjectObject found, Node node)
         {
