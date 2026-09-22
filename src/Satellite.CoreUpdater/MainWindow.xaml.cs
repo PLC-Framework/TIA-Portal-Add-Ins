@@ -380,15 +380,17 @@ namespace Satellite.CoreUpdater
         /// **Never folded into a caption.** A folder that would not read, an object that would
         /// not export: a map with holes that does not say where they are reads as a whole one,
         /// which is the single outcome this feature is shaped to avoid.
+        ///
+        /// **What is waiting in `repo\stranded\` is asked for here rather than by the callers**,
+        /// and that was a defect found on the VM: two of the seven callers composed it, so the
+        /// window said nothing about a stranded object until a Load had compared - and a refusal
+        /// afterwards wiped it, because every other caller writes this line without it. Asked in
+        /// the one place that writes the line, no path can leave it out. It costs a directory
+        /// listing of a folder that is nearly always empty.
         /// </summary>
         private void Problems(string text)
         {
-            string all = _notice;
-
-            if (!string.IsNullOrEmpty(text))
-                all = all.Length == 0
-                    ? text
-                    : all + Environment.NewLine + Environment.NewLine + text;
+            string all = Paragraphs(_notice, StrandedWarning(), text) ?? string.Empty;
 
             ProblemsText.Text = all;
             ProblemsText.ToolTip = all.Length == 0 ? null : all;
@@ -431,6 +433,13 @@ namespace Satellite.CoreUpdater
                     StatusText.Text = found.Count == 0
                         ? "This project holds no PLC."
                         : "Ready.";
+
+                    // **Said before anything is read, because it is not about TIA.** An object
+                    // waiting in repo\stranded\ is a fact about the project's own folder, and
+                    // the window opens without reading the project at all - so it would have
+                    // gone unsaid until somebody pressed Load, which is exactly how it was
+                    // missed on the VM.
+                    Problems(null);
 
                     // The unit list belongs to whichever PLC ended up selected, which
                     // PlcChanged is already the one place that knows.
@@ -931,7 +940,7 @@ namespace Satellite.CoreUpdater
                 foreach (ValidationIssue issue in done.Core.Issues.Issues)
                     problems.Add(issue.Path + ": " + issue.Message);
 
-            Problems(Paragraphs(StrandedWarning(), problems.Count == 0 ? null : Listed(problems)));
+            Problems(problems.Count == 0 ? null : Listed(problems));
 
             // What *Sync folders with core* would act on is exactly what the comparison just
             // found misplaced, so the button is decided here rather than kept in step by hand.
@@ -1988,7 +1997,7 @@ namespace Satellite.CoreUpdater
             if (problem != null) problems.Add(problem);
             if (map.Problems != null) problems.AddRange(map.Problems);
 
-            Problems(Paragraphs(StrandedWarning(), problems.Count == 0 ? null : Listed(problems)));
+            Problems(problems.Count == 0 ? null : Listed(problems));
         }
 
         /// <summary>
