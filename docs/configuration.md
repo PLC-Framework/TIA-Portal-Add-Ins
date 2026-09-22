@@ -146,6 +146,8 @@ That only works while a name matches one rule. Where two could match, the checke
 
 `config.json` lives inside the TIA project, and TIA projects are under version control. So the file **always** carries the literal `${GITHUB_TOKEN}` and never the secret itself. The editor shows the field masked with a show/hide eye — the same twin-control pattern as the PLC password — and what the operator types goes to the `.env`, never to the JSON. Reading the field means reading the `.env` back.
 
+**How to make a token that can do nothing but read the one repository, and where to put it, is [github-token.md](github-token.md)** — written for whoever has to set one up rather than for whoever wrote this.
+
 **The `.env` lives at `%LOCALAPPDATA%\PLC-Framework\.env`, per user.** A GitHub token is personal, not a station-wide credential, and the install folder is not writable by the engineer who owns the token — so an editor writing there would fail on a real workstation while working perfectly on a developer's own machine. Per user it is writable by that person, and two engineers sharing a station stop overwriting each other.
 
 > This supersedes an earlier placement inside the install folder, described under *Where the satellites live*. `InstallPaths.EnvFile` hangs off `UserRoot`.

@@ -54,6 +54,7 @@ Everything else — the configuration model and its validators, the web server c
 | --- | --- |
 | [Getting started](docs/getting-started.md) | requirements, installing, uninstalling, troubleshooting |
 | [Configuring a project](docs/configuration.md) | the `config.json` contract, its validators, the JSON Schema, and how secrets stay out of it |
+| [A GitHub token for reading a core](docs/github-token.md) | making a token that can read one repository and nothing else, and where it goes |
 | [The satellite apps](docs/satellites.md) | what each window does, and the decisions behind it |
 | [Architecture](docs/architecture.md) | the layering, the naming convention, where everything installs |
 | [Openness notes](docs/openness-notes.md) | the Add-In API as the assemblies declare it, V20/V21 differences, the Publisher, partial trust |
