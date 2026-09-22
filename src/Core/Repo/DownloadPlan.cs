@@ -75,7 +75,7 @@ namespace Core.Repo
         }
 
         /// <param name="chosen">The node ids ticked in the repository panel.</param>
-        public static DownloadPlan Of(PlcCoreCatalog core, CoreComparison compared, IEnumerable<string> chosen)
+        public static DownloadPlan Of(PlcCoreCatalog core, PlcCoreComparison compared, IEnumerable<string> chosen)
         {
             if (core == null || compared == null || chosen == null) return Empty;
 
@@ -234,7 +234,7 @@ namespace Core.Repo
         /// means "no *core* block depends on it", never "nothing does" - and whatever shows this
         /// has to say so rather than let it read as an all-clear.
         /// </summary>
-        private static void Affected(IReadOnlyList<PlannedNode> ordered, CoreComparison compared)
+        private static void Affected(IReadOnlyList<PlannedNode> ordered, PlcCoreComparison compared)
         {
             HashSet<string> inside = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -253,7 +253,7 @@ namespace Core.Repo
             }
         }
 
-        private static List<string> Users(CoreComparison compared, string name, HashSet<string> inside)
+        private static List<string> Users(PlcCoreComparison compared, string name, HashSet<string> inside)
         {
             List<string> users = new List<string>();
 
@@ -277,7 +277,7 @@ namespace Core.Repo
             return users;
         }
 
-        private static Dictionary<string, ProjectObject> Held(CoreComparison compared)
+        private static Dictionary<string, ProjectObject> Held(PlcCoreComparison compared)
         {
             Dictionary<string, ProjectObject> held =
                 new Dictionary<string, ProjectObject>(StringComparer.OrdinalIgnoreCase);
@@ -440,7 +440,7 @@ namespace Core.Repo
         /// compared, the same rule the comparison's own "in the wrong folder" follows.
         /// </summary>
         public bool Moves =>
-            Found != null && !CoreComparison.SamePath(CoreComparison.Inside(Found.Folder), Folder);
+            Found != null && !PlcCoreComparison.SamePath(PlcCoreComparison.Inside(Found.Folder), Folder);
 
         internal void Choose(DownloadAction action)
         {

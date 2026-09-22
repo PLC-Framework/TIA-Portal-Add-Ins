@@ -28,14 +28,14 @@ namespace Core.Repo
     /// **Pure**: it is handed a catalogue and a map and opens nothing. That is what lets it be
     /// exercised against the real 264-node core with no TIA Portal anywhere near it.
     /// </summary>
-    public sealed class CoreComparison
+    public sealed class PlcCoreComparison
     {
         private static readonly ComparedObject[] NoObjects = new ComparedObject[0];
-        private static readonly CoreNodeState[] NoStates = new CoreNodeState[0];
+        private static readonly PlcCoreNodeState[] NoStates = new PlcCoreNodeState[0];
 
-        private CoreComparison(
+        private PlcCoreComparison(
             IReadOnlyList<ComparedObject> objects,
-            IReadOnlyList<CoreNodeState> repository,
+            IReadOnlyList<PlcCoreNodeState> repository,
             bool absentKnown)
         {
             Objects = objects;
@@ -44,7 +44,7 @@ namespace Core.Repo
 
             List<Node> absent = new List<Node>();
 
-            foreach (CoreNodeState one in repository)
+            foreach (PlcCoreNodeState one in repository)
                 if (one.State == NodeState.Absent) absent.Add(one.Node);
 
             Absent = absent;
@@ -65,7 +65,7 @@ namespace Core.Repo
         /// **Only what is current.** A retired version is not something to offer, and the one
         /// place it still shows is beside the object that holds it, saying so.
         /// </summary>
-        public IReadOnlyList<CoreNodeState> Repository { get; }
+        public IReadOnlyList<PlcCoreNodeState> Repository { get; }
 
         /// <summary>
         /// Every version the core still stands behind that the project does not have at all -
@@ -88,12 +88,12 @@ namespace Core.Repo
         /// </summary>
         public bool AbsentKnown { get; }
 
-        public static CoreComparison Of(PlcCoreCatalog core, ProjectMap map)
+        public static PlcCoreComparison Of(PlcCoreCatalog core, ProjectMap map)
         {
             List<ComparedObject> objects = new List<ComparedObject>();
 
             if (core == null || map == null || map.Objects == null)
-                return new CoreComparison(NoObjects, NoStates, false);
+                return new PlcCoreComparison(NoObjects, NoStates, false);
 
             foreach (ProjectObject found in map.Objects)
                 if (found != null) objects.Add(Compare(core, found));
@@ -102,7 +102,7 @@ namespace Core.Repo
 
             bool narrowed = map.Filter != null && map.Filter.Narrows;
 
-            return new CoreComparison(objects, Offered(core, objects, narrowed), !narrowed);
+            return new PlcCoreComparison(objects, Offered(core, objects, narrowed), !narrowed);
         }
 
         /// <summary>How many entries carry one finding.</summary>
@@ -250,7 +250,7 @@ namespace Core.Repo
         /// <see cref="NodeState.Unknown"/> rather than missing. What the map *did* cover is still
         /// answered - if a block is in there, it is in the project whatever else was skipped.
         /// </summary>
-        private static IReadOnlyList<CoreNodeState> Offered(
+        private static IReadOnlyList<PlcCoreNodeState> Offered(
             PlcCoreCatalog core, IReadOnlyList<ComparedObject> objects, bool narrowed)
         {
             Dictionary<string, ProjectObject> held =
@@ -267,7 +267,7 @@ namespace Core.Repo
                 if (!held.ContainsKey(name)) held.Add(name, one.Found);
             }
 
-            List<CoreNodeState> offered = new List<CoreNodeState>();
+            List<PlcCoreNodeState> offered = new List<PlcCoreNodeState>();
 
             foreach (Node node in core.Nodes)
             {
@@ -288,7 +288,7 @@ namespace Core.Repo
                     state = Same(Version(found), node.Version) ? NodeState.Held : NodeState.AtAnotherVersion;
                 }
 
-                offered.Add(new CoreNodeState(node, Folder(core, node), state, found));
+                offered.Add(new PlcCoreNodeState(node, Folder(core, node), state, found));
             }
 
             offered.Sort((left, right) =>
@@ -576,9 +576,9 @@ namespace Core.Repo
     }
 
     /// <summary>One current core node, and what the project has of it.</summary>
-    public sealed class CoreNodeState
+    public sealed class PlcCoreNodeState
     {
-        internal CoreNodeState(Node node, string folder, NodeState state, ProjectObject found)
+        internal PlcCoreNodeState(Node node, string folder, NodeState state, ProjectObject found)
         {
             Node = node;
             Folder = folder ?? string.Empty;

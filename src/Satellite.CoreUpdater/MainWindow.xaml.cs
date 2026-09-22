@@ -49,7 +49,7 @@ namespace Satellite.CoreUpdater
         private readonly List<CheckBox> _repoChips = new List<CheckBox>();
         private readonly List<Pick> _picks = new List<Pick>();
 
-        private CoreComparison _compared;
+        private PlcCoreComparison _compared;
 
         /// <summary>The comparison on screen, kept whole: a download needs its catalogue too.</summary>
         private Comparison _shown;
@@ -885,7 +885,7 @@ namespace Satellite.CoreUpdater
 
             if (!core.Ready) return Comparison.Without(core);
 
-            return Comparison.Of(map, core, CoreComparison.Of(core.Catalog, map));
+            return Comparison.Of(map, core, PlcCoreComparison.Of(core.Catalog, map));
         }
 
         private void Show(Comparison done)
@@ -1042,7 +1042,7 @@ namespace Satellite.CoreUpdater
             return fetched != null && fetched.Downloaded > 0 ? "core.json updated" : null;
         }
 
-        private static string Counted(CoreComparison result)
+        private static string Counted(PlcCoreComparison result)
         {
             int held = 0;
             int other = 0;
@@ -1075,7 +1075,7 @@ namespace Satellite.CoreUpdater
         /// window is about the core; the box stays on screen with its count, so nothing is hidden
         /// without saying how much.
         /// </summary>
-        private void Chips(CoreComparison result)
+        private void Chips(PlcCoreComparison result)
         {
             ChipsPanel.Children.Clear();
             _chips.Clear();
@@ -1188,7 +1188,7 @@ namespace Satellite.CoreUpdater
         /// because something is in them, so filtering to the outdated blocks shows the folders
         /// that hold outdated blocks rather than the whole tree with four leaves in it.
         /// </summary>
-        private void Project(CoreComparison result)
+        private void Project(PlcCoreComparison result)
         {
             _compared = result;
 
@@ -1297,7 +1297,7 @@ namespace Satellite.CoreUpdater
         /// **`Not covered` appears only when there is something in it.** It can only happen on a
         /// filtered map, so on every other run it would be a box that never does anything.
         /// </summary>
-        private void RepoChips(CoreComparison result)
+        private void RepoChips(PlcCoreComparison result)
         {
             RepoChipsPanel.Children.Clear();
             _repoChips.Clear();
@@ -1309,7 +1309,7 @@ namespace Satellite.CoreUpdater
             if (Counted(result, NodeState.Unknown) > 0) RepoChip("Not covered", NodeState.Unknown, result);
         }
 
-        private void RepoChip(string label, NodeState state, CoreComparison result)
+        private void RepoChip(string label, NodeState state, PlcCoreComparison result)
         {
             CheckBox box = new CheckBox
             {
@@ -1329,7 +1329,7 @@ namespace Satellite.CoreUpdater
             RepoChipsPanel.Children.Add(box);
         }
 
-        private static int Counted(CoreComparison result, NodeState state)
+        private static int Counted(PlcCoreComparison result, NodeState state)
         {
             int found = 0;
 
@@ -1349,7 +1349,7 @@ namespace Satellite.CoreUpdater
         /// and **open**, which the maintainer asked for: both panels are read side by side, and
         /// one of them folded away is one you have to go looking through.
         /// </summary>
-        private void Repository(CoreComparison result)
+        private void Repository(PlcCoreComparison result)
         {
             RepositoryTree.Items.Clear();
             _picks.Clear();
@@ -1817,7 +1817,7 @@ namespace Satellite.CoreUpdater
         /// <summary>One comparison, and why there is none when there is not.</summary>
         private sealed class Comparison
         {
-            private Comparison(ProjectMap map, PlcCoreRefreshResult core, CoreComparison result, string problem, bool names)
+            private Comparison(ProjectMap map, PlcCoreRefreshResult core, PlcCoreComparison result, string problem, bool names)
             {
                 Map = map;
                 Core = core;
@@ -1831,13 +1831,13 @@ namespace Satellite.CoreUpdater
 
             public PlcCoreRefreshResult Core { get; }
 
-            public CoreComparison Result { get; }
+            public PlcCoreComparison Result { get; }
 
             public string Problem { get; }
 
             public bool NamesCore { get; }
 
-            public static Comparison Of(ProjectMap map, PlcCoreRefreshResult core, CoreComparison result) =>
+            public static Comparison Of(ProjectMap map, PlcCoreRefreshResult core, PlcCoreComparison result) =>
                 new Comparison(map, core, result, null, true);
 
             public static Comparison Without(PlcCoreRefreshResult core) =>

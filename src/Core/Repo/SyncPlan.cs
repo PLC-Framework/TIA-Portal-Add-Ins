@@ -34,7 +34,7 @@ namespace Core.Repo
 
         public int Count => Objects.Count;
 
-        public static SyncPlan Of(CoreComparison comparison)
+        public static SyncPlan Of(PlcCoreComparison comparison)
         {
             if (comparison == null) return new SyncPlan(None);
 
