@@ -1047,7 +1047,7 @@ namespace Satellite.CoreUpdater
             int held = 0;
             int other = 0;
 
-            foreach (CoreNodeState one in result.Repository)
+            foreach (PlcCoreNodeState one in result.Repository)
             {
                 if (one.State == NodeState.Held) held++;
                 else if (one.State == NodeState.AtAnotherVersion) other++;
@@ -1333,7 +1333,7 @@ namespace Satellite.CoreUpdater
         {
             int found = 0;
 
-            foreach (CoreNodeState one in result.Repository)
+            foreach (PlcCoreNodeState one in result.Repository)
                 if (one.State == state) found++;
 
             return found;
@@ -1360,7 +1360,7 @@ namespace Satellite.CoreUpdater
             string folder = null;
             TreeViewItem group = null;
 
-            foreach (CoreNodeState one in result.Repository)
+            foreach (PlcCoreNodeState one in result.Repository)
             {
                 if (!WantedNode(one)) continue;
 
@@ -1382,7 +1382,7 @@ namespace Satellite.CoreUpdater
             Open(RepositoryTree.Items);
         }
 
-        private bool WantedNode(CoreNodeState one)
+        private bool WantedNode(PlcCoreNodeState one)
         {
             if (_repoChips.Count == 0) return true;
 
@@ -1400,7 +1400,7 @@ namespace Satellite.CoreUpdater
         /// here is reading, and the dependency closure is what saves the clicking — ticking one
         /// block brings everything it needs with it.
         /// </summary>
-        private TreeViewItem Leaf(CoreNodeState one)
+        private TreeViewItem Leaf(PlcCoreNodeState one)
         {
             StackPanel header = new StackPanel { Orientation = Orientation.Horizontal };
 
@@ -1437,7 +1437,7 @@ namespace Satellite.CoreUpdater
         /// <summary>One node in the repository panel and the box that chooses it.</summary>
         private sealed class Pick
         {
-            public Pick(CheckBox box, CoreNodeState node)
+            public Pick(CheckBox box, PlcCoreNodeState node)
             {
                 Box = box;
                 Node = node;
@@ -1445,7 +1445,7 @@ namespace Satellite.CoreUpdater
 
             public CheckBox Box { get; }
 
-            public CoreNodeState Node { get; }
+            public PlcCoreNodeState Node { get; }
         }
 
         // ---- Both trees -------------------------------------------------------------------------
@@ -1501,7 +1501,7 @@ namespace Satellite.CoreUpdater
             }
         }
 
-        private static string State(CoreNodeState one)
+        private static string State(PlcCoreNodeState one)
         {
             switch (one.State)
             {
