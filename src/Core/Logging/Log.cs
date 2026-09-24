@@ -8,9 +8,10 @@ namespace Core.Logging
     /// <summary>
     /// What a run records about itself, in <c>.plc-framework\logs\</c>.
     ///
-    /// **One per component, appended to** (2026-09-24, the maintainer's decision), so a file
-    /// answers "what has this satellite been doing in this project" across runs rather than
-    /// filling the folder with one file per launch.
+    /// **One per application, appended to** (2026-09-24, the maintainer's design), in
+    /// <c>%LOCALAPPDATA%\PLC-Framework\logs\</c>. Which project a line belongs to is a column
+    /// on the line rather than part of the file name - see <see cref="LogPaths"/> for why, and
+    /// <see cref="About"/> for when it gets filled in.
     ///
     /// **A run is found by its own identifier, and that identifier is a `Guid`** because the
     /// obvious one is not available: `Process.GetCurrentProcess()` is refused under partial
@@ -18,8 +19,8 @@ namespace Core.Logging
     /// asks for. Two windows of the same satellite therefore interleave in one file and are
     /// still separable, which is the whole reason the column is there.
     ///
-    /// **Nothing here throws and nothing here is required to work.** A project that was never
-    /// saved, a folder that cannot be created, a log denied by the sandbox: each gives back a
+    /// **Nothing here throws and nothing here is required to work.** A folder that cannot be
+    /// created, a per-user path the sandbox will not resolve, a full disk: each gives back a
     /// log that quietly writes nothing, because an application that fails over its own logging
     /// is worse than one that keeps no log. What was lost is counted and said in the last line.
     ///
@@ -33,12 +34,26 @@ namespace Core.Logging
         /// <summary>How often the size is asked for again while a run is writing.</summary>
         private const long CheckEvery = 64 * 1024;
 
+        /// <summary>
+        /// The project column's width.
+        ///
+        /// **Padded, never truncated.** Two projects whose names share their first sixteen
+        /// characters must not read as the same one, so a long name pushes its own line out of
+        /// line rather than being cut back into the column. Most names are far shorter, and the
+        /// column is what makes "everything that happened in Plant1" one filter.
+        /// </summary>
+        private const int Column = 16;
+
+        /// <summary>What the column says before a run knows which project it is working on.</summary>
+        private const string Unknown = "-";
+
         private readonly object _gate = new object();
         private readonly string _path;
         private readonly string _previous;
         private readonly string _run;
         private readonly DateTimeOffset _opened;
 
+        private string _project = Unknown;
         private long _sinceChecked;
         private int _written;
         private int _dropped;
@@ -65,20 +80,19 @@ namespace Core.Logging
         }
 
         /// <summary>
-        /// The log of one component inside one TIA project, opened and headed with a line
-        /// naming the run.
+        /// One application's log, opened and headed with a line naming the run.
         ///
-        /// **Never null, whatever went wrong.** A null or blank project directory - a project
-        /// never saved, a satellite with no project of its own - gives back the one that writes
-        /// nothing, which is decision D of 2026-09-24 rather than a failure to report.
+        /// **Opened at startup, before anything is known.** That is the point of the per-user
+        /// folder: the resolver that finds Openness, the attach that picks a TIA Portal and
+        /// every way either can fail all happen before there is a project, and all of them are
+        /// what somebody sending a log needs it to contain.
         ///
-        /// **The folder is created here**, by the first thing that writes into it, which is the
-        /// rule the rest of <c>.plc-framework\</c> already follows: a project that never ran an
-        /// action collects no empty folders.
+        /// **Never null, whatever went wrong**, and the folder is created here by the first
+        /// thing that writes into it.
         /// </summary>
-        public static Log For(string projectDirectory, string component)
+        public static Log For(string component)
         {
-            string path = LogPaths.FileFor(projectDirectory, component);
+            string path = LogPaths.FileFor(component);
 
             if (path == null) return Nothing();
 
@@ -104,6 +118,29 @@ namespace Core.Logging
         public static Log Nothing()
         {
             return new Log(null, null);
+        }
+
+        /// <summary>
+        /// Which project this run turned out to be working on: named once, on a line of its
+        /// own carrying the full path, and carried in the column of every line after it.
+        ///
+        /// **The path goes on that one line and never in the column.** It is the same string
+        /// for the whole run and far too long to repeat, where the name is what somebody
+        /// filters on. Two projects of one name are then still told apart by their paths,
+        /// which is the only thing the file name used to do.
+        /// </summary>
+        public void About(string project, string path)
+        {
+            string named = string.IsNullOrWhiteSpace(project) ? Unknown : Flat(project).Trim();
+
+            lock (_gate)
+            {
+                _project = named;
+            }
+
+            Write(LogLevel.Info, string.IsNullOrWhiteSpace(path)
+                ? "working on " + named
+                : "working on " + named + " - " + Flat(path));
         }
 
         public void Info(string message)
@@ -196,7 +233,7 @@ namespace Core.Logging
                 // Flattened by the caller rather than here, so that the one thing that is
                 // deliberately several lines - an exception's stack under its own message -
                 // survives. It is still a single write, so nothing can interleave inside it.
-                string line = Stamp() + "  " + _run + "  " +
+                string line = Stamp() + "  " + _run + "  " + _project.PadRight(Column) + "  " +
                               level.ToString().ToUpperInvariant().PadRight(5) + "  " +
                               Redacted.Of(message) + Environment.NewLine;
 
@@ -271,7 +308,23 @@ namespace Core.Logging
         {
             if (string.IsNullOrEmpty(message)) return string.Empty;
 
-            return message.Replace("\r\n", " | ").Replace('\n', '|').Replace('\r', '|').Trim();
+            // Blank lines dropped rather than kept as empty separators: a paragraph break in a
+            // message shown on screen - the resolver's account of where it looked is the first
+            // one that had them - would otherwise read "||" in the one line meant to explain it.
+            string[] lines = message.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+            StringBuilder flat = new StringBuilder();
+
+            foreach (string line in lines)
+            {
+                string one = line.Trim();
+
+                if (one.Length == 0) continue;
+                if (flat.Length > 0) flat.Append(" | ");
+
+                flat.Append(one);
+            }
+
+            return flat.ToString();
         }
     }
 }

@@ -11,6 +11,7 @@ using System.Windows.Threading;
 
 using Core;
 using Core.Config.Validation;
+using Core.Logging;
 using Core.Repo;
 using Core.Repo.Local;
 using Core.Repo.PlcCore;
@@ -94,6 +95,8 @@ namespace Satellite.CoreUpdater
         /// </summary>
         private string _notice = string.Empty;
 
+        private Log _log = Log.Nothing();
+
         public MainWindow()
         {
             InitializeComponent();
@@ -132,6 +135,19 @@ namespace Satellite.CoreUpdater
         public void Uses(TiaWorker worker)
         {
             _worker = worker;
+        }
+
+        /// <summary>
+        /// Where this window records what it read and what it wrote.
+        ///
+        /// **Handed in rather than opened here**, because the log is older than the window:
+        /// the application opens it before the resolver has found Openness, which is the part
+        /// of a bad run that used to vanish when somebody closed the window. A window nobody
+        /// hands one to keeps <see cref="Log.Nothing"/> and behaves exactly as before.
+        /// </summary>
+        public void Records(Log log)
+        {
+            _log = log ?? Log.Nothing();
         }
 
         /// <summary>
@@ -259,12 +275,16 @@ namespace Satellite.CoreUpdater
 
             if (attachment == null)
             {
+                _log.Error("attach - nothing came back");
                 Refused(TiaAttachment.Failed("Nothing came back from the attach."));
                 return;
             }
 
             if (!attachment.Attached)
             {
+                // The reason and where the resolver looked, which is the half that used to be
+                // on screen only and gone the moment the window closed.
+                _log.Warn("attach refused - " + attachment.Problem);
                 Refused(attachment);
                 return;
             }
@@ -279,6 +299,9 @@ namespace Satellite.CoreUpdater
             Grow(Sized.Attached, 1180, 860, 880, 560);
 
             _projectDirectory = attachment.ProjectDirectory;
+
+            // From here every line carries the project, and this one carries the path once.
+            _log.About(attachment.ProjectName, attachment.ProjectDirectory);
 
             // A second attempt succeeding has to clear the first one's refusal, or the window
             // shows a project and the reason it could not be reached at the same time.
@@ -816,6 +839,9 @@ namespace Satellite.CoreUpdater
         /// </summary>
         private void Map(string plc, string unit, MapFilter filter)
         {
+            _log.Info("load - walking " + plc + " / " + Places.UnitOrGeneral(unit) +
+                      (filter.Narrows ? ", keeping what is ticked" : ", the whole scope"));
+
             Working(true);
             StatusText.Text = "Reading " + plc + "…";
 
@@ -896,8 +922,15 @@ namespace Satellite.CoreUpdater
                 {
                     Working(false);
 
-                    if (done.Exception != null) Failed(done.Exception.GetBaseException());
-                    else Show(done.Result);
+                    if (done.Exception != null)
+                    {
+                        Failed(done.Exception.GetBaseException());
+                    }
+                    else
+                    {
+                        _log.Info("compared - " + Recorded(done.Result));
+                        Show(done.Result);
+                    }
                 })));
         }
 
@@ -988,6 +1021,11 @@ namespace Satellite.CoreUpdater
         /// </summary>
         private void Told(string text, string status)
         {
+            // Every dead end goes through here, so this is the one place that records what the
+            // operator was left looking at - a refusal, a walk that came back with nothing, a
+            // core that could not be read.
+            _log.Warn(status + " - " + text);
+
             Scope(text);
 
             StatusText.Text = status;
@@ -1676,7 +1714,10 @@ namespace Satellite.CoreUpdater
 
                     _worker.Post(
                         session => session.Import(plc, unit, plan, Say),
-                        report => { Working(false); Wrote(report, plan, plc, unit); },
+                        // Logged from the notice the window just composed rather than from the report
+                // again: it is the same account, already worded for a person, and the one thing
+                // the reload that follows is about to take off the screen.
+                report => { Working(false); Wrote(report, plan, plc, unit); _log.Info("imported - " + _notice); },
                         exception =>
                         {
                             Working(false);
@@ -1775,7 +1816,7 @@ namespace Satellite.CoreUpdater
 
             _worker.Post(
                 session => session.Sync(plc, unit, plan, Say),
-                report => { Working(false); Synced(report, plan, plc, unit); },
+                report => { Working(false); Synced(report, plan, plc, unit); _log.Info("moved - " + _notice); },
                 exception =>
                 {
                     Working(false);
@@ -1855,6 +1896,26 @@ namespace Satellite.CoreUpdater
         }
 
         /// <summary>One comparison, and why there is none when there is not.</summary>
+        /// <summary>
+        /// One line for the log: which core it was against, and whether it compared at all.
+        ///
+        /// **The core's own `Source` is what makes a result datable** - a folder for a local
+        /// core, an owner, branch and commit for a remote one - which is the whole reason that
+        /// string exists.
+        /// </summary>
+        private static string Recorded(Comparison done)
+        {
+            if (done == null) return "nothing came back";
+
+            if (done.Result == null)
+                return "not compared - " + (done.Problem ?? (done.NamesCore ? "no result" : "this project names no core"));
+
+            return "against " + (done.Core?.Source ?? "an unnamed core") +
+                   ", " + done.Result.Objects.Count + " objects held against " +
+                   done.Result.Repository.Count + " core nodes, " +
+                   done.Result.Absent.Count + " absent";
+        }
+
         private sealed class Comparison
         {
             private Comparison(ProjectMap map, PlcCoreRefreshResult core, PlcCoreComparison result, string problem, bool names)
@@ -2017,6 +2078,14 @@ namespace Satellite.CoreUpdater
 
             string problem = ProjectMapFile.Write(map, _projectDirectory);
 
+            _log.Info("mapped - " + map.Objects.Count + " objects, " + map.Counts.Total + " visited" +
+                      (problem == null ? ", written" : ", NOT written: " + problem));
+
+            // Every hole by name. A folder that would not read is the one thing a comparison
+            // must never be handed silently, and it is gone from the screen on the next run.
+            if (map.Problems != null)
+                foreach (string one in map.Problems) _log.Warn("mapped - " + one);
+
             // **Only when there are none**, which is the first load of a scope: the walk counted
             // the whole scope whatever the filter kept, so rebuilding would be right about the
             // numbers and would throw away the ticks the operator just loaded with - and the
@@ -2177,6 +2246,10 @@ namespace Satellite.CoreUpdater
 
         private void Failed(Exception exception)
         {
+            // The exception with its stack, and then Told writes the sentence the operator saw.
+            // Two lines for one failure on purpose: what went wrong, and what was said about it.
+            _log.Failed("failed", exception);
+
             // Through Told, which empties both trees: a failure written under a comparison
             // nobody can tell the age of is worse than one standing on its own.
             Told(exception == null ? "Something went wrong." : exception.Message, "Failed.");

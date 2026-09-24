@@ -14,16 +14,20 @@ namespace Core.Config
     ///     +-- config.schema.json   written by the editor, so the hand edits are checked
     ///     +-- .gitignore           written by the editor: everything here but those three
     ///     +-- exports\             captures, for a person to open
-    ///     +-- logs\                what a run recorded about itself
     ///     +-- repo\                the core as this project last saw it, and its workspace
     ///     +-- tmp\                 scratch space for one action
     ///     +-- reports\             generated reports
     ///
     /// **Only the first three are versioned**, and the editor's .gitignore is what keeps it
     /// that way: a workbook under exports\ holds values read out of a live CPU, and this
-    /// folder sits beside .version-control\. The four generated folders are named here rather
-    /// than spelled out at each call site for the reason above — three of them have no writer
-    /// yet, and that is precisely when two components drift apart on a string.
+    /// folder sits beside .version-control\. The generated folders are named here rather than
+    /// spelled out at each call site for the reason above.
+    ///
+    /// **`logs\` was here and is gone** (2026-09-24). It was the one of them that never got a
+    /// writer, and now it never will: a run records itself per user and per application, in
+    /// %LOCALAPPDATA%\PLC-Framework\logs\ - see Core.Logging.LogPaths for why that is the
+    /// better place. Keeping a literal for a folder nothing writes is the drift this file
+    /// exists to prevent, spelled by this file itself.
     /// </summary>
     public static class ConfigPaths
     {
@@ -33,8 +37,6 @@ namespace Core.Config
         /// <summary>Captures and anything else meant for a person to open afterwards.</summary>
         public const string Exports = "exports";
 
-        /// <summary>What a run recorded about itself, for reading when something went wrong.</summary>
-        public const string Logs = "logs";
 
         /// <summary>
         /// Everything to do with the core this project is built on: the copy it was last

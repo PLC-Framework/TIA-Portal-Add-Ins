@@ -1,6 +1,8 @@
 using System;
 using System.Windows;
 
+using Core.Logging;
+
 using Satellite.CoreUpdater.Startup;
 using Satellite.CoreUpdater.Tia;
 
@@ -34,6 +36,14 @@ namespace Satellite.CoreUpdater
         private readonly Func<string> _whereItLooked;
         private readonly Requested _requested;
         private readonly string _tiaVersion;
+
+        /// <summary>
+        /// Opened before anything else happens, and that is the whole point of it being here
+        /// rather than in the window: the assembly resolver, the attach and every way either
+        /// can fail all come before there is a window worth looking at, and they are exactly
+        /// what somebody sending a log needs it to contain.
+        /// </summary>
+        private readonly Log _log = Log.For(LogPaths.CoreUpdater);
 
         private TiaWorker _worker;
 
@@ -78,10 +88,18 @@ namespace Satellite.CoreUpdater
         {
             base.OnStartup(e);
 
+            // What the Add-In asked for, before anything has been read. A window that attaches
+            // to the wrong TIA Portal, or to none, is answered first of all by what it was told.
+            _log.Info("started for TIA " + (_tiaVersion ?? "(no version)") +
+                      " - plc " + Said(_requested.Plc) +
+                      ", unit " + Said(_requested.Unit) +
+                      ", project " + Said(_requested.Project));
+
             MainWindow window = new MainWindow();
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             base.MainWindow = window;
 
+            window.Records(_log);
             window.Badge(_tiaVersion);
 
             // The project is what the window says it is looking for, because it is what an
@@ -110,7 +128,16 @@ namespace Satellite.CoreUpdater
             // with an engineer's project open. The connection goes when this process does.
             if (_worker != null) _worker.Dispose();
 
+            // Last, so the closing line counts everything the run said.
+            _log.Dispose();
+
             base.OnExit(e);
+        }
+
+        /// <summary>An argument as the log should carry it, blank and absent reading alike.</summary>
+        private static string Said(string argument)
+        {
+            return string.IsNullOrWhiteSpace(argument) ? "(none)" : argument;
         }
 
         /// <summary>What the resolver searched, when it has anything to say.</summary>

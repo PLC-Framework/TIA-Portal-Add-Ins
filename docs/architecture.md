@@ -395,6 +395,7 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `credentials.json` | `Satellite.DataBlockSnapshot`, only after a login the CPU accepted | web server user and password per project + PLC; the password under DPAPI `CurrentUser` |
 | `.env` | `Satellite.ConfigEditor` | `REPO_TOKEN`. Here because the token is personal **and** because the install folder is not writable by the engineer who owns it |
 | `config.template.json` | `Satellite.ConfigEditor`, when creating from the system template and no such file exists | the user template: offered beside the system one when a project has no `config.json`, written out from the embedded copy so it can be customised, and never overwritten |
+| `logs\<app>.log` | every application, from the first line it runs | what a run read, wrote and refused, one file per application with the project as a column on each line; rolled at 4 MB behind one `.1`. Here rather than in the project so a run that never reaches a project still leaves one, and so nothing a run writes lands in a versioned folder — see `Core.Logging.LogPaths` |
 
 **`...\Portal V2x\UserAddIns\`** or **`...\Portal V2x\AddIns\`** — one or the other, never both
 
@@ -411,12 +412,13 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `config.schema.json` | `Satellite.ConfigEditor` | **yes** — `config.json` points at it relatively |
 | `.gitignore` | `Satellite.ConfigEditor`, only when absent | **yes** |
 | `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx`, and the Add-In's export → a tree shaped like the project's, `<PLC>\Program blocks\03-ALL\_oc_seq2.xml` and every other format that block has beside it | no |
-| `logs\` | what a run recorded about itself | no |
 | `repo\` | the core update → `core.json` the core's graph as the last Load read it, `core.origin.json` which commit that was when the core is remote, `project.json` what the TIA project holds and what the walk counted on the way, `tmp\` the sources a download is about to import, `stranded\` an object's export while it is out of the project — and after, when it could not go back in | no |
 | `tmp\` | the coding-style check, while it reads an interface → `coding-style-<timestamp>\`, deleted when the run ends | no |
 | `reports\` | `Satellite.CodingStyleReport`, on export → `<project>-coding-style-<timestamp>.xlsx` | no |
 
-The five folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and `ConfigPaths.FolderFor(projectDirectory, name)` resolves one; what goes *inside* `repo\` is `Core.Repo.RepoPaths`, because that folder has a layout of its own rather than being a place to drop files. **One of them has no writer yet — `logs\` — which is exactly when two components drift apart on a string** — the same reason the other literals are there. Nothing creates them: whoever writes the first file creates it then, so a project that never ran an action does not collect four empty folders, and git would not record them anyway.
+The folder names live in `Core.Config.ConfigPaths` alongside `Folder` and `File`, and `ConfigPaths.FolderFor(projectDirectory, name)` resolves one; what goes *inside* `repo\` is `Core.Repo.RepoPaths`, because that folder has a layout of its own rather than being a place to drop files. Nothing creates them: whoever writes the first file creates it then, so a project that never ran an action does not collect empty folders, and git would not record them anyway.
+
+**There was a `logs\` here, and it was retired on 2026-09-24 without ever having had a writer.** It sat in this table for weeks as the one folder nothing wrote, which this page itself called "exactly when two components drift apart on a string". When the log was finally built it went per user instead — `%LOCALAPPDATA%\PLC-Framework\logs\`, above — because a run knows its project only after it has started writing, and a log inside the project could not hold the part of a bad run that happens before there is one.
 
 **Not one secret lives here, and that is deliberate**: this folder is under version control, with `.version-control\` sitting right beside it. It is why the PLC credentials live under `%LOCALAPPDATA%` and why `config.json` carries the literal `${REPO_TOKEN}` rather than the token.
 
@@ -432,7 +434,7 @@ Being under version control cuts both ways: no secrets may live here, and most o
 !config.schema.json
 ```
 
-- **A deny-list only knows today's folders.** `exports\`, `logs\`, `tmp\`, `reports\` — the next generated thing the framework writes would be committed by default, and nobody would notice until it was already in the history. For a folder whose purpose is generated output, that default is backwards. `reports\` proved the point before the ink was dry: it was named after this file was written, and needed no change to it.
+- **A deny-list only knows today's folders.** `exports\`, `repo\`, `tmp\`, `reports\` — the next generated thing the framework writes would be committed by default, and nobody would notice until it was already in the history. For a folder whose purpose is generated output, that default is backwards. `reports\` proved the point before the ink was dry: it was named after this file was written, and needed no change to it.
 - **The stake is higher than tidiness.** `exports\` holds workbooks of values read out of a live CPU: plant configuration, sitting one folder away from `.version-control\`. Two lines of allow-list are a cheap way never to have that conversation.
 - **`config.schema.json` is re-admitted deliberately, and it is not optional.** `config.json` points at it by relative path, so a clone without it validates nothing and says nothing about why — the exact failure that ruled out referencing the schema by URL.
 - **Written only when absent**, unlike the schema beside it. A team may add a line for their own tooling, and rewriting it every save would be the editor overruling them. The schema is derived and therefore ours to replace; this is a starting point and therefore theirs.
