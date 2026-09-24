@@ -459,7 +459,7 @@ namespace Satellite.CoreUpdater
         {
             if (_filling) return;
 
-            Survey();
+            Scoped();
         }
 
         private void Units(string unit)
@@ -470,10 +470,10 @@ namespace Satellite.CoreUpdater
             {
                 Fill(UnitBox, new string[0], null);
 
-                // Still through Survey, which is the one place that clears the tick boxes and
+                // Still through Scoped, which is the one place that clears the tick boxes and
                 // settles the button. Returning here instead left a project with no PLC
-                // showing an enabled Map button.
-                Survey();
+                // showing an enabled Load button.
+                Scoped();
                 return;
             }
 
@@ -488,20 +488,32 @@ namespace Satellite.CoreUpdater
 
                     Fill(UnitBox, choices, unit);
 
-                    // Filling suppresses the selection event, so the survey of whatever ended
-                    // up selected is asked for here rather than left to fire by itself.
-                    Survey();
+                    // Filling suppresses the selection event, so whatever ended up selected is
+                    // settled here rather than left to fire by itself.
+                    Scoped();
                 },
                 Failed);
         }
 
         /// <summary>
-        /// Counts what the chosen scope holds, and offers it as tick boxes.
+        /// Both panels emptied for the scope now chosen, and the tick boxes offered from the
+        /// last map of that scope — **without reading the project at all**.
         ///
-        /// **Run for every scope the operator picks, before they ask for anything.** It reads
-        /// no object - a kind and a language are typed properties - so it costs one pass over
-        /// the tree, where the map costs one export per object in V17-V20. Paying that second
-        /// for four hundred objects is what lets somebody map the thirty they wanted.
+        /// **This used to be a walk, and removing it is the whole of 2026-09-23** (the
+        /// maintainer's decision, in his words: *"si para hacer filtro hay que recorrer una vez y
+        /// luego con el load se recorre otra vez el project, es una tontería"*). A survey of its
+        /// own ran when the window opened and again on every change of PLC or unit, so a window
+        /// somebody opened to look at another scope spent a pass over the tree on a question
+        /// nobody had asked — and the Load that followed walked it a second time. The map's own
+        /// walk now counts what it visits, so the numbers cost nothing and travel in
+        /// <c>repo\project.json</c>; here they are read back off that file, which is a parse
+        /// rather than a walk.
+        ///
+        /// **A scope never mapped simply has no boxes, and Load is the fuller price for it**
+        /// (the maintainer chose that too: *"pagamos el peso del load completo"*). No boxes means
+        /// no filter, which is what "empty means everything" already says — and the load that
+        /// follows is what fills them, so the choice is there from the second run on. The
+        /// alternative was a count button, which is the pass over the tree this removed.
         ///
         /// **And it empties both panels** (2026-09-21, the maintainer asked for it of the
         /// project tree): what is on them was read out of another PLC or another unit, and a
@@ -509,7 +521,7 @@ namespace Satellite.CoreUpdater
         /// spent every stage refusing - two panels nobody can date. The core tree goes with it,
         /// because every line on that side says what *this* project has of a node.
         /// </summary>
-        private void Survey()
+        private void Scoped()
         {
             string plc = PlcBox.SelectedItem as string;
             string unit = UnitBox.SelectedItem as string;
@@ -522,30 +534,49 @@ namespace Satellite.CoreUpdater
                 return;
             }
 
-            Working(true);
-            StatusText.Text = "Counting what " + plc + " holds…";
+            ProjectSurvey last = LastCounts(plc, unit);
+            string scope = Places.UnitOrNull(unit) == null ? plc : plc + " / " + unit;
 
-            _worker.Post(
-                session => session.Survey(plc, unit),
-                survey =>
-                {
-                    Offer(survey);
-                    Working(false);
-                    Scope("Press Load to read " +
-                          (Places.UnitOrNull(unit) == null ? plc : plc + " / " + unit) +
-                          " and compare it with the core.");
+            Offer(last);
+            Scope(last == null
+                ? "Press Load to read " + scope + " and compare it with the core."
+                : "Press Load to read " + scope + " and compare it with the core. The tick boxes " +
+                  "are what the last load of this scope found.");
 
-                    StatusText.Text = survey == null || survey.Total == 0
-                        ? "Nothing to map in this scope."
-                        : "Ready — " + survey.Total + " objects.";
-                },
-                exception =>
-                {
-                    Offer(null);
-                    Working(false);
-                    Failed(exception);
-                });
+            StatusText.Text = "Ready.";
+            Ready();
         }
+
+        /// <summary>
+        /// What the last load of this very scope counted, or null when there has not been one.
+        ///
+        /// **Read off <c>repo\project.json</c>, and only when it covers this scope.** A map of
+        /// another PLC, or of the whole program where a unit is now chosen, says nothing about
+        /// what is in front of the operator — and offering its counts would put numbers on
+        /// screen that belong to somewhere else. A map this version cannot read answers null
+        /// through the same door, since <see cref="ProjectMapFile"/> refuses an older format
+        /// rather than half-reading it.
+        ///
+        /// **Nothing is reported when it is not there.** A project that has never been mapped is
+        /// the ordinary state of this window, not a problem to put under the panels.
+        /// </summary>
+        private ProjectSurvey LastCounts(string plc, string unit)
+        {
+            if (string.IsNullOrWhiteSpace(_projectDirectory)) return null;
+
+            string problem;
+            ProjectMap map = ProjectMapFile.Read(_projectDirectory, out problem);
+
+            if (map == null || map.Counts == null || map.Counts.Total == 0) return null;
+
+            return Same(map.Plc, plc) && Same(map.Unit, Places.UnitOrGeneral(unit))
+                ? map.Counts
+                : null;
+        }
+
+        /// <summary>One TIA name against another, as TIA itself compares them.</summary>
+        private static bool Same(string one, string other) =>
+            string.Equals(one, other, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Both panels emptied, with one sentence under the project tree.
@@ -1985,6 +2016,12 @@ namespace Satellite.CoreUpdater
             }
 
             string problem = ProjectMapFile.Write(map, _projectDirectory);
+
+            // **Only when there are none**, which is the first load of a scope: the walk counted
+            // the whole scope whatever the filter kept, so rebuilding would be right about the
+            // numbers and would throw away the ticks the operator just loaded with - and the
+            // second press of Load would quietly be a full one again.
+            if (_rows.Count == 0) Offer(map.Counts);
 
             ProjectSays(Counted(map));
             StatusText.Text = problem == null ? "Mapped." : "Mapped, but not written.";

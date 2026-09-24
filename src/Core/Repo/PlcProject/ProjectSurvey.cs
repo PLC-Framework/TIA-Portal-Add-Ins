@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 
 using Core.Config;
 
@@ -10,10 +11,9 @@ namespace Core.Repo.PlcProject
     /// many in each programming language.
     ///
     /// **It is the cheap half of the walk**, and that is the whole point. Both the kind and the
-    /// language are typed properties in every TIA version, so this costs one pass over the tree
-    /// and no exports at all - where the map itself exports every object in V17-V20. Surveying
-    /// first is what lets the operator narrow a four-hundred-object PLC down to the thirty they
-    /// care about before paying for any of it.
+    /// language are typed properties in every TIA version, so counting costs nothing - where
+    /// *reading* an object is one export in V17-V20. Counting is what lets the operator narrow a
+    /// four-hundred-object PLC down to the thirty they care about before paying for any of it.
     ///
     /// **A language is counted inside its kind, not beside it** (2026-09-17). Two flat lists
     /// could say the PLC holds 40 SCL objects and 31 FBs, and never which of the two the SCL
@@ -25,7 +25,22 @@ namespace Core.Repo.PlcProject
     /// offering `SCL (312)` under FC is telling the operator what is actually there. The day a
     /// GRAPH block arrives it appears on its own row with its own count, and nothing here
     /// changes.
+    ///
+    /// **It is counted inside the map's own walk and travels in `repo\project.json`**
+    /// (2026-09-23, the maintainer's decision). It used to be a walk of its own, run when the
+    /// window opened and on every scope change - which is a second pass over the tree for
+    /// numbers the map's pass could produce for nothing, since the walk reaches every object
+    /// anyway and only the *reading* of one costs anything in V17-V20. Written into the map,
+    /// the boxes are also there the next time the window opens, with no walk at all.
+    ///
+    /// **It counts what the walk visited, not what the filter kept**, which is what makes the
+    /// boxes describe the scope rather than the last narrowing of it - otherwise a filter could
+    /// only ever be made smaller, each run forgetting what it had left out.
+    ///
+    /// **Serialized, so public setters and a parameterless constructor**, exactly as `MapFilter`
+    /// beside it: it is a document member now, whatever else it is.
     /// </summary>
+    [DataContract]
     public sealed class ProjectSurvey
     {
         /// <summary>
@@ -51,16 +66,23 @@ namespace Core.Repo.PlcProject
             CodingStyleNames.PlcTagTable
         };
 
-        private ProjectSurvey(IReadOnlyList<SurveyedKind> kinds, int total)
+        public ProjectSurvey()
+        {
+            Kinds = new List<SurveyedKind>();
+        }
+
+        private ProjectSurvey(List<SurveyedKind> kinds, int total)
         {
             Kinds = kinds;
             Total = total;
         }
 
         /// <summary>Every kind found, in <see cref="Order"/>.</summary>
-        public IReadOnlyList<SurveyedKind> Kinds { get; }
+        [DataMember(Name = "kinds", Order = 0)]
+        public List<SurveyedKind> Kinds { get; set; }
 
-        public int Total { get; }
+        [DataMember(Name = "total", Order = 1)]
+        public int Total { get; set; }
 
         /// <summary>A survey that counts nothing, for a scope with nothing in it.</summary>
         public static ProjectSurvey Empty => new ProjectSurvey(new List<SurveyedKind>(), 0);
@@ -153,7 +175,7 @@ namespace Core.Repo.PlcProject
             /// doing: a kind is looked up by name, a language inside it is scanned to see what
             /// this row is mostly made of.
             /// </summary>
-            private static IReadOnlyList<Counted> Ordered(Dictionary<string, int> counted)
+            private static List<Counted> Ordered(Dictionary<string, int> counted)
             {
                 List<Counted> found = new List<Counted>();
 

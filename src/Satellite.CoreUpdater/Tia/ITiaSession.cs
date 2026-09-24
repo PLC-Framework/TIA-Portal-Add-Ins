@@ -60,23 +60,18 @@ namespace Satellite.CoreUpdater.Tia
         IReadOnlyList<string> Units(string plc);
 
         /// <summary>
-        /// Counts what a PLC holds, by kind and by programming language, without reading any
-        /// of it.
-        ///
-        /// **The cheap half of the walk**: both are typed properties in every TIA version, so
-        /// this costs one pass and no exports, where the map itself exports every object in
-        /// V17-V20. It is what lets the operator narrow four hundred objects down to the
-        /// thirty they want before paying for any of them.
-        /// </summary>
-        ProjectSurvey Survey(string plc, string unit);
-
-        /// <summary>
         /// Walks one PLC, or one of its software units, and says what is there.
         ///
         /// **Everything the filter asks for, not only what looks like the core.** A block in
         /// the wrong folder and a folder the core never heard of are two of the three
         /// discrepancies this exists to find, and neither is visible from a list of core
         /// blocks alone.
+        ///
+        /// **And it counts everything it reaches, filter or no filter** (2026-09-23), which is
+        /// the only walk there is now: a survey of its own used to run when the window opened
+        /// and on every change of scope, for numbers this pass produces for nothing. They come
+        /// back in <see cref="ProjectMap.Counts"/> and are written into the map, so the window
+        /// can offer its tick boxes next time without reading the project at all.
         /// </summary>
         /// <param name="unit">A unit's name, or <see cref="Core.Places.GeneralProgram"/>.</param>
         /// <param name="filter">

@@ -99,9 +99,9 @@ src/Core/
 │   │   ├── BlockMetadata.cs         the JSON a core block carries on its TITLE line
 │   │   └── ConstantsWorkbook.cs     the core's .xlsx read back as objects, because Openness will not
 │   ├── PlcProject/           the other side: what the TIA project holds — repo\project.json
-│   │   ├── ProjectSurvey.cs  what a PLC holds, counted per kind and per language inside it
+│   │   ├── ProjectSurvey.cs  what the walk visited, per kind and per language inside it
 │   │   ├── MapFilter.cs      which kinds to map, and which languages inside each
-│   │   ├── ProjectMap.cs     the map itself
+│   │   ├── ProjectMap.cs     the map itself, counts included — what the filter boxes are built from
 │   │   ├── ProjectMapFile.cs that map, written indented and read back
 │   │   └── SimaticMlTitle.cs a title read out of an export — the only way to one in V17-V20
 │   ├── PlcCoreComparison.cs  that core held against that map — metadata only, nothing written
@@ -412,7 +412,7 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `.gitignore` | `Satellite.ConfigEditor`, only when absent | **yes** |
 | `exports\` | `Satellite.DataBlockSnapshot` → `<ip>-<DB>-snapshot-<timestamp>.xlsx`, and the Add-In's export → a tree shaped like the project's, `<PLC>\Program blocks\03-ALL\_oc_seq2.xml` and every other format that block has beside it | no |
 | `logs\` | what a run recorded about itself | no |
-| `repo\` | the core update → `core.json` the core's graph as the last Load read it, `core.origin.json` which commit that was when the core is remote, `project.json` what the TIA project holds, `tmp\` the sources a download is about to import, `stranded\` an object's export while it is out of the project — and after, when it could not go back in | no |
+| `repo\` | the core update → `core.json` the core's graph as the last Load read it, `core.origin.json` which commit that was when the core is remote, `project.json` what the TIA project holds and what the walk counted on the way, `tmp\` the sources a download is about to import, `stranded\` an object's export while it is out of the project — and after, when it could not go back in | no |
 | `tmp\` | the coding-style check, while it reads an interface → `coding-style-<timestamp>\`, deleted when the run ends | no |
 | `reports\` | `Satellite.CodingStyleReport`, on export → `<project>-coding-style-<timestamp>.xlsx` | no |
 

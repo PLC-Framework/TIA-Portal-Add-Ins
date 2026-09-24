@@ -92,7 +92,7 @@ namespace Core.Repo.PlcProject
                     if (map.Format < ProjectMap.CurrentFormat)
                     {
                         problem = "'" + path + "' was written by an older version of the framework. " +
-                                  "Map the project again.";
+                                  "Press Load to read the project again.";
                         return null;
                     }
 

@@ -64,22 +64,13 @@ namespace Satellite.CoreUpdater.Tia
         private MapFilter _filter = MapFilter.Everything;
 
         /// <summary>
-        /// What the current walk does with each object it reaches.
+        /// Counts what the map walks, which in this version is where the saving is: the counting
+        /// half costs nothing and the reading half is one export per object, so a second pass
+        /// for the numbers would have been minutes spent on what this one produces for free.
         ///
-        /// **One tree walk, two jobs.** The survey counts and the map reads, and the only thing
-        /// that must not drift between them is which folders were reached - so the walk is
-        /// written once and what happens at the leaves is handed in. It matters more here than
-        /// in V21: the counting half costs nothing and the reading half is one export per
-        /// object, which is the whole reason there is a survey to tick against.
-        /// </summary>
-        private Action<PlcBlock, string, ProjectMap> _onBlock;
-        private Action<PlcTagTable, string, ProjectMap> _onTable;
-        private Action<PlcType, string, ProjectMap> _onType;
-
-        /// <summary>
-        /// Counts what the survey walks. **Core's, not this adapter's**: how many of a kind
-        /// there are is not a TIA question, and two adapters keeping their own tallies would
-        /// drift the first time one learned a new rule.
+        /// **Core's, not this adapter's**: how many of a kind there are is not a TIA question,
+        /// and two adapters keeping their own tallies would drift the first time one learned a
+        /// new rule.
         /// </summary>
         private ProjectSurvey.Builder _survey;
 
@@ -265,42 +256,13 @@ namespace Satellite.CoreUpdater.Tia
             return names;
         }
 
-        /// <summary>
-        /// **Nothing is exported here**, which is what makes the survey worth having in this
-        /// version at all: the kind and the language are typed properties, so counting a PLC
-        /// of four hundred costs one pass over the tree, where mapping it costs four hundred
-        /// exports. This is what the operator ticks against before paying for any of them.
-        /// </summary>
-        public ProjectSurvey Survey(string plc, string unit)
-        {
-            _survey = ProjectSurvey.Building();
-
-            _filter = MapFilter.Everything;
-            _progress = null;
-
-            _onBlock = Counted;
-            _onTable = Counted;
-            _onType = Counted;
-
-            // A map handed in only as somewhere for the walk to put what it could not read.
-            // **The survey drops those and the map that follows reports them**: it walks the
-            // same tree a moment later, where a problem is part of a document somebody keeps
-            // rather than a sentence under a row of tick boxes.
-            Walk(plc, unit, ProjectMap.Of(_project?.Name, plc, unit, null));
-
-            return _survey.Done();
-        }
-
         public ProjectMap Map(string plc, string unit, MapFilter filter, Action<string> progress)
         {
             _filter = filter ?? MapFilter.Everything;
             _progress = progress;
+            _survey = ProjectSurvey.Building();
             _done = 0;
             _refused = 0;
-
-            _onBlock = Mapped;
-            _onTable = Mapped;
-            _onType = Mapped;
 
             ProjectMap map = ProjectMap.Of(
                 _project?.Name, plc, unit,
@@ -312,6 +274,10 @@ namespace Satellite.CoreUpdater.Tia
 
             Walk(plc, unit, map);
 
+            // What the walk **visited**, whatever the filter then kept - which is what lets the
+            // window offer the tick boxes next time without walking the project again.
+            map.Counts = _survey.Done();
+
             Noted(map);
             return map;
         }
@@ -319,9 +285,9 @@ namespace Satellite.CoreUpdater.Tia
         /// <summary>
         /// One PLC, or one of its software units, top to bottom.
         ///
-        /// **Shared by the survey and the map** rather than written twice: the pair is only
-        /// worth anything while the count an operator ticked against and the map they then
-        /// asked for cover exactly the same folders.
+        /// **It counts every object it reaches and reads the ones the filter wants**, which
+        /// is one walk where there were two: a survey of its own ran when the window opened and
+        /// again on every change of scope, for numbers this pass produces for nothing.
         /// </summary>
         private void Walk(string plc, string unit, ProjectMap map)
         {
@@ -372,8 +338,16 @@ namespace Satellite.CoreUpdater.Tia
         private void Mapped(PlcBlock block, string folder, ProjectMap map)
         {
             string kind = Kind(block);
+            string language = Language(block);
 
-            if (!_filter.Wants(kind, Language(block))) return;
+            // **Counted before the filter is asked, and that is the whole of the change**
+            // (2026-09-23): the walk reaches every object either way, and a kind and a language
+            // are property reads. What costs is the line below - one export per object in
+            // V17-V20 - so the numbers an operator narrows with are free, and they describe the
+            // scope rather than the last narrowing of it.
+            _survey.Found(kind, language);
+
+            if (!_filter.Wants(kind, language)) return;
 
             map.Objects.Add(Of(block, kind, folder, map));
             Tick();
@@ -381,6 +355,8 @@ namespace Satellite.CoreUpdater.Tia
 
         private void Mapped(PlcTagTable table, string folder, ProjectMap map)
         {
+            _survey.Found(CodingStyleNames.PlcTagTable, null);
+
             if (!_filter.Wants(CodingStyleNames.PlcTagTable, null)) return;
 
             map.Objects.Add(Of(table, folder, map));
@@ -389,20 +365,13 @@ namespace Satellite.CoreUpdater.Tia
 
         private void Mapped(PlcType type, string folder, ProjectMap map)
         {
+            _survey.Found(CodingStyleNames.PlcStruct, null);
+
             if (!_filter.Wants(CodingStyleNames.PlcStruct, null)) return;
 
             map.Objects.Add(Of(type, folder, map));
             Tick();
         }
-
-        private void Counted(PlcBlock block, string folder, ProjectMap notes) =>
-            _survey.Found(Kind(block), Language(block));
-
-        private void Counted(PlcTagTable table, string folder, ProjectMap notes) =>
-            _survey.Found(CodingStyleNames.PlcTagTable, null);
-
-        private void Counted(PlcType type, string folder, ProjectMap notes) =>
-            _survey.Found(CodingStyleNames.PlcStruct, null);
 
         /// <summary>
         /// A block's programming language as the enum spells it - <c>SCL</c>, <c>LAD</c>,
@@ -1322,7 +1291,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcBlock block in group.Blocks) _onBlock(block, here, map);
+                foreach (PlcBlock block in group.Blocks) Mapped(block, here, map);
             });
 
             foreach (PlcBlockUserGroup child in Children(group.Groups, here, map)) Blocks(child, here, map, depth + 1);
@@ -1341,7 +1310,7 @@ namespace Satellite.CoreUpdater.Tia
             {
                 // A technology object is a PlcBlock, so it is filtered and counted like one -
                 // its kind is TechnologicalInstanceDB and its language is whatever TIA gave it.
-                foreach (TechnologicalInstanceDB found in group.TechnologicalObjects) _onBlock(found, here, map);
+                foreach (TechnologicalInstanceDB found in group.TechnologicalObjects) Mapped(found, here, map);
             });
 
             foreach (TechnologicalInstanceDBUserGroup child in Children(group.Groups, here, map))
@@ -1356,7 +1325,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcTagTable table in group.TagTables) _onTable(table, here, map);
+                foreach (PlcTagTable table in group.TagTables) Mapped(table, here, map);
             });
 
             foreach (PlcTagTableUserGroup child in Children(group.Groups, here, map)) TagTables(child, here, map, depth + 1);
@@ -1370,7 +1339,7 @@ namespace Satellite.CoreUpdater.Tia
 
             Each(map, here, () =>
             {
-                foreach (PlcType type in group.Types) _onType(type, here, map);
+                foreach (PlcType type in group.Types) Mapped(type, here, map);
             });
 
             foreach (PlcTypeUserGroup child in Children(group.Groups, here, map)) Types(child, here, map, depth + 1);
