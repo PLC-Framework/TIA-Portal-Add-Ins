@@ -11,7 +11,7 @@ rem is inside TIA's installation under Program Files. And an elevated session ca
 rem mapped drive - it belongs to the logon session that made it - so reach this file by the
 rem UNC behind the mapping instead:
 rem
-rem   & "\\vmware-host\Shared Folders\E\PlcFramework\TIA-Portal-Add-Ins\scripts\deploy\step2-deploy-vm.cmd"
+rem   & "\\vmware-host\Shared Folders\E\PLC-Framework\TIA-Portal-Add-Ins\scripts\deploy\step2-deploy-vm.cmd"
 rem
 rem %* passes the switches through:  step2-deploy-vm.cmd -ToolsOnly
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0step2-deploy-vm.ps1" %*

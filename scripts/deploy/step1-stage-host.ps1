@@ -97,7 +97,7 @@ foreach ($v in $versions) {
 # resolves the payload relative to itself and stops with "Nothing staged" without it.
 Write-Host "`nstaged in $deploy" -ForegroundColor Green
 Write-Host "on the VM, in an ELEVATED PowerShell - V20 installs under Program Files:" -ForegroundColor Cyan
-Write-Host '   & "\\vmware-host\Shared Folders\E\PlcFramework\TIA-Portal-Add-Ins\scripts\deploy\step2-deploy-vm.cmd"'
+Write-Host '   & "\\vmware-host\Shared Folders\E\PLC-Framework\TIA-Portal-Add-Ins\scripts\deploy\step2-deploy-vm.cmd"'
 Write-Host ""
 Write-Host "   By UNC, not by the Z: mapping: a mapped drive belongs to the logon session" -ForegroundColor DarkGray
 Write-Host "   that created it, so an elevated one does not have it. Where a station's UNC" -ForegroundColor DarkGray

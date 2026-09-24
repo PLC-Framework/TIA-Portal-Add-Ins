@@ -105,18 +105,62 @@
         },
         {
           "id" : "variable",
-          "regex" : "^[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
+          "regex" : "^[a-z][a-zA-Z0-9]*$",
           "descriptions" :
           [
             "Variable Naming Rules",
             "1. The identifier must start with a lowercase letter.",
-            "2. Words within a segment are separated using camelCase (the first letter of each subsequent word is uppercase).",
+            "2. Words are separated using camelCase (the first letter of each subsequent word is uppercase).",
             "3. Digits (0-9) are allowed anywhere except as the first character of the identifier.",
-            "4. The underscore (_) may be used as a semantic separator between logical segments.",
-            "5. After each underscore, the next character must be a lowercase letter or a digit.",
-            "6. Consecutive underscores (__) are not allowed.",
-            "7. The identifier must not end with an underscore.",
+            "4. The underscore (_) is not allowed anywhere in the name.",
+            "5. A name that needs a semantic separator is a structured variable and answers to structured_variable instead.",
+            "6. Only letters (A-Z, a-z) and digits (0-9) are allowed."
+          ]
+        },
+        {
+          "id" : "structured_variable",
+          "regex" : "^[a-z][a-zA-Z0-9]*_[a-z0-9][a-zA-Z0-9]*$",
+          "descriptions" :
+          [
+            "Structured Variable Naming Rules",
+            "1. The identifier follows the variable rules, with one underscore (_) allowed as a semantic separator.",
+            "2. The identifier must start with a lowercase letter.",
+            "3. Words within a segment are separated using camelCase (the first letter of each subsequent word is uppercase).",
+            "4. Digits (0-9) are allowed anywhere except as the first character of the identifier.",
+            "5. Exactly one underscore is allowed, and it may be anywhere except as the first or the last character.",
+            "6. After the underscore, the next character must be a lowercase letter or a digit.",
+            "7. Consecutive underscores (__) are not allowed, and neither is a second separator elsewhere in the name.",
             "8. Only letters (A-Z, a-z), digits (0-9), and underscores (_) are allowed."
+          ]
+        },
+        {
+          "id" : "command_variable",
+          "regex" : "^cmd[0-9]{1,3}[a-z]?_[a-z][a-zA-Z0-9]*$",
+          "descriptions" :
+          [
+            "Command Variable Naming Rules",
+            "1. The identifier must start with the prefix cmd.",
+            "2. The prefix is followed by one to three digits, leading zeros included: cmd0, cmd00, cmd000 and cmd999 are all accepted.",
+            "3. The digits may be followed by a single lowercase letter, which is optional.",
+            "4. A single underscore (_) always follows, and it is the only one in the name.",
+            "5. After the underscore the name follows the variable rules: it starts with a lowercase letter and continues in camelCase, with digits allowed anywhere but that first character.",
+            "6. Only letters (A-Z, a-z), digits (0-9) and that one underscore are allowed.",
+            "7. It belongs to the Input of object_container_for_sequences and nowhere else, which is where a sequence takes the commands that drive it."
+          ]
+        },
+        {
+          "id" : "waiting_point_variable",
+          "regex" : "^wp[0-9]{1,3}[a-z]?_[a-z][a-zA-Z0-9]*$",
+          "descriptions" :
+          [
+            "Waiting Point Variable Naming Rules",
+            "1. The identifier must start with the prefix wp.",
+            "2. The prefix is followed by one to three digits, leading zeros included: wp0, wp00, wp000 and wp999 are all accepted.",
+            "3. The digits may be followed by a single lowercase letter, which is optional.",
+            "4. A single underscore (_) always follows, and it is the only one in the name.",
+            "5. After the underscore the name follows the variable rules: it starts with a lowercase letter and continues in camelCase, with digits allowed anywhere but that first character.",
+            "6. Only letters (A-Z, a-z), digits (0-9) and that one underscore are allowed.",
+            "7. It belongs to the Output of object_container_for_sequences and nowhere else, which is where a sequence says which waiting point it has reached. It is command_variable with wp where that one has cmd."
           ]
         },
         {
@@ -185,7 +229,7 @@
           "regex" : "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$",
           "interface" : [
             {"type": "Input", "implements" : ["interruption_parameter"]},
-            {"type": "Temp", "implements" : ["variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "descriptions" : 
@@ -202,7 +246,7 @@
         {
           "id" : "data_container",
           "regex" : "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$",
-          "interface" : [{"type": "Static", "implements" : ["variable"]}],
+          "interface" : [{"type": "Static", "implements" : ["variable", "structured_variable"]}],
           "descriptions" : 
           [
             "Data Container Naming Rules",
@@ -217,7 +261,7 @@
         {
           "id" : "type",
           "regex" : "^[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
-          "interface" : [{"type": "Static", "implements" : ["variable"]}],
+          "interface" : [{"type": "Static", "implements" : ["variable", "structured_variable"]}],
           "descriptions" : 
           [
             "Data Type Naming Rules",
@@ -234,7 +278,7 @@
         {
           "id" : "safety_type",
           "regex" : "^F_[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
-          "interface" : [{"type": "Static", "implements" : ["variable"]}],
+          "interface" : [{"type": "Static", "implements" : ["variable", "structured_variable"]}],
           "descriptions" :
           [
             "Safety Data Type Naming Rules",
@@ -252,7 +296,7 @@
         {
           "id" : "unsafety_type",
           "regex" : "^UF_[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
-          "interface" : [{"type": "Static", "implements" : ["variable"]}],
+          "interface" : [{"type": "Static", "implements" : ["variable", "structured_variable"]}],
           "descriptions" :
           [
             "Unsafety Data Type Naming Rules",
@@ -290,11 +334,11 @@
           "regex" : "^(?!_oc_)_[a-z][a-zA-Z0-9]*(?:_[a-z][a-zA-Z0-9]*)*$",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "descriptions" :
@@ -318,11 +362,11 @@
           "regex" : "^_F_[a-z][a-zA-Z0-9]*(?:_[a-z][a-zA-Z0-9]*)*$",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "descriptions" : 
@@ -346,11 +390,11 @@
           "regex" : "^__[a-z][a-zA-Z0-9]*(?:_[a-z][a-zA-Z0-9]*)*$",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "descriptions" :
@@ -371,11 +415,11 @@
           "regex" : "^__F_[a-z][a-zA-Z0-9]*(?:_[a-z][a-zA-Z0-9]*)*$",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "descriptions" :
@@ -396,11 +440,11 @@
           "regex" : "^_UF_[a-z][a-zA-Z0-9]*(?:_[a-z][a-zA-Z0-9]*)*$",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "descriptions" :
@@ -421,11 +465,11 @@
           "regex" : "^__UF_[a-z][a-zA-Z0-9]*(?:_[a-z][a-zA-Z0-9]*)*$",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "descriptions" :
@@ -446,11 +490,11 @@
           "regex" : "^[A-Z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "descriptions" :
@@ -470,11 +514,11 @@
           "id" : "safety_subroutine",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "regex" : "^F_[A-Z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
@@ -497,11 +541,11 @@
           "regex" : "^UF_[A-Z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "descriptions" :
@@ -523,11 +567,11 @@
           "regex" : "^_oc_(?!seq[0-9])[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable"]},
-            {"type": "Output", "implements" : ["variable"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
           "descriptions" :
@@ -546,16 +590,16 @@
         },
         {
           "id" : "object_container_for_sequences",
+          "regex" : "^_oc_seq[0-9]{1,3}_[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
           "interface" :
           [
-            {"type": "Input", "implements" : ["variable", "graph_parameter"]},
-            {"type": "Output", "implements" : ["variable", "graph_parameter"]},
-            {"type": "InOut", "implements" : ["variable"]},
-            {"type": "Temp", "implements" : ["variable"]},
-            {"type": "Static", "implements" : ["variable", "sequence_variable", "transition_variable", "graph_parameter"]},
+            {"type": "Input", "implements" : ["variable", "structured_variable", "command_variable", "graph_parameter"]},
+            {"type": "Output", "implements" : ["variable", "structured_variable", "waiting_point_variable", "graph_parameter"]},
+            {"type": "InOut", "implements" : ["variable", "structured_variable"]},
+            {"type": "Temp", "implements" : ["variable", "structured_variable"]},
+            {"type": "Static", "implements" : ["variable", "structured_variable", "sequence_variable", "transition_variable", "graph_parameter"]},
             {"type": "Constant", "implements" : ["constant"]}
           ],
-          "regex" : "^_oc_seq[0-9]{1,3}_[a-z][a-zA-Z0-9]*(?:_[a-z0-9][a-zA-Z0-9]*)*$",
           "descriptions" :
           [
             "Object Container for Sequences Naming Rules",
