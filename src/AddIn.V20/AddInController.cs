@@ -115,7 +115,8 @@ namespace AddIn
                     CreateProjectHierarchyAction.Execute(
                         click.Notifier,
                         result.Config.ProjectConfig?.Hierarchy,
-                        TiaGroupNode.TargetsFor(deviceItem));
+                        TiaGroupNode.TargetsFor(deviceItem),
+                        click.Log);
                 });
 
             // And on the PLC, which is the entry that names one: the operator right-clicked
@@ -228,7 +229,8 @@ namespace AddIn
                         _busy,
                         ProjectDirectory(),
                         Selection.Scope(selected.Count, one, many),
-                        () => walk(selected));
+                        () => walk(selected),
+                        click.Log);
                 });
         }
 
@@ -258,7 +260,8 @@ namespace AddIn
                         ProjectDirectory(),
                         ProjectName(),
                         Selection.Scope(selected.Count, one, many),
-                        scratch => walk(selected, scratch));
+                        scratch => walk(selected, scratch),
+                        click.Log);
                 });
         }
 

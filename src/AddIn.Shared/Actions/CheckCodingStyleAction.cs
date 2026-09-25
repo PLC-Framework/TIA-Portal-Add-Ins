@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -11,6 +12,7 @@ using Core;
 using Core.Checks;
 using Core.Config;
 using Core.Config.Validation;
+using Core.Logging;
 
 namespace AddIn.Shared.Actions
 {
@@ -53,6 +55,11 @@ namespace AddIn.Shared.Actions
         /// objects, on TIA's own thread, only to report a missing window or a broken
         /// config.json would waste the engineer's time.
         /// </param>
+        /// <param name="log">
+        /// The click's log. It gets every validation problem, how long the walk and the check
+        /// took, and **every object whose interface could not be read** - which is otherwise a
+        /// row in a window, gone the moment the window closes without an export.
+        /// </param>
         public static void Execute(
             ITiaNotifier notifier,
             IProcessLauncher launcher,
@@ -60,9 +67,12 @@ namespace AddIn.Shared.Actions
             string projectDirectory,
             string project,
             string scope,
-            Func<ExportScratch, IEnumerable<CheckedObject>> walk)
+            Func<ExportScratch, IEnumerable<CheckedObject>> walk,
+            Log log = null)
         {
             if (notifier == null || launcher == null || walk == null) return;
+
+            Log said = log ?? Log.Nothing();
 
             string path = InstallPaths.Tool(ExecutableName);
 
@@ -101,6 +111,8 @@ namespace AddIn.Shared.Actions
             ValidationResult validation = CodingStyleValidator.Validate(style, "projectConfig.codingStyle");
             if (!validation.IsValid)
             {
+                foreach (ValidationIssue issue in validation.Issues) said.Warn(ConfigPaths.File + " - " + issue);
+
                 notifier.Error(Title, Invalid(validation));
                 return;
             }
@@ -120,10 +132,10 @@ namespace AddIn.Shared.Actions
             // Without it the window is the only thing moving, while TIA itself sits there
             // ignoring clicks with nothing to say for itself.
             Func<string> report = () => busy == null
-                ? Report(notifier, style, projectDirectory, project, scope, startedUtc, walk, null)
+                ? Report(notifier, said, style, projectDirectory, project, scope, startedUtc, walk, null)
                 : busy.While(
                     Title + ": " + (string.IsNullOrWhiteSpace(project) ? "the project" : project),
-                    progress => Report(notifier, style, projectDirectory, project, scope, startedUtc, walk, progress));
+                    progress => Report(notifier, said, style, projectDirectory, project, scope, startedUtc, walk, progress));
 
             string error = launcher.Start(path, CheckingNotice.Arguments(project, scope), report);
 
@@ -140,6 +152,7 @@ namespace AddIn.Shared.Actions
         /// </summary>
         private static string Report(
             ITiaNotifier notifier,
+            Log said,
             CodingStyle style,
             string projectDirectory,
             string project,
@@ -152,6 +165,7 @@ namespace AddIn.Shared.Actions
             // exported into it to read its interface, and a project's code must not be left
             // lying in a temporary folder afterwards.
             ExportScratch scratch = ExportScratch.In(projectDirectory, startedUtc);
+            Stopwatch clock = Stopwatch.StartNew();
 
             try
             {
@@ -168,10 +182,14 @@ namespace AddIn.Shared.Actions
                 {
                     // The walk is deliberately unguarded, so that a part of the project which
                     // could not be read fails here, by name, instead of being left out of a
-                    // report that would then look complete.
+                    // report that would then look complete. The operator gets the message;
+                    // the log gets where it came from.
+                    said.Failed("reading the selection", e);
                     notifier.Error(Title, "\n\nThe selection could not be read from the project.\n\n" + e.Message);
                     return null;
                 }
+
+                said.Info("read the selection - " + subjects.Count + " objects in " + Seconds(clock));
 
                 if (subjects.Count == 0)
                 {
@@ -207,6 +225,7 @@ namespace AddIn.Shared.Actions
                         // Nothing is sent. A report of the objects reached before the operator
                         // pressed Cancel would be a report with a silent hole in it, and the
                         // window says the check did not finish instead.
+                        said.Warn("cancelled by the operator after " + done + " of " + subjects.Count + " objects");
                         notifier.Info(Title, "\n\nThe check was cancelled. No report was produced.");
                         return null;
                     }
@@ -215,6 +234,8 @@ namespace AddIn.Shared.Actions
                     done++;
                 }
 
+                Recorded(said, rows, subjects.Count, clock);
+
                 return StyleReport.Build(style, rows, project, projectDirectory, scope, startedUtc).ToJson();
             }
             catch (Exception e)
@@ -222,6 +243,7 @@ namespace AddIn.Shared.Actions
                 // Should not happen - the contract is public and was serialized inside a
                 // restricted AppDomain - but a sandbox refusal is exactly the kind of thing
                 // that only shows up inside TIA, and it deserves its own sentence.
+                said.Failed("preparing the report", e);
                 notifier.Error(Title, "\n\nThe report could not be prepared.\n\n" + e.Message);
                 return null;
             }
@@ -241,6 +263,64 @@ namespace AddIn.Shared.Actions
         private static string Doing(CheckedObject subject, int done, int total) =>
             string.Format(CultureInfo.CurrentCulture, "Checking {0} of {1} - {2}", done + 1, total, subject.Name);
 
+        /// <summary>
+        /// What the check came to, as counts, and **every row the tool itself could not judge**:
+        /// an interface that would not read, a rule that would not compile or ran out of time.
+        ///
+        /// **Not every skipped row.** An object whose own name matched no rule has its interface
+        /// skipped too, because which interface applies is then unknown - but that is the naming
+        /// failure again rather than a second fault, it is one line per failing object, and it
+        /// would bury the few lines that mean the check could not do its job. It is told apart
+        /// by what the report already says about the object itself, not by the wording of a note.
+        /// </summary>
+        private static void Recorded(Log said, List<CheckRow> rows, int objects, Stopwatch clock)
+        {
+            int passed = rows.Count(row => row.Outcome == CheckOutcome.Passed);
+            int failed = rows.Count(row => row.Outcome == CheckOutcome.Failed);
+            int skipped = rows.Count(row => row.Outcome == CheckOutcome.Skipped);
+            int unconfigured = rows.Count(row => row.Outcome == CheckOutcome.NotConfigured);
+
+            said.Info(string.Format(
+                CultureInfo.InvariantCulture,
+                "checked {0} objects in {1} - {2} rows: {3} passed, {4} failed, {5} skipped, {6} not configured",
+                objects, Seconds(clock), rows.Count, passed, failed, skipped, unconfigured));
+
+            HashSet<string> nameFailed = new HashSet<string>(
+                rows.Where(row => row.Scope == RowScope.Object && row.Outcome == CheckOutcome.Failed).Select(Key),
+                StringComparer.Ordinal);
+
+            foreach (CheckRow row in rows)
+            {
+                if (row.Outcome != CheckOutcome.Skipped) continue;
+                if (row.Scope == RowScope.Member && nameFailed.Contains(Key(row))) continue;
+
+                said.Warn("not judged - " + Where(row) + " - " + row.Note);
+            }
+        }
+
+        /// <summary>The object a row belongs to, the same way whichever row of it is asked.</summary>
+        private static string Key(CheckRow row) =>
+            row.Plc + "\n" + row.Unit + "\n" + row.Path + "\n" + row.Owner;
+
+        /// <summary>
+        /// Where a row is, for a log line: PLC, unit or the general program, the folders, the
+        /// object, and for a member the members it is declared in.
+        /// </summary>
+        private static string Where(CheckRow row)
+        {
+            string unit = string.IsNullOrWhiteSpace(row.Unit) ? Places.GeneralProgram : row.Unit;
+            string folders = string.IsNullOrWhiteSpace(row.Path) ? string.Empty : row.Path + "/";
+            string where = row.Plc + "/" + unit + "/" + folders + row.Owner;
+
+            if (row.Scope != RowScope.Member || string.IsNullOrWhiteSpace(row.Name)) return where;
+
+            string parent = string.IsNullOrWhiteSpace(row.Parent) ? string.Empty : row.Parent + ".";
+
+            return where + " " + row.Kind + " " + parent + row.Name;
+        }
+
+        private static string Seconds(Stopwatch clock) =>
+            clock.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
 
 
         /// <summary>

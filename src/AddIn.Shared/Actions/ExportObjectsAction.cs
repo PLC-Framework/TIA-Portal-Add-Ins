@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text;
 
 using AddIn.Shared.Adapters;
 
+using Core;
 using Core.Config;
 using Core.Exports;
+using Core.Logging;
 
 namespace AddIn.Shared.Actions
 {
@@ -45,14 +48,22 @@ namespace AddIn.Shared.Actions
 
         /// <param name="scope">What was selected, in words: "PLC", "2 block folders".</param>
         /// <param name="walk">Reads the selection out of the project, as objects that can export themselves.</param>
+        /// <param name="log">
+        /// The click's log. **It gets every object that did not come out whole**, where the
+        /// notification names ten and counts the rest: a count is right on screen and useless
+        /// to somebody reading the log for the forty-seventh block.
+        /// </param>
         public static void Execute(
             ITiaNotifier notifier,
             ITiaBusy busy,
             string projectDirectory,
             string scope,
-            Func<IEnumerable<ExportItem>> walk)
+            Func<IEnumerable<ExportItem>> walk,
+            Log log = null)
         {
             if (notifier == null || walk == null) return;
+
+            Log said = log ?? Log.Nothing();
 
             // Everything is written inside the project, so a project that was never saved has
             // nowhere to put it. That is a sentence, not a failure.
@@ -68,25 +79,28 @@ namespace AddIn.Shared.Actions
 
             if (busy == null)
             {
-                Run(notifier, projectDirectory, exports, scope, walk, null);
+                Run(notifier, said, projectDirectory, exports, scope, walk, null);
                 return;
             }
 
             busy.While(Title + ": " + scope, progress =>
             {
-                Run(notifier, projectDirectory, exports, scope, walk, progress);
+                Run(notifier, said, projectDirectory, exports, scope, walk, progress);
                 return null;
             });
         }
 
         private static void Run(
             ITiaNotifier notifier,
+            Log said,
             string projectDirectory,
             string exports,
             string scope,
             Func<IEnumerable<ExportItem>> walk,
             Progress progress)
         {
+            Stopwatch clock = Stopwatch.StartNew();
+
             List<ExportItem> items;
             try
             {
@@ -97,9 +111,13 @@ namespace AddIn.Shared.Actions
             {
                 // The walk is unguarded on purpose: a part of the project that could not be
                 // read fails here, by name, rather than leaving an export that looks whole.
+                // The operator gets the message; the log gets where it came from.
+                said.Failed("reading the selection", e);
                 notifier.Error(Title, "\n\nThe selection could not be read from the project.\n\n" + e.Message);
                 return;
             }
+
+            said.Info("read the selection - " + items.Count + " objects in " + Seconds(clock));
 
             if (items.Count == 0)
             {
@@ -124,6 +142,7 @@ namespace AddIn.Shared.Actions
 
                 if (Stop(progress, done % ProgressEvery == 0 ? Doing(item, done, items.Count) : null))
                 {
+                    said.Warn("cancelled by the operator after " + done + " of " + items.Count + " objects");
                     cancelled = true;
                     break;
                 }
@@ -134,12 +153,38 @@ namespace AddIn.Shared.Actions
 
                 if (!outcome.IsRefused) written++;
 
-                if (outcome.IsRefused) refused.Add(item.Name + ": " + outcome.Problem);
-                else if (outcome.Problem != null) partly.Add(item.Name + ": " + outcome.Problem);
+                if (outcome.IsRefused)
+                {
+                    refused.Add(item.Name + ": " + outcome.Problem);
+                    said.Warn("not exported - " + Where(item) + " - " + outcome.Problem);
+                }
+                else if (outcome.Problem != null)
+                {
+                    partly.Add(item.Name + ": " + outcome.Problem);
+                    said.Warn("exported without every format - " + Where(item) + " - " + outcome.Problem);
+                }
             }
+
+            said.Info("done in " + Seconds(clock));
 
             notifier.Info(Title, Summary(exports, scope, items.Count, written, files, partly, refused, cancelled));
         }
+
+        /// <summary>
+        /// Where an object is, for a log line: its PLC, its unit or the general program, the
+        /// folders, and its name - the same three columns the coding-style report keeps apart,
+        /// joined here because a line is read, not filtered.
+        /// </summary>
+        private static string Where(ExportItem item)
+        {
+            string unit = string.IsNullOrWhiteSpace(item.Unit) ? Places.GeneralProgram : item.Unit;
+            string folders = string.IsNullOrWhiteSpace(item.Folders) ? string.Empty : item.Folders + "/";
+
+            return item.Plc + "/" + unit + "/" + folders + item.Name;
+        }
+
+        private static string Seconds(Stopwatch clock) =>
+            clock.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture) + " s";
 
         /// <summary>
         /// One object, to the file the tree gives it.

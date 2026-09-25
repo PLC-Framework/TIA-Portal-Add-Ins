@@ -5,6 +5,7 @@ using System.Text;
 using AddIn.Shared.Adapters;
 using Core.Config;
 using Core.Config.Validation;
+using Core.Logging;
 
 namespace AddIn.Shared.Actions
 {
@@ -23,9 +24,16 @@ namespace AddIn.Shared.Actions
         /// <summary>How many problems a message names before it only counts the rest.</summary>
         private const int ListedProblems = 10;
 
-        public static void Execute(ITiaNotifier notifier, Hierarchy hierarchy, HierarchyTargets targets)
+        /// <param name="log">
+        /// The click's log, which gets every validation problem where the message names ten, and
+        /// every folder that could not be found or created - which the message does not name at
+        /// all: it counts the folders in place, and one missing is only a count one too low.
+        /// </param>
+        public static void Execute(ITiaNotifier notifier, Hierarchy hierarchy, HierarchyTargets targets, Log log = null)
         {
             if (notifier == null) return;
+
+            Log said = log ?? Log.Nothing();
 
             if (targets == null)
             {
@@ -55,17 +63,21 @@ namespace AddIn.Shared.Actions
             ValidationResult validation = HierarchyValidator.Validate(hierarchy, "projectConfig.hierarchy");
             if (!validation.IsValid)
             {
+                foreach (ValidationIssue issue in validation.Issues) said.Warn(ConfigPaths.File + " - " + issue);
+
                 notifier.Error(Title, Invalid(validation));
                 return;
             }
 
-            int groups = Ensure(targets.Blocks, hierarchy.Blocks)
-                       + Ensure(targets.TechnologyObjects, hierarchy.TechnologyObjects)
-                       + Ensure(targets.TagTables, hierarchy.TagTables)
-                       + Ensure(targets.Types, hierarchy.Types);
+            // Named after the keys of config.json rather than after TIA's folders, whose names
+            // follow the interface language: a line points at the file somebody would open.
+            int groups = Ensure(targets.Blocks, hierarchy.Blocks, "blocks", said)
+                       + Ensure(targets.TechnologyObjects, hierarchy.TechnologyObjects, "technologyObjects", said)
+                       + Ensure(targets.TagTables, hierarchy.TagTables, "tagTables", said)
+                       + Ensure(targets.Types, hierarchy.Types, "types", said);
 
             int unitCount = targets.SoftwareUnits?.Count ?? 0;
-            int unitGroups = EnsureSoftwareUnits(hierarchy.SoftwareUnits, targets.SoftwareUnits);
+            int unitGroups = EnsureSoftwareUnits(hierarchy.SoftwareUnits, targets.SoftwareUnits, said);
 
             if (groups + unitGroups == 0)
             {
@@ -90,7 +102,8 @@ namespace AddIn.Shared.Actions
         /// </summary>
         private static int EnsureSoftwareUnits(
             SoftwareUnitHierarchy desired,
-            IReadOnlyList<HierarchySoftwareUnitTargets> units)
+            IReadOnlyList<HierarchySoftwareUnitTargets> units,
+            Log said)
         {
             if (desired == null || units == null) return 0;
 
@@ -100,9 +113,11 @@ namespace AddIn.Shared.Actions
             {
                 if (unit == null) continue;
 
-                count += Ensure(unit.Blocks, desired.Blocks);
-                count += Ensure(unit.TagTables, desired.TagTables);
-                count += Ensure(unit.Types, desired.Types);
+                string where = "softwareUnits[" + unit.Name + "].";
+
+                count += Ensure(unit.Blocks, desired.Blocks, where + "blocks", said);
+                count += Ensure(unit.TagTables, desired.TagTables, where + "tagTables", said);
+                count += Ensure(unit.Types, desired.Types, where + "types", said);
             }
 
             return count;
@@ -113,7 +128,10 @@ namespace AddIn.Shared.Actions
         /// ended up in place. A null target or a null list simply contributes nothing:
         /// a project that declares no tag-table groups is not an error.
         /// </summary>
-        public static int Ensure(IGroupNode parent, IReadOnlyList<Group> desired)
+        public static int Ensure(IGroupNode parent, IReadOnlyList<Group> desired) =>
+            Ensure(parent, desired, string.Empty, Log.Nothing());
+
+        private static int Ensure(IGroupNode parent, IReadOnlyList<Group> desired, string where, Log said)
         {
             if (parent == null || desired == null) return 0;
 
@@ -123,11 +141,20 @@ namespace AddIn.Shared.Actions
             {
                 if (string.IsNullOrWhiteSpace(group?.Name)) continue;
 
+                string here = where + "/" + group.Name;
+
                 IGroupNode child = parent.FindOrCreate(group.Name);
-                if (child == null) continue;
+                if (child == null)
+                {
+                    // The adapter answers null when TIA refused, and keeps the reason to itself;
+                    // nothing under this folder can be made either. Until the port can say why,
+                    // the log at least says which.
+                    said.Warn("the folder " + here + " could not be found or created, nor anything under it");
+                    continue;
+                }
 
                 count++;
-                count += Ensure(child, group.Groups);
+                count += Ensure(child, group.Groups, here, said);
             }
 
             return count;
