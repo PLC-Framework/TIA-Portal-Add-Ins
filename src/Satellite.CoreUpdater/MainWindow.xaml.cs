@@ -929,6 +929,12 @@ namespace Satellite.CoreUpdater
                     else
                     {
                         _log.Info("compared - " + Recorded(done.Result));
+
+                        // What went wrong beside the refresh without changing its answer: the log
+                        // is the only place these go, since none is a reason to refuse a comparison.
+                        foreach (string note in done.Result?.Core?.Notes ?? new string[0])
+                            _log.Warn(note);
+
                         Show(done.Result);
                     }
                 })));

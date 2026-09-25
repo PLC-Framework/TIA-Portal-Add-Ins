@@ -57,11 +57,18 @@ namespace Core.Repo.PlcCore
                     ? PlcCoreRefreshResult.Failed(origin.Problem)
                     : PlcCoreRefreshResult.NoCore(origin.Problem);
 
-            Retire(projectDirectory);
+            List<string> notes = new List<string>();
+
+            string retired = Retire(projectDirectory);
+            if (retired != null) notes.Add(retired);
+
+            // A public repository reads without a token, so an unreadable .env is not a refusal -
+            // but it is not nothing either, and a private one's refusal will need it explained.
+            if (origin.TokenProblem != null) notes.Add(origin.TokenProblem);
 
             return origin.Local != null
-                ? FromLocal(projectDirectory, origin.Local)
-                : FromRemote(projectDirectory, origin, progress);
+                ? FromLocal(projectDirectory, origin.Local, notes)
+                : FromRemote(projectDirectory, origin, progress, notes);
         }
 
         /// <summary>
@@ -110,17 +117,17 @@ namespace Core.Repo.PlcCore
                     RemoteCopyResult fetched = RemoteCopy.Sources(files, origin.Remote.Folder, paths, tmp, progress);
 
                     return fetched.IsRefused
-                        ? PlcCoreSourcesResult.Refused(fetched.Refusal)
+                        ? PlcCoreSourcesResult.Refused(Explained(fetched.Refusal, origin))
                         : PlcCoreSourcesResult.Done(tmp, fetched.Commit, fetched.Downloaded, fetched.Kept, fetched.Problems);
                 }
             }
             catch (Exception exception)
             {
-                return PlcCoreSourcesResult.Refused(exception.Message);
+                return PlcCoreSourcesResult.Refused(Explained(exception.Message, origin));
             }
         }
 
-        private static PlcCoreRefreshResult FromLocal(string projectDirectory, LocalSource repository)
+        private static PlcCoreRefreshResult FromLocal(string projectDirectory, LocalSource repository, List<string> notes)
         {
             LocalCopyResult copied = LocalCopy.Graph(repository, RepoPaths.GraphFor(projectDirectory));
 
@@ -133,7 +140,7 @@ namespace Core.Repo.PlcCore
             if (read.Catalog == null) return PlcCoreRefreshResult.Failed(read.Error);
 
             return PlcCoreRefreshResult.Read(
-                read.Catalog, PlcCoreValidator.Validate(read.Catalog), repository.CoreFolder);
+                read.Catalog, PlcCoreValidator.Validate(read.Catalog), repository.CoreFolder, notes);
         }
 
         /// <summary>
@@ -148,7 +155,8 @@ namespace Core.Repo.PlcCore
         /// against in its place: a Load that says "compared" is saying the core is the one the
         /// repository holds now.
         /// </summary>
-        private static PlcCoreRefreshResult FromRemote(string projectDirectory, Origin origin, Action<string> progress)
+        private static PlcCoreRefreshResult FromRemote(
+            string projectDirectory, Origin origin, Action<string> progress, List<string> notes)
         {
             CoreRemoteRepositoryConfig repository = origin.Remote;
 
@@ -159,12 +167,12 @@ namespace Core.Repo.PlcCore
                     RemoteCopyResult copied = RemoteCopy.Graph(
                         files, repository.Folder, repository.DependencyFile, RepoPaths.GraphFor(projectDirectory), progress);
 
-                    if (copied.IsRefused) return PlcCoreRefreshResult.Failed(copied.Refusal);
+                    if (copied.IsRefused) return PlcCoreRefreshResult.Failed(Explained(copied.Refusal, origin));
 
                     if (!copied.Ready)
-                        return PlcCoreRefreshResult.Failed(
+                        return PlcCoreRefreshResult.Failed(Explained(
                             "The core's graph did not come down, so it is not compared against. " +
-                            string.Join(" ", copied.Problems));
+                            string.Join(" ", copied.Problems), origin));
 
                     PlcCoreLoadResult read = PlcCoreCatalogLoader.LoadFromProject(projectDirectory, repository.Folder);
 
@@ -175,10 +183,16 @@ namespace Core.Repo.PlcCore
                     // renderings of one fact would be two things to keep in step.
                     PlcCoreOrigin marker = PlcCoreOrigin.Of(repository, copied);
 
-                    PlcCoreOrigin.Write(marker, projectDirectory);
+                    string unwritten = PlcCoreOrigin.Write(marker, projectDirectory);
+
+                    // Not a reason to refuse the comparison - the line on screen names the commit
+                    // either way - but the file left on disk now names a different one.
+                    if (unwritten != null)
+                        notes.Add(PlcCoreOrigin.FileName + " could not be written, so the one on disk does not " +
+                                  "name the commit this core was read at - " + unwritten);
 
                     return PlcCoreRefreshResult.Fetch(
-                        read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied, marker.ToString());
+                        read.Catalog, PlcCoreValidator.Validate(read.Catalog), copied, marker.ToString(), notes);
                 }
             }
             catch (Exception exception)
@@ -186,9 +200,20 @@ namespace Core.Repo.PlcCore
                 // Opening the repository, or disposing it. The client's own refusals are
                 // already sentences; anything else is at least named rather than thrown into
                 // a window that would report "Failed."
-                return PlcCoreRefreshResult.Failed(exception.Message);
+                return PlcCoreRefreshResult.Failed(Explained(exception.Message, origin));
             }
         }
+
+        /// <summary>
+        /// A refusal from a remote core, with the one thing it cannot know about added: that the
+        /// token it was not sent was never read, because the `.env` holding it would not open.
+        ///
+        /// **This is the one place phase 4.3 changes a line on screen.** The refusal a private
+        /// repository answers with says to set the token's variable - which, with a locked `.env`,
+        /// is already set, and would send somebody to add a line that is there.
+        /// </summary>
+        private static string Explained(string refusal, Origin origin) =>
+            origin?.TokenProblem == null ? refusal : refusal + " " + origin.TokenProblem;
 
         /// <summary>
         /// Where the core comes from, read once for a Load and once for the download after it,
@@ -206,6 +231,9 @@ namespace Core.Repo.PlcCore
             public CoreRemoteRepositoryConfig Remote;
             public IRemotePlcCore Port;
             public string Token;
+
+            /// <summary>Why the token was not read although the file that holds it is there, or null.</summary>
+            public string TokenProblem;
 
             public static Origin Refused(string problem, bool namesCore = true) =>
                 new Origin { Problem = problem, NamesCore = namesCore };
@@ -274,7 +302,9 @@ namespace Core.Repo.PlcCore
                     "This project reads its core from " + provider + ", and this program cannot " +
                     "reach it. Open the core updater, which can.");
 
-            return new Origin { Remote = repository, Port = remote, Token = Token(repository.Token) };
+            string token = Token(repository.Token, out string unread);
+
+            return new Origin { Remote = repository, Port = remote, Token = token, TokenProblem = unread };
         }
 
         /// <summary>How many problems a refusal names before it counts the rest - the hierarchy's number.</summary>
@@ -305,17 +335,22 @@ namespace Core.Repo.PlcCore
 
         /// <summary>
         /// Takes away the <c>repo\core\</c> a project loaded before 2026-09-22 still carries: the
-        /// whole core, mirrored, that nothing reads any more. **Best effort and silent** - it is
-        /// generated, it is not versioned, and one that will not go today is tried again on the
-        /// next Load; a failure here is never a reason to refuse a comparison.
+        /// whole core, mirrored, that nothing reads any more. **Best effort** - it is generated,
+        /// it is not versioned, and one that will not go today is tried again on the next Load;
+        /// a failure here is never a reason to refuse a comparison.
         /// </summary>
-        private static void Retire(string projectDirectory)
+        /// <returns>
+        /// Null when there is none left, or a note saying why it is still there - **silent until
+        /// phase 4.3**, which was right about the comparison and wrong about the record: a folder
+        /// that keeps failing to go is a whole copy of the core sitting in every such project.
+        /// </returns>
+        private static string Retire(string projectDirectory)
         {
             string retired = RepoPaths.RetiredCoreFor(projectDirectory);
 
             try
             {
-                if (retired == null || !Directory.Exists(retired)) return;
+                if (retired == null || !Directory.Exists(retired)) return null;
 
                 // A file copied off a read-only checkout arrived read-only, and Directory.Delete
                 // refuses a whole tree over one of those.
@@ -323,10 +358,11 @@ namespace Core.Repo.PlcCore
                     File.SetAttributes(file, FileAttributes.Normal);
 
                 Directory.Delete(retired, true);
+                return null;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // See above.
+                return "The retired " + retired + " could not be removed; the next Load tries again - " + exception.Message;
             }
         }
 
@@ -344,14 +380,30 @@ namespace Core.Repo.PlcCore
         /// a public repository is read, and the refusal that follows for a private one names
         /// the variable to set.
         /// </summary>
-        private static string Token(string configured)
+        /// <param name="problem">
+        /// Why nobody answered the reference **when that is the file's fault** - it is there and
+        /// would not open - and null otherwise, including the ordinary case of a line nobody wrote.
+        /// </param>
+        private static string Token(string configured, out string problem)
         {
+            problem = null;
+
             if (string.IsNullOrWhiteSpace(configured)) return null;
 
             string expanded = Variables.Expand(configured.Trim(), DotEnv.Get);
 
-            // Still a reference: nobody answered it.
-            return Variables.References(expanded).Count > 0 ? null : expanded;
+            if (Variables.References(expanded).Count == 0) return expanded;
+
+            // Still a reference: nobody answered it. A missing line and a locked file both land
+            // here, and only the second is worth a sentence of its own - the first is what the
+            // refusal for a private repository already says.
+            string unreadable = DotEnv.Unreadable();
+
+            if (unreadable != null)
+                problem = "The .env at " + InstallPaths.EnvFile + " could not be read, so " + configured.Trim() +
+                          " was not answered and no token was sent - " + unreadable;
+
+            return null;
         }
     }
 }

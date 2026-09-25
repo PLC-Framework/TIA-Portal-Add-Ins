@@ -33,6 +33,6 @@ namespace Satellite.CoreUpdater
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int Start(string[] arguments) =>
-            CoreUpdaterApp.Run(() => new TiaSession(), OpennessAssemblies.Report, arguments, "V21");
+            CoreUpdaterApp.Run(log => new TiaSession(log), OpennessAssemblies.Report, arguments, "V21");
     }
 }

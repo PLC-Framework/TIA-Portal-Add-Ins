@@ -123,11 +123,16 @@ namespace Core.Repo.Remote
         /// 2026-09-22, so a run killed mid-write left a marker that read back as nothing, and
         /// the one question it exists to answer went unanswered on the next look into `repo\`.
         /// </summary>
-        public static void Write(PlcCoreOrigin origin, string projectDirectory)
+        /// <returns>
+        /// Null once it is written, or why it is not - **still never a failure of the run**, but
+        /// no longer a silence either: a marker that did not go down leaves the previous one on
+        /// disk, naming a commit this core was not read at.
+        /// </returns>
+        public static string Write(PlcCoreOrigin origin, string projectDirectory)
         {
             string path = PathFor(projectDirectory);
 
-            if (origin == null || path == null) return;
+            if (origin == null || path == null) return null;
 
             try
             {
@@ -141,10 +146,12 @@ namespace Core.Repo.Remote
                         writer.Flush();
                     }
                 });
+
+                return null;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // See above: a record, not a dependency.
+                return exception.Message;
             }
         }
 

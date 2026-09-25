@@ -6,6 +6,7 @@ using System.Linq;
 
 using Core;
 using Core.Config;
+using Core.Logging;
 using Core.Repo;
 using Core.Repo.PlcProject;
 using Core.Repo.PlcCore;
@@ -68,6 +69,22 @@ namespace Satellite.CoreUpdater.Tia
         /// first time one learned a new rule.
         /// </summary>
         private ProjectSurvey.Builder _survey;
+
+        /// <summary>
+        /// Where a clean-up that did not happen is written down - the one kind of thing this
+        /// session used to drop without a word, since none of them changes what an import or a
+        /// move came to, and every one of them leaves a file behind nobody knows about.
+        /// </summary>
+        private readonly Log _log;
+
+        public TiaSession() : this(null)
+        {
+        }
+
+        public TiaSession(Log log)
+        {
+            _log = log ?? Log.Nothing();
+        }
 
         public TiaAttachment Attach(TiaWanted wanted)
         {
@@ -527,7 +544,7 @@ namespace Satellite.CoreUpdater.Tia
         /// with what would not go named - a constants table quietly three entries short is the
         /// silent hole every other part of this feature is shaped to avoid.
         /// </summary>
-        private static ImportedNode TagTable(
+        private ImportedNode TagTable(
             PlcSoftware software, PlcUnitBase into, PlannedNode planned, string project)
         {
             ConstantsWorkbook workbook = ConstantsWorkbook.Of(planned.Source);
@@ -689,7 +706,7 @@ namespace Satellite.CoreUpdater.Tia
         /// fourth has still produced three the project wants; the alternative throws away work
         /// that is already correct.
         /// </summary>
-        private static ImportedNode FromSource(
+        private ImportedNode FromSource(
             PlcSoftware software, PlcUnitBase into, PlannedNode planned, string project)
         {
             // Already in the project's repo\tmp\: the download brought it there before this ran,
@@ -777,7 +794,7 @@ namespace Satellite.CoreUpdater.Tia
         ///   it was written in the first place, so no clean-up reaches it. An object nobody can
         ///   find again is the one outcome this must never produce.
         /// </summary>
-        private static ImportedNode Relocated(
+        private ImportedNode Relocated(
             PlannedNode planned,
             string project,
             bool elsewhere,
@@ -836,7 +853,7 @@ namespace Satellite.CoreUpdater.Tia
         /// go in. **Refused** when that works - the project is as it was, and the reason is TIA's;
         /// **stranded** when it does not, with the file that is now the only copy.
         /// </summary>
-        private static ImportedNode PutBack(PlannedNode planned, string refusal, string backup, Action restore)
+        private ImportedNode PutBack(PlannedNode planned, string refusal, string backup, Action restore)
         {
             try
             {
@@ -885,16 +902,22 @@ namespace Satellite.CoreUpdater.Tia
             else source.GenerateBlocksFromSource(group, GenerateBlockOption.KeepOnError);
         }
 
-        private static void Remove(PlcExternalSource source)
+        private void Remove(PlcExternalSource source)
         {
+            if (source == null) return;
+
+            string name = Native(() => source.Name) ?? "(unnamed)";
+
             try
             {
-                source?.Delete();
+                source.Delete();
             }
-            catch (Exception)
+            catch (Exception exception)
             {
                 // It is a step rather than something to keep; one that will not go is untidy and
-                // nothing more, and saying so would bury the object's own outcome.
+                // nothing more, and saying so in the report would bury the object's own outcome.
+                // The log is where untidy things go, so the next download is not a surprise.
+                _log.Warn("the external source " + name + " was left in the project after generating from it - " + exception.Message);
             }
         }
 
@@ -977,29 +1000,32 @@ namespace Satellite.CoreUpdater.Tia
             }
         }
 
-        private static void Drop(string path)
+        private void Drop(string path)
         {
             try
             {
                 if (File.Exists(path)) File.Delete(path);
             }
-            catch (Exception)
+            catch (Exception exception)
             {
                 // A file TIA still holds is not a reason to report a successful import as a
                 // failure. If it is an export in repo\stranded\, the window lists it and it is
                 // safe to delete: the object it holds went back in.
+                _log.Warn("the file " + path + " could not be removed once it was no longer needed - " + exception.Message);
             }
         }
 
-        private static void Clear(string folder)
+        private void Clear(string folder)
         {
             try
             {
                 Directory.Delete(folder, true);
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // Empty by now; the next run reuses it.
+                // The next run reuses it - but what is left in it is sources out of the core,
+                // beside the project's own folder, and the log is the only place that knows.
+                _log.Warn("the scratch folder " + folder + " could not be cleared - " + exception.Message);
             }
         }
 
@@ -1098,7 +1124,7 @@ namespace Satellite.CoreUpdater.Tia
             }
         }
 
-        private static MovedObject MovedBlock(
+        private MovedObject MovedBlock(
             PlcSoftware software, PlcUnitBase into, MisplacedObject planned, string file)
         {
             PlcBlockGroup root = into == null ? (PlcBlockGroup)software.BlockGroup : into.BlockGroup;
@@ -1130,7 +1156,7 @@ namespace Satellite.CoreUpdater.Tia
             return MovedObject.Went(planned);
         }
 
-        private static MovedObject MovedType(
+        private MovedObject MovedType(
             PlcSoftware software, PlcUnitBase into, MisplacedObject planned, string file)
         {
             PlcTypeGroup root = into == null ? (PlcTypeGroup)software.TypeGroup : into.TypeGroup;
@@ -1166,7 +1192,7 @@ namespace Satellite.CoreUpdater.Tia
         /// core keeps, which is why a download builds a table object by object. What comes out of
         /// a project is SimaticML, so a move needs none of that.
         /// </summary>
-        private static MovedObject MovedTable(
+        private MovedObject MovedTable(
             PlcSoftware software, PlcUnitBase into, MisplacedObject planned, string file)
         {
             PlcTagTableGroup root = into == null ? (PlcTagTableGroup)software.TagTableGroup : into.TagTableGroup;

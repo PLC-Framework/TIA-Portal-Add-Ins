@@ -33,7 +33,7 @@ namespace Satellite.CoreUpdater
     /// </summary>
     public sealed class CoreUpdaterApp : Application
     {
-        private readonly Func<ITiaSession> _connect;
+        private readonly Func<Log, ITiaSession> _connect;
         private readonly Func<string> _whereItLooked;
         private readonly Requested _requested;
         private readonly string _tiaVersion;
@@ -49,7 +49,7 @@ namespace Satellite.CoreUpdater
         private TiaWorker _worker;
 
         private CoreUpdaterApp(
-            Func<ITiaSession> connect, Func<string> whereItLooked, Requested requested, string tiaVersion)
+            Func<Log, ITiaSession> connect, Func<string> whereItLooked, Requested requested, string tiaVersion)
         {
             _connect = connect;
             _whereItLooked = whereItLooked;
@@ -62,6 +62,10 @@ namespace Satellite.CoreUpdater
         /// because **it is the first thing that touches Openness**: invoking it inside the
         /// worker's own thread is what turns "the Siemens assemblies are not on this machine"
         /// into a sentence in the window instead of a process that dies before it paints.
+        ///
+        /// **It is handed the application's log**, so the session can write down the clean-ups it
+        /// could not finish - a file left in `repo\`, a source left in the project - which change
+        /// no outcome and so have nowhere else to go.
         /// </summary>
         /// <param name="whereItLooked">
         /// What the executable's assembly resolver searched, shown under a load failure.
@@ -75,7 +79,7 @@ namespace Satellite.CoreUpdater
         /// way to tell which one is in front of them.
         /// </param>
         public static int Run(
-            Func<ITiaSession> connect,
+            Func<Log, ITiaSession> connect,
             Func<string> whereItLooked = null,
             string[] arguments = null,
             string tiaVersion = null)
@@ -108,7 +112,7 @@ namespace Satellite.CoreUpdater
             window.ShowWaiting(TiaWanted.Of(_requested.Project, null).ProjectName);
             window.Show();
 
-            _worker = new TiaWorker(_connect, Dispatcher, _log);
+            _worker = new TiaWorker(() => _connect(_log), Dispatcher, _log);
             window.Uses(_worker);
 
             // **The ancestry is read on the worker's thread, not here.** It is one query over

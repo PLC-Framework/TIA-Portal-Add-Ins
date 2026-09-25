@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 using Core.Config.Validation;
 using Core.Repo.Remote;
 
@@ -6,9 +8,11 @@ namespace Core.Repo.PlcCore
     /// <summary>What came of refreshing a project's core: the catalogue, or why there is none.</summary>
     public sealed class PlcCoreRefreshResult
     {
+        private static readonly IReadOnlyList<string> None = new string[0];
+
         private PlcCoreRefreshResult(
             PlcCoreCatalog catalog, ValidationResult issues, RemoteCopyResult fetched,
-            string source, string problem, bool names)
+            string source, string problem, bool names, IReadOnlyList<string> notes)
         {
             Catalog = catalog;
             Issues = issues;
@@ -16,6 +20,7 @@ namespace Core.Repo.PlcCore
             Source = source;
             Problem = problem;
             NamesCore = names;
+            Notes = notes ?? None;
         }
 
         /// <summary>
@@ -62,20 +67,33 @@ namespace Core.Repo.PlcCore
         /// </summary>
         public bool NamesCore { get; }
 
+        /// <summary>
+        /// What went wrong beside the refresh without changing its answer, one sentence each, and
+        /// never null: the commit marker that could not be written, the retired `repo\core\` that
+        /// would not go, the `.env` that could not be read on the way to a public repository.
+        ///
+        /// **For the log, not the window** (phase 4.3, 2026-09-25). Each used to be a `catch`
+        /// that said nothing, which was right about the outcome - none of them is a reason to
+        /// refuse a comparison - and wrong about the record, since every one leaves something on
+        /// disk, or missing from it, that nobody would otherwise know about.
+        /// </summary>
+        public IReadOnlyList<string> Notes { get; }
+
         public bool Ready => Catalog != null;
 
         public static PlcCoreRefreshResult Read(
-            PlcCoreCatalog catalog, ValidationResult issues, string source) =>
-            new PlcCoreRefreshResult(catalog, issues, null, source, null, true);
+            PlcCoreCatalog catalog, ValidationResult issues, string source, IReadOnlyList<string> notes = null) =>
+            new PlcCoreRefreshResult(catalog, issues, null, source, null, true, notes);
 
         public static PlcCoreRefreshResult Fetch(
-            PlcCoreCatalog catalog, ValidationResult issues, RemoteCopyResult fetched, string source) =>
-            new PlcCoreRefreshResult(catalog, issues, fetched, source, null, true);
+            PlcCoreCatalog catalog, ValidationResult issues, RemoteCopyResult fetched, string source,
+            IReadOnlyList<string> notes = null) =>
+            new PlcCoreRefreshResult(catalog, issues, fetched, source, null, true, notes);
 
         public static PlcCoreRefreshResult Failed(string problem) =>
-            new PlcCoreRefreshResult(null, null, null, null, problem ?? "The core could not be read.", true);
+            new PlcCoreRefreshResult(null, null, null, null, problem ?? "The core could not be read.", true, null);
 
         public static PlcCoreRefreshResult NoCore(string why) =>
-            new PlcCoreRefreshResult(null, null, null, null, why, false);
+            new PlcCoreRefreshResult(null, null, null, null, why, false, null);
     }
 }

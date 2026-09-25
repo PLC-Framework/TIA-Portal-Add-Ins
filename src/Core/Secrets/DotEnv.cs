@@ -41,6 +41,33 @@ namespace Core.Secrets
         }
 
         /// <summary>
+        /// Why the user's `.env` is there and could not be read, or null - when it reads, and when
+        /// there is none, which is an ordinary "no secrets here".
+        ///
+        /// **Asked apart from <see cref="Read"/>, which answers both with an empty map** and must
+        /// go on doing so: nothing here throws. But "no such line" and "the file is locked" want
+        /// different sentences, and a caller about to tell somebody to set a variable that is set
+        /// has to be able to tell them apart.
+        /// </summary>
+        public static string Unreadable() => UnreadableAt(InstallPaths.EnvFile);
+
+        /// <summary>The same question about a named file, so it can be asked without the real one.</summary>
+        public static string UnreadableAt(string path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
+
+                File.ReadAllText(path);
+                return null;
+            }
+            catch (Exception exception)
+            {
+                return exception.Message;
+            }
+        }
+
+        /// <summary>
         /// One secret by name, or null. Falls back to the process environment, which is
         /// what lets a build server or a test run override the file without editing it.
         /// </summary>
