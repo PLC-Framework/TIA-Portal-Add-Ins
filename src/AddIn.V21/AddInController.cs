@@ -4,6 +4,7 @@ using AddIn.Shared.Adapters;
 using Core;
 using Core.Checks;
 using Core.Config;
+using Core.Logging;
 using Siemens.Engineering;
 using Siemens.Engineering.AddIn.Menu;
 using Siemens.Engineering.HW;
@@ -32,6 +33,16 @@ namespace AddIn
         /// </summary>
         private const string TiaVersion = "V21";
 
+        /// <summary>
+        /// The log every click of this Add-In writes to - one per TIA version, because the two
+        /// Add-Ins are two packages TIA loads apart, where the core updater's two executables
+        /// are one application built twice and share a file.
+        /// </summary>
+        private const string LogName = LogPaths.AddInV21;
+
+        /// <summary>How many selected objects a click's first line names before it counts the rest.</summary>
+        private const int NamesShown = 10;
+
         private readonly TiaPortal _tiaPortal;
         private readonly ITiaNotifier _notifier;
         private readonly IProcessLauncher _launcher;
@@ -54,8 +65,8 @@ namespace AddIn
                 menuAddInRoot,
                 ConfigEditorAction.Title,
                 ConfigEditorAction.IconPath,
-                menuSelectionProvider => ConfigEditorAction.Execute(
-                    _notifier, _launcher, ProjectDirectory(), ProjectName()));
+                (menuSelectionProvider, click) => ConfigEditorAction.Execute(
+                    click.Notifier, click.Launcher, ProjectDirectory(), ProjectName()));
 
             // Beside the editor, and for the same reason: the folder belongs to the project
             // rather than to anything selected inside it.
@@ -63,8 +74,8 @@ namespace AddIn
                 menuAddInRoot,
                 OpenProjectFolderAction.Title,
                 OpenProjectFolderAction.IconPath,
-                menuSelectionProvider => OpenProjectFolderAction.Execute(
-                    _notifier, _launcher, ProjectDirectory()));
+                (menuSelectionProvider, click) => OpenProjectFolderAction.Execute(
+                    click.Notifier, click.Launcher, ProjectDirectory()));
 
             // The core updater is also here, where no PLC is selected: the window lists the
             // project's PLCs and reads nothing until Load is pressed, so choosing one is a
@@ -73,8 +84,8 @@ namespace AddIn
                 menuAddInRoot,
                 CoreUpdaterAction.Title,
                 CoreUpdaterAction.IconPath,
-                menuSelectionProvider => CoreUpdaterAction.ExecuteForProject(
-                    _notifier, _launcher, TiaVersion, ProjectFile()));
+                (menuSelectionProvider, click) => CoreUpdaterAction.ExecuteForProject(
+                    click.Notifier, click.Launcher, TiaVersion, ProjectFile()));
 
             // The coding-style check on the project root checks every PLC in it. The same
             // entry on narrower nodes is registered below, after the actions that belong
@@ -86,19 +97,19 @@ namespace AddIn
                 menuAddInRoot,
                 CreateProjectHierarchyAction.Title,
                 CreateProjectHierarchyAction.IconPath,
-                menuSelectionProvider =>
+                (menuSelectionProvider, click) =>
                 {
                     DeviceItem deviceItem = menuSelectionProvider?.GetSelection<DeviceItem>().FirstOrDefault();
 
                     ConfigLoadResult result = ConfigLoader.LoadFromProject(ProjectDirectory());
                     if (!result.Succeeded)
                     {
-                        _notifier.Error(CreateProjectHierarchyAction.Title, result.Error);
+                        click.Notifier.Error(CreateProjectHierarchyAction.Title, result.Error);
                         return;
                     }
 
                     CreateProjectHierarchyAction.Execute(
-                        _notifier,
+                        click.Notifier,
                         result.Config.ProjectConfig?.Hierarchy,
                         TiaGroupNode.TargetsFor(deviceItem));
                 });
@@ -111,7 +122,7 @@ namespace AddIn
                 menuAddInRoot,
                 CoreUpdaterAction.Title,
                 CoreUpdaterAction.IconPath,
-                menuSelectionProvider =>
+                (menuSelectionProvider, click) =>
                 {
                     DeviceItem selected = menuSelectionProvider?.GetSelection<DeviceItem>().FirstOrDefault();
 
@@ -123,7 +134,7 @@ namespace AddIn
                     // Portals open the window could not tell which one had launched it, and
                     // this is the one thing both ends name identically.
                     CoreUpdaterAction.Execute(
-                        _notifier, _launcher, TiaVersion,
+                        click.Notifier, click.Launcher, TiaVersion,
                         TiaProjectPlaces.SoftwareOf(selected)?.Name, ProjectFile());
                 });
 
@@ -133,14 +144,14 @@ namespace AddIn
                 menuAddInRoot,
                 DataBlockSnapshotAction.Title,
                 DataBlockSnapshotAction.IconPath,
-                menuSelectionProvider =>
+                (menuSelectionProvider, click) =>
                 {
                     List<DataBlock> blocks =
                         menuSelectionProvider?.GetSelection<DataBlock>().ToList() ?? new List<DataBlock>();
 
                     DataBlockSnapshotAction.Execute(
-                        _notifier,
-                        _launcher,
+                        click.Notifier,
+                        click.Launcher,
                         ProjectDirectory(),
                         TiaPlcSelection.From(blocks));
                 });
@@ -186,7 +197,7 @@ namespace AddIn
                 menuAddInRoot,
                 AboutAction.Title,
                 AboutAction.IconPath,
-                menuSelectionProvider => AboutAction.Execute(_notifier, _launcher));
+                (menuSelectionProvider, click) => AboutAction.Execute(click.Notifier, click.Launcher));
         }
 
         /// <summary>
@@ -204,12 +215,12 @@ namespace AddIn
                 root,
                 ExportObjectsAction.Title,
                 ExportObjectsAction.IconPath,
-                menuSelectionProvider =>
+                (menuSelectionProvider, click) =>
                 {
                     List<T> selected = menuSelectionProvider?.GetSelection<T>().ToList() ?? new List<T>();
 
                     ExportObjectsAction.Execute(
-                        _notifier,
+                        click.Notifier,
                         _busy,
                         ProjectDirectory(),
                         Selection.Scope(selected.Count, one, many),
@@ -232,13 +243,13 @@ namespace AddIn
                 root,
                 CheckCodingStyleAction.Title,
                 CheckCodingStyleAction.IconPath,
-                menuSelectionProvider =>
+                (menuSelectionProvider, click) =>
                 {
                     List<T> selected = menuSelectionProvider?.GetSelection<T>().ToList() ?? new List<T>();
 
                     CheckCodingStyleAction.Execute(
-                        _notifier,
-                        _launcher,
+                        click.Notifier,
+                        click.Launcher,
                         _busy,
                         ProjectDirectory(),
                         ProjectName(),
@@ -250,19 +261,81 @@ namespace AddIn
         /// <summary>
         /// Adds a menu entry with its icon, falling back to the plain overload when the
         /// icon is not embedded. Keeps a missing asset from breaking the whole menu.
+        ///
+        /// **Every click is a run of the log**, opened here rather than in each entry so that no
+        /// entry can forget it: the first line says which entry and on what, and the entry is
+        /// handed a notifier and a launcher that write into the same run.
         /// </summary>
-        private static void AddAction<T>(
+        private void AddAction<T>(
             ContextMenuAddInRoot root,
             string text,
             string iconPath,
-            ActionItem<T>.OnClickDelegate onClick) where T : IEngineeringObject
+            Action<MenuSelectionProvider<T>, MenuClick> onClick) where T : IEngineeringObject
         {
+            ActionItem<T>.OnClickDelegate clicked = menuSelectionProvider =>
+                MenuClick.Run(
+                    LogName,
+                    text,
+                    ProjectName(),
+                    ProjectDirectory(),
+                    Described(menuSelectionProvider),
+                    _notifier,
+                    _launcher,
+                    click => onClick(menuSelectionProvider, click));
+
             Icon icon = Icons.Get(iconPath);
 
             if (icon != null)
-                root.Items.AddActionItemWithIcon<T>(text, icon, onClick);
+                root.Items.AddActionItemWithIcon<T>(text, icon, clicked);
             else
-                root.Items.AddActionItem<T>(text, onClick);
+                root.Items.AddActionItem<T>(text, clicked);
+        }
+
+        /// <summary>
+        /// What a click was on, for the first line of its run: how many, of what, and the first
+        /// few by name.
+        ///
+        /// **Read through the untyped attribute**, because the selection is only known as an
+        /// `IEngineeringObject` here and one method must serve every kind of node. An object with
+        /// no name - an alarm text list group has none - is named by its type instead, and
+        /// nothing here may fail a click: a selection that cannot be described is still worked on.
+        /// </summary>
+        private static string Described<T>(MenuSelectionProvider<T> menuSelectionProvider) where T : IEngineeringObject
+        {
+            List<T> selected;
+
+            try
+            {
+                selected = menuSelectionProvider?.GetSelection<T>().ToList() ?? new List<T>();
+            }
+            catch (Exception exception)
+            {
+                return "a selection that could not be read: " + exception.Message;
+            }
+
+            if (selected.Count == 0) return "nothing selected";
+
+            // A lambda rather than the method group: T is constrained to an interface, not to a
+            // class, so the variance a method group needs does not apply.
+            string named = string.Join(", ", selected.Take(NamesShown).Select(item => NameOf(item)));
+
+            return "on " + selected.Count + " " + typeof(T).Name + " - " + named +
+                   (selected.Count > NamesShown ? " and " + (selected.Count - NamesShown) + " more" : string.Empty);
+        }
+
+        private static string NameOf(IEngineeringObject item)
+        {
+            try
+            {
+                string name = item?.GetAttribute("Name") as string;
+                if (!string.IsNullOrWhiteSpace(name)) return name;
+            }
+            catch (Exception)
+            {
+                // No Name attribute on this kind of node; its type says what it is.
+            }
+
+            return item?.GetType().Name ?? "(null)";
         }
 
         /// <summary>
