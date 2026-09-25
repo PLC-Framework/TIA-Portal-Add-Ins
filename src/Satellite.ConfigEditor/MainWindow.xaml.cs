@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using Core;
 using Core.Config;
 using Core.Config.Validation;
+using Core.Logging;
 using Core.Secrets;
 
 using Newtonsoft.Json.Linq;
@@ -57,8 +58,23 @@ namespace Satellite.ConfigEditor
         private string _savedToken;
         private bool _tokenChanged;
 
+        /// <summary>
+        /// Where this window records what it opened and what it wrote. **The token is never
+        /// handed to it** - only that the .env was written - which keeps the secret out of the
+        /// file rather than trusting the masking to catch it.
+        /// </summary>
+        private readonly Log _log;
+
+        /// <summary>A window with no log, for anything that builds one by hand.</summary>
         public MainWindow(EditorRequest request)
+            : this(request, null)
         {
+        }
+
+        public MainWindow(EditorRequest request, Log log)
+        {
+            _log = log ?? Log.Nothing();
+
             InitializeComponent();
 
             // In the title bar, so it reaches every screenshot a tester sends
@@ -89,6 +105,11 @@ namespace Satellite.ConfigEditor
 
             Header.Subtitle = Describe(request);
 
+            // Handed over by the Add-In, so the column can name it from the first thing opened.
+            if (!string.IsNullOrWhiteSpace(request.ProjectDirectory))
+                _log.About(request.ProjectName ?? Path.GetFileName(request.ProjectDirectory.TrimEnd('\\')),
+                           request.ProjectDirectory);
+
             Open(Resolve(request.ProjectDirectory));
         }
 
@@ -110,6 +131,7 @@ namespace Satellite.ConfigEditor
 
             if (string.IsNullOrWhiteSpace(path))
             {
+                _log.Info("opened with no project");
                 ShowMissing("No project was handed over.",
                             "Choose the folder of a TIA project to edit its configuration.");
                 return;
@@ -117,6 +139,7 @@ namespace Satellite.ConfigEditor
 
             if (!File.Exists(path))
             {
+                _log.Info("opened " + path + " - no configuration yet");
                 ShowMissing("This project has no configuration yet.", path);
                 return;
             }
@@ -125,12 +148,16 @@ namespace Satellite.ConfigEditor
 
             if (_document == null)
             {
+                _log.Warn("opened " + path + " - it does not parse: " + error);
+
                 // A file that exists but cannot be parsed is NOT offered a template: that
                 // button would overwrite whatever is in there, and a file somebody broke by
                 // hand is still a file somebody wants back.
                 ShowBroken(error, path);
                 return;
             }
+
+            _log.Info("opened " + path + " - " + Counted(_document.Validate()));
 
             Fill();
             Show(_sections[0]);
@@ -188,13 +215,18 @@ namespace Satellite.ConfigEditor
         private bool CreateFrom(TemplateSource source)
         {
             ConfigDocument created = ConfigDocument.FromTemplate(_configPath, source, out string note);
+            string which = source == TemplateSource.User ? "user" : "system";
 
             if (created == null)
             {
+                _log.Warn("the " + which + " template could not be used - " + (note ?? "no reason given"));
+
                 // The panel stays as it was, so the other template is still one click away.
                 StatusLine.Text = note ?? "The template could not be loaded.";
                 return false;
             }
+
+            _log.Info("started from the " + which + " template" + (note == null ? string.Empty : " - " + note));
 
             _document = created;
             _startedFrom = source;
@@ -222,6 +254,10 @@ namespace Satellite.ConfigEditor
                     ". Picking " + ConfigPaths.Folder + " itself works too.";
 
                 if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+
+                // A window started by hand learns its project here, so this is where the
+                // column starts naming it.
+                _log.About(Path.GetFileName(dialog.SelectedPath.TrimEnd('\\')), dialog.SelectedPath);
 
                 NavPanel.Visibility = Visibility.Visible;
                 Open(Resolve(dialog.SelectedPath));
@@ -1198,6 +1234,7 @@ namespace Satellite.ConfigEditor
 
             if (!structural.IsValid)
             {
+                _log.Warn("save refused - " + Counted(structural));
                 StatusLine.Text = "Cannot save while there are problems.";
                 return;
             }
@@ -1210,15 +1247,23 @@ namespace Satellite.ConfigEditor
 
                 if (problem != null)
                 {
+                    // What went wrong with the file, never what was being written into it.
+                    _log.Warn(TokenVariable + " not written to the .env - " + problem);
                     StatusLine.Text = problem;
                     return;
                 }
+
+                // That it changed, and nothing about what it became.
+                _log.Info(TokenVariable + " written to the .env");
 
                 _savedToken = CurrentToken();
                 _tokenChanged = false;
             }
 
             string error = _document.Save(out string note);
+
+            if (error != null) _log.Warn("save failed - " + _document.Path + " - " + error);
+            else _log.Info("saved " + _document.Path + (note == null ? string.Empty : " - " + note));
 
             StatusLine.Text = error ?? ("Saved to " + _document.Path + (note == null ? string.Empty : "  " + note));
             Revalidate();
@@ -1227,6 +1272,8 @@ namespace Satellite.ConfigEditor
         private void OnRevert(object sender, RoutedEventArgs e)
         {
             if (_document == null) return;
+
+            _log.Info("reverted");
 
             if (File.Exists(_configPath))
             {
@@ -1254,6 +1301,16 @@ namespace Satellite.ConfigEditor
                 MessageBoxResult.No);
 
             if (answer != MessageBoxResult.Yes) e.Cancel = true;
+            else _log.Info("closed with unsaved changes, discarded");
+        }
+
+        /// <summary>A validation as one clause of a log line: how many problems, and the first.</summary>
+        private static string Counted(ValidationResult result)
+        {
+            if (result == null || result.IsValid) return "no problems";
+
+            return result.Issues.Count + (result.Issues.Count == 1 ? " problem" : " problems") +
+                   ", first " + result.Issues[0];
         }
 
         // ----------------------------------------------------------------- navigation

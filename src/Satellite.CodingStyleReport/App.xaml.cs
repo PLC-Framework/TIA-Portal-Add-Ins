@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows;
 
 using Core.Checks;
+using Core.Logging;
 
 using Satellite.CodingStyleReport.Export;
 using Satellite.CodingStyleReport.Handoff;
@@ -13,9 +14,21 @@ namespace Satellite.CodingStyleReport
 {
     public partial class App : Application
     {
+        /// <summary>
+        /// Opened first and closed last. **What TIA Portal handed over is recorded here**, before
+        /// any window reads it: a report that could not be read, and a check that broke off with
+        /// nothing sent, are the two endings somebody will ask about afterwards, and both used to
+        /// exist only as a sentence in a window that has since been closed.
+        /// </summary>
+        private readonly Log _log = Log.For(LogPaths.CodingStyleReport);
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+
+            // What escapes every handler, with its stack, before WPF reports it. Not handled
+            // here: recording a crash is not a reason to pretend it did not happen.
+            DispatcherUnhandledException += (sender, args) => _log.Failed("unhandled", args.Exception);
 
             // No single-instance guard, like the snapshot and unlike the editor. Each run is
             // a report of its own selection at its own moment: a second launch carries a new
@@ -35,7 +48,10 @@ namespace Satellite.CodingStyleReport
 
             if (workbook != null)
             {
+                _log.Info("started to import " + workbook);
+
                 MainWindow window = new MainWindow(null, false, null);
+                window.Records(_log);
                 window.Show();
                 window.Import(workbook);
                 return;
@@ -56,15 +72,31 @@ namespace Satellite.CodingStyleReport
 
             if (notice != null && HandoffReader.Expected())
             {
+                _log.About(notice.Project, null);
+                _log.Info("waiting for the check of " + (notice.Scope ?? "(no scope)"));
+
                 MainWindow waiting = new MainWindow(notice);
+                waiting.Records(_log);
                 waiting.Show();
 
-                Wait(waiting);
+                Wait(waiting, _log);
                 return;
             }
 
             StyleReport report = HandoffReader.Read(e.Args, out bool handedOver, out string problem);
-            new MainWindow(report, handedOver, problem).Show();
+
+            Received(_log, report, handedOver, problem);
+
+            MainWindow shown = new MainWindow(report, handedOver, problem);
+            shown.Records(_log);
+            shown.Show();
+        }
+
+        protected override void OnExit(ExitEventArgs e)
+        {
+            _log.Dispose();
+
+            base.OnExit(e);
         }
 
         /// <summary>
@@ -73,11 +105,22 @@ namespace Satellite.CodingStyleReport
         /// A plain background thread rather than a task: this one blocks on a pipe for as
         /// long as TIA takes, and there is nothing to await it.
         /// </summary>
-        private static void Wait(MainWindow window)
+        private static void Wait(MainWindow window, Log log)
         {
             Thread reader = new Thread(() =>
             {
                 StyleReport report = HandoffReader.Await(out bool arrived, out string problem);
+
+                // On this thread, as soon as the pipe answers: the log takes its own lock, and a
+                // window that fails to show the report must not also lose the record of it.
+                //
+                // Nothing at all is its own sentence here, where on the direct path it is a
+                // window started by hand: the Add-In promised a report, so an input closed
+                // with nothing in it is the check having broken off.
+                if (arrived)
+                    Received(log, report, true, problem);
+                else
+                    log.Warn("the input closed with nothing in it - the check did not finish");
 
                 window.Dispatcher.Invoke(new Action(() => window.Arrived(report, arrived, problem)));
             })
@@ -87,6 +130,29 @@ namespace Satellite.CodingStyleReport
             };
 
             reader.Start();
+        }
+
+        /// <summary>
+        /// What a handoff came to, each in its own words: a report, something that was not one,
+        /// and nothing - which, read at startup rather than waited for, is a window started by
+        /// hand. <see cref="Wait"/> says the waiting path's own "nothing" itself.
+        /// </summary>
+        private static void Received(Log log, StyleReport report, bool handedOver, string problem)
+        {
+            if (report != null)
+            {
+                log.About(report.Project, report.ProjectDirectory);
+                // Qualified: inside an Application, a bare MainWindow is the property, not the type.
+                log.Info("report received - " + global::Satellite.CodingStyleReport.MainWindow.Summarised(report));
+            }
+            else if (handedOver)
+            {
+                log.Warn("handed something that is not a report - " + (problem ?? "no reason given"));
+            }
+            else
+            {
+                log.Info("started with no report");
+            }
         }
     }
 }

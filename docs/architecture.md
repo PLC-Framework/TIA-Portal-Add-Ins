@@ -395,7 +395,7 @@ That is five rows for more than five places, because the two Add-In rows are one
 | `credentials.json` | `Satellite.DataBlockSnapshot`, only after a login the CPU accepted | web server user and password per project + PLC; the password under DPAPI `CurrentUser` |
 | `.env` | `Satellite.ConfigEditor` | `REPO_TOKEN`. Here because the token is personal **and** because the install folder is not writable by the engineer who owns it |
 | `config.template.json` | `Satellite.ConfigEditor`, when creating from the system template and no such file exists | the user template: offered beside the system one when a project has no `config.json`, written out from the embedded copy so it can be customised, and never overwritten |
-| `logs\<app>.log` | every application, from the first line it runs | what a run read, wrote and refused, one file per application with the project as a column on each line; rolled at 4 MB behind one `.1`. Here rather than in the project so a run that never reaches a project still leaves one, and so nothing a run writes lands in a versioned folder — see `Core.Logging.LogPaths` |
+| `logs\<app>.log` | every satellite, from the first line it runs — the Add-Ins not yet | what a run read, wrote and refused, one file per application with the project as a column on each line; rolled at 4 MB behind one `.1`. Here rather than in the project so a run that never reaches a project still leaves one, and so nothing a run writes lands in a versioned folder — see `Core.Logging.LogPaths` |
 
 **`...\Portal V2x\UserAddIns\`** or **`...\Portal V2x\AddIns\`** — one or the other, never both
 

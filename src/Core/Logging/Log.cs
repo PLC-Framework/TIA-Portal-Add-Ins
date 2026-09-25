@@ -6,7 +6,7 @@ using System.Text;
 namespace Core.Logging
 {
     /// <summary>
-    /// What a run records about itself, in <c>.plc-framework\logs\</c>.
+    /// What a run records about itself.
     ///
     /// **One per application, appended to** (2026-09-24, the maintainer's design), in
     /// <c>%LOCALAPPDATA%\PLC-Framework\logs\</c>. Which project a line belongs to is a column

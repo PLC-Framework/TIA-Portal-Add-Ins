@@ -13,6 +13,7 @@ using System.Windows.Input;
 
 using Core;
 using Core.Config;
+using Core.Logging;
 
 using S7PlcWebserverApi;
 
@@ -31,6 +32,13 @@ namespace Satellite.DataBlockSnapshot
         /// <summary>Kept because the credential store is keyed by project and CPU.</summary>
         private readonly SnapshotRequest _request;
 
+        /// <summary>
+        /// The application's log. **Never handed the password** - not the typed one, not the
+        /// remembered one - and the address and the user are enough for a line to say which
+        /// CPU it was about.
+        /// </summary>
+        private readonly Log _log;
+
         private CancellationTokenSource _cancellation;
 
         /// <summary>
@@ -40,7 +48,11 @@ namespace Satellite.DataBlockSnapshot
         /// </summary>
         private bool _busy;
 
-        public MainWindow(SnapshotRequest request)
+        public MainWindow(SnapshotRequest request) : this(request, null)
+        {
+        }
+
+        public MainWindow(SnapshotRequest request, Log log)
         {
             InitializeComponent();
 
@@ -49,6 +61,10 @@ namespace Satellite.DataBlockSnapshot
             Title = "Data block snapshot " + Product.Version;
 
             _request = request;
+            _log = log ?? Log.Nothing();
+
+            if (request.DataBlocks.Count > 0)
+                _log.Info(request.DataBlocks.Count + " data blocks handed over - " + Named(request.DataBlocks));
 
             BlockList.ItemsSource = _blocks;
 
@@ -92,7 +108,16 @@ namespace Satellite.DataBlockSnapshot
             Credential stored = CredentialStore.Find(
                 _request.ProjectDirectory, _request.PlcName, AddressBox.Text);
 
-            if (stored == null) return false;
+            if (stored == null)
+            {
+                _log.Info("no credentials remembered for " + Cpu());
+                return false;
+            }
+
+            // The user and the address, which are what somebody asking "why did it log in as
+            // that" needs; what came back as the password stays in the field it was put in.
+            _log.Info("credentials remembered for " + Cpu() + " - user " + stored.User +
+                      (string.IsNullOrWhiteSpace(stored.Address) ? string.Empty : ", last at " + stored.Address));
 
             UserBox.Text = stored.User ?? string.Empty;
             SetPassword(stored.Password);
@@ -115,6 +140,26 @@ namespace Satellite.DataBlockSnapshot
             if (!string.IsNullOrWhiteSpace(request.ProjectDirectory)) parts.Add(request.ProjectDirectory);
 
             return parts.Count == 0 ? "Started without a project" : string.Join("  -  ", parts);
+        }
+
+        /// <summary>
+        /// The CPU a line is about, named the way the credential store keys it: the device name
+        /// the project handed over, or the address when the window was started by hand.
+        /// </summary>
+        private string Cpu() =>
+            string.IsNullOrWhiteSpace(_request.PlcName) ? AddressBox.Text.Trim() : _request.PlcName;
+
+        /// <summary>
+        /// Block names for a log line, the first twenty and a count of the rest. A selection of
+        /// three hundred is one line either way, and the per-block lines that follow say the rest.
+        /// </summary>
+        private static string Named(IReadOnlyList<string> blocks)
+        {
+            const int Shown = 20;
+
+            string named = string.Join(", ", blocks.Take(Shown));
+
+            return blocks.Count > Shown ? named + " and " + (blocks.Count - Shown) + " more" : named;
         }
 
         /// <summary>
@@ -203,12 +248,15 @@ namespace Satellite.DataBlockSnapshot
             }
             catch (Exception exception)
             {
+                _log.Warn("the folder could not be opened - " + folder + " - " + exception.Message);
                 StatusLine.Text = "The folder could not be opened: " + exception.Message;
             }
         }
 
         private void OnCancel(object sender, RoutedEventArgs e)
         {
+            _log.Info("cancel asked - stopping after the current block");
+
             _cancellation?.Cancel();
             CancelButton.IsEnabled = false;
             StatusLine.Text = "Cancelling after the current block...";
@@ -221,6 +269,7 @@ namespace Satellite.DataBlockSnapshot
             string problem = Validate(chosen);
             if (problem != null)
             {
+                _log.Warn("capture refused - " + problem);
                 StatusLine.Text = problem;
                 return;
             }
@@ -256,14 +305,30 @@ namespace Satellite.DataBlockSnapshot
             bool remember = RememberBox.IsChecked == true;
             string project = _request.ProjectDirectory;
             string plc = _request.PlcName;
+            string cpu = Cpu();
+            Log log = _log;
 
+            // What the store was asked to do, not what it did: it keeps its own failures to
+            // itself, the capture having already worked by the time it is asked.
             Action authenticated = () =>
             {
                 if (remember)
+                {
+                    log.Info("remembering the credentials for " + cpu + " - user " + settings.User);
                     CredentialStore.Save(project, plc, settings.Address, settings.User, settings.Password);
+                }
                 else
+                {
+                    log.Info("not remembering the credentials for " + cpu + ", and forgetting any kept before");
                     CredentialStore.Forget(project, plc, settings.Address);
+                }
             };
+
+            _log.Info(string.Format(
+                CultureInfo.InvariantCulture,
+                "capture - {0} data blocks from {1} as {2}, timeout {3:0.#} s, into {4}",
+                settings.DataBlocks.Count, settings.Address, settings.User,
+                settings.Timeout.TotalSeconds, settings.Folder));
 
             _cancellation = new CancellationTokenSource();
             Working(true);
@@ -274,20 +339,28 @@ namespace Satellite.DataBlockSnapshot
                 // PlcClient blocks and a capture runs for tens of seconds; on the
                 // dispatcher thread that would freeze the window solid.
                 await Task.Run(() =>
-                    CaptureRunner.Run(settings, progress, _cancellation.Token, authenticated));
+                    CaptureRunner.Run(settings, progress, _cancellation.Token, authenticated, log));
 
                 StatusLine.Text = Summarise(chosen);
+
+                _log.Info("capture done - " + StatusLine.Text);
             }
             catch (PlcAuthException exception)
             {
+                // Nothing was stored, and that is the line worth having: the callback that
+                // remembers credentials never ran, so a wrong password never reached disk.
+                _log.Warn("login refused by " + settings.Address + " as " + settings.User + " - " +
+                          exception.Message + " - nothing remembered, nothing written");
                 StatusLine.Text = "The PLC rejected those credentials: " + exception.Message;
             }
             catch (PlcConnectionException exception)
             {
+                _log.Warn("no connection to " + settings.Address + " - " + exception.Message);
                 StatusLine.Text = exception.Message;
             }
             catch (Exception exception)
             {
+                _log.Failed("capture from " + settings.Address, exception);
                 StatusLine.Text = exception.Message;
             }
             finally

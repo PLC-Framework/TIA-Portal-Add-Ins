@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
+
+using Core.Logging;
 
 using S7PlcWebserverApi;
 
@@ -59,16 +62,27 @@ namespace Satellite.DataBlockSnapshot.Capture
         /// the caller remember a password only when it is known to be the right one. The
         /// runner itself stays ignorant of what the caller does with the news.
         /// </param>
+        /// <param name="log">
+        /// Where each block's outcome is recorded, with the counts the window has no room for.
+        /// **The settings carry the password, and nothing here ever hands it to the log** - the
+        /// address and the user are what a line needs to say which CPU it was, and the log's own
+        /// masking is a second line of defence rather than the first.
+        /// </param>
         public static void Run(
             CaptureSettings settings,
             IProgress<CaptureProgress> progress,
             CancellationToken cancellation,
-            Action authenticated = null)
+            Action authenticated = null,
+            Log log = null)
         {
+            Log said = log ?? Log.Nothing();
+
             using (PlcClient client = new PlcClient(
                        settings.Address, settings.User, settings.Password, settings.Timeout))
             {
                 client.Login();
+                said.Info("logged in to " + settings.Address + " as " + settings.User);
+
                 authenticated?.Invoke();
 
                 // One call, before anything long starts. The block names came out of a TIA
@@ -77,30 +91,38 @@ namespace Satellite.DataBlockSnapshot.Capture
                 HashSet<string> present = new HashSet<string>(
                     client.ListDataBlocks(), StringComparer.OrdinalIgnoreCase);
 
+                said.Info(present.Count + " data blocks on the CPU");
+
                 foreach (string block in settings.DataBlocks)
                 {
                     // Cancellation is checked between blocks. Inside one, the work is a
                     // browse and a batched read that finish in seconds.
                     if (cancellation.IsCancellationRequested)
                     {
+                        said.Info(block + " - cancelled before it was read");
                         progress?.Report(new CaptureProgress(block, CaptureOutcome.Cancelled, "Cancelled."));
                         continue;
                     }
 
                     if (!present.Contains(block))
                     {
+                        said.Warn(block + " - not on this CPU, nothing written");
                         progress?.Report(new CaptureProgress(
                             block, CaptureOutcome.Missing, "Not present on this CPU."));
                         continue;
                     }
 
-                    CaptureOne(client, settings, block, progress);
+                    CaptureOne(client, settings, block, progress, said);
                 }
             }
         }
 
         private static void CaptureOne(
-            PlcClient client, CaptureSettings settings, string block, IProgress<CaptureProgress> progress)
+            PlcClient client,
+            CaptureSettings settings,
+            string block,
+            IProgress<CaptureProgress> progress,
+            Log said)
         {
             progress?.Report(new CaptureProgress(block, CaptureOutcome.Working, "Reading..."));
 
@@ -111,6 +133,7 @@ namespace Satellite.DataBlockSnapshot.Capture
                 BrowseResult browse = client.BrowseDb(block);
                 if (browse.Variables.Count == 0)
                 {
+                    said.Warn(block + " - browsed, no readable variables, nothing written");
                     progress?.Report(new CaptureProgress(
                         block, CaptureOutcome.Failed, "The block holds no readable variables."));
                     return;
@@ -130,6 +153,7 @@ namespace Satellite.DataBlockSnapshot.Capture
                 // file: months later nobody can tell the difference.
                 if (snapshot.Truncated || snapshot.FailedCount > 0)
                 {
+                    said.Warn(block + " - " + Counted(snapshot) + " - " + Why(snapshot));
                     progress?.Report(new CaptureProgress(block, CaptureOutcome.Failed, Why(snapshot)));
                     return;
                 }
@@ -138,6 +162,10 @@ namespace Satellite.DataBlockSnapshot.Capture
                     settings.Folder, ExportFile.NameFor(settings.Address, block, started));
 
                 XlsxExporter.Write(snapshot, target);
+
+                // The whole path, where the window shows only the file name: this line is read
+                // when somebody is looking for the workbook, not while the folder is on screen.
+                said.Info(block + " - " + Counted(snapshot) + " - written to " + target);
 
                 progress?.Report(new CaptureProgress(
                     block,
@@ -150,12 +178,31 @@ namespace Satellite.DataBlockSnapshot.Capture
             }
             catch (PlcException exception)
             {
+                // The CPU's own refusal, which is the reason and needs no stack: every one of
+                // them comes up through the same few lines of PlcClient.
+                said.Warn(block + " - " + exception.GetType().Name + ": " + exception.Message + " - nothing written");
                 progress?.Report(new CaptureProgress(block, CaptureOutcome.Failed, exception.Message));
             }
             catch (Exception exception)
             {
+                // Anything else - a workbook that would not write, above all - is the case the
+                // stack is for.
+                said.Failed(block + " - nothing written", exception);
                 progress?.Report(new CaptureProgress(block, CaptureOutcome.Failed, exception.Message));
             }
+        }
+
+        /// <summary>What a block's read came to, in the three numbers a failed capture is judged by.</summary>
+        private static string Counted(Snapshot snapshot)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} browsed{1}, {2} read, {3} failed, {4:0.0} s",
+                snapshot.Rows.Count,
+                snapshot.Truncated ? " (stopped at a limit)" : string.Empty,
+                snapshot.Rows.Count - snapshot.FailedCount,
+                snapshot.FailedCount,
+                snapshot.Duration.TotalSeconds);
         }
 
         private static string Why(Snapshot snapshot)

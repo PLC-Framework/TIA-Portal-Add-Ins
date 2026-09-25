@@ -16,6 +16,7 @@ using System.Windows.Media.Animation;
 using Core;
 using Core.Checks;
 using Core.Config;
+using Core.Logging;
 
 using Satellite.CodingStyleReport.Export;
 using Satellite.CodingStyleReport.Report;
@@ -37,6 +38,35 @@ namespace Satellite.CodingStyleReport
 
         /// <summary>The workbook the report came from, when it was imported rather than handed over.</summary>
         private string _importedFrom;
+
+        private Log _log = Log.Nothing();
+
+        /// <summary>
+        /// Where this window records what it imported and exported. **Handed in after the
+        /// window is built** rather than through its constructors, of which there are two and
+        /// each already says what the window is for: the application owns the log, opened
+        /// before it knew which of them it would need.
+        /// </summary>
+        public void Records(Log log)
+        {
+            _log = log ?? Log.Nothing();
+        }
+
+        /// <summary>
+        /// A report as one clause of a log line: what was checked, and how it came out. Shared
+        /// with the application, which records what TIA handed over before any window reads it.
+        /// </summary>
+        internal static string Summarised(StyleReport report)
+        {
+            if (report == null) return "no report";
+
+            int rows = report.Rows?.Count ?? 0;
+            int failed = report.Rows?.Count(row => string.Equals(
+                row?.Outcome, nameof(CheckOutcome.Failed), StringComparison.OrdinalIgnoreCase)) ?? 0;
+
+            return (string.IsNullOrWhiteSpace(report.Scope) ? "(no scope)" : report.Scope) +
+                   " - " + rows + " rows, " + failed + " failed, format " + report.Format;
+        }
 
         /// <param name="handedOver">
         /// Whether TIA Portal sent something. **Only a window that received nothing offers
@@ -265,9 +295,13 @@ namespace Satellite.CodingStyleReport
 
             if (report == null)
             {
+                _log.Warn("import refused - " + path + " - " + problem);
                 StatusLine.Text = "'" + Path.GetFileName(path) + "' was not imported. " + problem;
                 return;
             }
+
+            _log.About(report.Project, report.ProjectDirectory);
+            _log.Info("imported " + path + " - " + Summarised(report));
 
             _importedFrom = path;
             ShowReport(report);
@@ -365,6 +399,7 @@ namespace Satellite.CodingStyleReport
             string problem = ReportFile.ProblemWith(folder);
             if (problem != null)
             {
+                _log.Warn("export refused - " + folder + " - " + problem);
                 StatusLine.Text = problem;
                 return;
             }
@@ -375,10 +410,13 @@ namespace Satellite.CodingStyleReport
                 path = ReportFile.Unique(folder, ReportFile.NameFor(_report.Project, CheckedAt()));
                 ReportWorkbook.Write(_report, path, DateTime.UtcNow);
 
+                _log.Info("exported " + path + " - " + Summarised(_report));
                 StatusLine.Text = "Exported to " + path;
             }
             catch (Exception exception)
             {
+                _log.Failed("exporting " + (path ?? folder), exception);
+
                 // A half-written workbook left behind would be opened later as a report. Nothing
                 // on disk is better than something that looks like the whole of it.
                 TryDelete(path);
