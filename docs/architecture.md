@@ -91,7 +91,7 @@ src/Core/
 │   ├── Git/                  what every git host shares, whoever hosts it
 │   │   └── GitBlobSha.cs     git's own content hash, so the copy is its own index
 │   ├── PlcCore/              the PLC core itself: core.json and what a core object carries
-│   │   ├── Graph/                   the core.json model: DependencyGraph, Node, Edge, Report
+│   │   ├── Graph/                   the core.json model: DependencyGraph, Node, Edge, Report, BlockInterface
 │   │   ├── PlcCoreCatalog.cs        a core that has been read: the graph, plus lookup by id and base
 │   │   ├── PlcCoreCatalogLoader.cs  core.json → PlcCoreCatalog, and why it could not be read
 │   │   ├── PlcCoreValidator.cs      what is wrong with one that loaded — as ValidationIssues

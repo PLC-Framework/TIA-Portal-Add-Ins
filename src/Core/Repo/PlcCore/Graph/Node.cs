@@ -5,7 +5,7 @@ namespace Core.Repo.PlcCore.Graph
 {
     /// <summary>
     /// One .scl or .udt file in the graph. Every key is always present in core.json,
-    /// though Version and DeprecatedBy may be null.
+    /// though Version, DeprecatedBy and Interface may be null.
     /// </summary>
     [DataContract]
     public class Node
@@ -44,5 +44,15 @@ namespace Core.Repo.PlcCore.Graph
         /// <summary>Raw names as written in TITLE, before resolution.</summary>
         [DataMember(Name = "dependencies")]
         public List<string> Dependencies { get; set; }
+
+        /// <summary>
+        /// How an FB or FC is called, or null: for a UDT, for a constant table, for a block
+        /// whose interface the generator could not read (it says so in <c>reports</c> as
+        /// <c>interface-unreadable</c>), and for every node of a <c>core.json</c> generated
+        /// before 2026-09-25, which has no such key - so a caller can tell "this block takes no
+        /// parameters" (empty lists) from "nothing is known" (null).
+        /// </summary>
+        [DataMember(Name = "interface")]
+        public BlockInterface Interface { get; set; }
     }
 }
