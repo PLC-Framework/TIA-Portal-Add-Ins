@@ -80,19 +80,27 @@ namespace AddIn.Shared.Adapters
         /// <summary>
         /// Deletes the folder and whatever is left in it. Never throws: the check has already
         /// produced its report by the time this runs, and losing that over a locked file
-        /// would be the wrong trade. A file that survives is overwritten by the next run,
-        /// which gets a folder of its own anyway.
+        /// would be the wrong trade.
         /// </summary>
-        public void Discard()
+        /// <returns>
+        /// Null once the folder is gone, or why it is not. **Said rather than swallowed**, and
+        /// this said the opposite for a while: that a file which survives is overwritten by the
+        /// next run. It is not - every run gets a folder of its own, named by when it started - so
+        /// one that will not go stays for good, holding exports of the project's source beside a
+        /// folder under version control, with nothing anywhere to say it is there.
+        /// </returns>
+        public string Discard()
         {
-            if (Folder == null) return;
+            if (Folder == null) return null;
 
             try
             {
                 if (Directory.Exists(Folder)) Directory.Delete(Folder, true);
+                return null;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
+                return exception.Message;
             }
         }
     }

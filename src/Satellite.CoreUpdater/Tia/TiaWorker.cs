@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Windows.Threading;
 
+using Core.Logging;
+
 namespace Satellite.CoreUpdater.Tia
 {
     /// <summary>
@@ -28,13 +30,19 @@ namespace Satellite.CoreUpdater.Tia
         private readonly Func<ITiaSession> _connect;
         private readonly Dispatcher _ui;
         private readonly Thread _thread;
+        private readonly Log _log;
 
         private ITiaSession _session;
 
-        public TiaWorker(Func<ITiaSession> connect, Dispatcher ui)
+        /// <param name="log">
+        /// Where a failure the pump cannot hand to anybody goes - the one kind this thread used to
+        /// throw away whole.
+        /// </param>
+        public TiaWorker(Func<ITiaSession> connect, Dispatcher ui, Log log = null)
         {
             _connect = connect;
             _ui = ui;
+            _log = log ?? Log.Nothing();
 
             _thread = new Thread(Pump);
             _thread.IsBackground = true;
@@ -92,11 +100,14 @@ namespace Satellite.CoreUpdater.Tia
                 {
                     work();
                 }
-                catch (Exception)
+                catch (Exception exception)
                 {
                     // Post already reports everything the work itself can throw. Reaching
                     // here would mean the reporting threw, and taking the pump down with it
-                    // would leave the window waiting forever.
+                    // would leave the window waiting forever - so it is not rethrown. It is
+                    // written down, though: the window never heard the answer, and this line is
+                    // the only place left that knows why.
+                    _log.Failed("handing an answer back to the window", exception);
                 }
             }
         }

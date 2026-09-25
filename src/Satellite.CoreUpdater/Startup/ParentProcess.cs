@@ -54,9 +54,16 @@ namespace Satellite.CoreUpdater.Startup
         /// would be most of a second of nothing, which is the failure this project has already
         /// paid for once.
         /// </summary>
-        public static IReadOnlyList<int> Chain()
+        /// <param name="problem">
+        /// Why the ancestry could not be read, and null otherwise. Not a failure of the attach -
+        /// the project decides - but with it gone, two TIA Portals on one project leave the
+        /// operator choosing where this would otherwise have told them apart, and the log should
+        /// say why.
+        /// </param>
+        public static IReadOnlyList<int> Chain(out string problem)
         {
             List<int> found = new List<int>();
+            problem = null;
 
             try
             {
@@ -83,10 +90,11 @@ namespace Satellite.CoreUpdater.Startup
                     current = parent;
                 }
             }
-            catch (Exception)
+            catch (Exception exception)
             {
                 // WMI can be disabled, or slow to the point of failing. Not knowing the
                 // ancestry is not a failure here - it is one signal of three.
+                problem = exception.Message;
             }
 
             return found;

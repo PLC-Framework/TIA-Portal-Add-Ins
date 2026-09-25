@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 
 using Core.Logging;
@@ -107,7 +108,7 @@ namespace Satellite.CoreUpdater
             window.ShowWaiting(TiaWanted.Of(_requested.Project, null).ProjectName);
             window.Show();
 
-            _worker = new TiaWorker(_connect, Dispatcher);
+            _worker = new TiaWorker(_connect, Dispatcher, _log);
             window.Uses(_worker);
 
             // **The ancestry is read on the worker's thread, not here.** It is one query over
@@ -115,7 +116,16 @@ namespace Satellite.CoreUpdater
             // and being painted - which is where a satellite looks like one that failed to
             // start. Nothing about it is thread-bound.
             _worker.Post(
-                session => session.Attach(TiaWanted.Of(_requested.Project, ParentProcess.Chain())),
+                session =>
+                {
+                    IReadOnlyList<int> chain = ParentProcess.Chain(out string unknown);
+
+                    if (unknown != null)
+                        _log.Warn("the processes this descends from could not be read, so only the project " +
+                                  "says which TIA Portal to attach to - " + unknown);
+
+                    return session.Attach(TiaWanted.Of(_requested.Project, chain));
+                },
                 attachment => window.Arrived(attachment, _requested.Plc, _requested.Unit),
                 exception => window.Arrived(
                     TiaAttachment.Failed(Describe(exception) + Looked()), _requested.Plc, _requested.Unit));

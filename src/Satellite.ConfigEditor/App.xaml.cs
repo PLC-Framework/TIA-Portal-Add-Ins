@@ -39,7 +39,11 @@ namespace Satellite.ConfigEditor
             // two windows over one config.json lose each other's changes in silence.
             // The same resolution the window uses - see ConfigLocation - so two windows
             // over one file cannot each conclude they are alone.
-            string key = ParentProcess.InstanceKey(ConfigLocation.Resolve(request.ProjectDirectory));
+            string key = ParentProcess.InstanceKey(ConfigLocation.Resolve(request.ProjectDirectory), out string unknown);
+
+            if (unknown != null)
+                _log.Warn("the process that started this could not be read, so the guard is one editor per file " +
+                          "rather than one per TIA Portal - " + unknown);
 
             if (!SingleInstance.Claim("ConfigEditor." + key))
             {

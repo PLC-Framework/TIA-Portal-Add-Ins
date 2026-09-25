@@ -25,8 +25,14 @@ namespace Satellite.ConfigEditor.Startup
         /// The process id that started this one, or null when it cannot be determined.
         /// Costs about 170 ms, so it is asked once at startup and never again.
         /// </summary>
-        public static int? Id()
+        /// <param name="problem">
+        /// Why it could not be read - WMI disabled, or slow to the point of failing - and null
+        /// otherwise, including when this one simply has no parent left to name.
+        /// </param>
+        public static int? Id(out string problem)
         {
+            problem = null;
+
             try
             {
                 using (Process self = Process.GetCurrentProcess())
@@ -39,11 +45,13 @@ namespace Satellite.ConfigEditor.Startup
                             return Convert.ToInt32(row["ParentProcessId"]);
                 }
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // WMI can be disabled or slow to the point of failing. A missing tie means
-                // the guard falls back to one editor per file, which is the safe half of
-                // what it was for anyway.
+                // A missing tie means the guard falls back to one editor per file, which is the
+                // safe half of what it was for anyway - but a second editor on the same TIA,
+                // over another project, is then allowed where it would not be, and the caller
+                // is told why so that is not a mystery.
+                problem = exception.Message;
             }
 
             return null;
@@ -54,9 +62,10 @@ namespace Satellite.ConfigEditor.Startup
         /// otherwise the file being edited — hashed by <see cref="UI.Shared.SingleInstance.PathKey"/>,
         /// which is where the reason for hashing it at all is written down.
         /// </summary>
-        public static string InstanceKey(string configPath)
+        /// <param name="problem">Why the TIA instance could not be read, when that is why the key is the file.</param>
+        public static string InstanceKey(string configPath, out string problem)
         {
-            int? parent = Id();
+            int? parent = Id(out problem);
             if (parent.HasValue) return "tia-" + parent.Value;
 
             return "file-" + UI.Shared.SingleInstance.PathKey(configPath);

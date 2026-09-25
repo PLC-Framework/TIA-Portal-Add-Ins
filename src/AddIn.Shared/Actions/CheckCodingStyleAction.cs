@@ -249,7 +249,12 @@ namespace AddIn.Shared.Actions
             }
             finally
             {
-                scratch.Discard();
+                // Not the operator's to hear about - the report is already on its way - but what
+                // is in that folder is the project's source, and nothing else will ever remove it.
+                string left = scratch.Discard();
+
+                if (left != null)
+                    said.Warn("the scratch folder " + scratch.Folder + " could not be removed, and holds exports of the project's source - " + left);
             }
         }
 
