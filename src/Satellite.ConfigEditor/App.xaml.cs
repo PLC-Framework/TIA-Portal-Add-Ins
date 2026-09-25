@@ -30,6 +30,8 @@ namespace Satellite.ConfigEditor
 
             _log.Info("started - project " + Said(request.ProjectName) + ", folder " + Said(request.ProjectDirectory));
 
+            if (request.Problem != null) _log.Warn(request.Problem);
+
             // One editor per TIA Portal - and the tie is worked out here rather than taken
             // from the handoff, because the Add-In cannot read its own process id under
             // partial trust. Started by hand there is no TIA parent, and the guard falls

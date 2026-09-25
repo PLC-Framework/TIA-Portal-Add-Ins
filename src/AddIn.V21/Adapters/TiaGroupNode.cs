@@ -24,11 +24,32 @@ namespace AddIn.Adapters
     /// </summary>
     internal sealed class TiaGroupNode : IGroupNode
     {
+        /// <summary>Finds or creates a child, and throws what TIA throws when it will not.</summary>
         private readonly Func<string, IGroupNode> _findOrCreate;
 
         private TiaGroupNode(Func<string, IGroupNode> findOrCreate) => _findOrCreate = findOrCreate;
 
-        public IGroupNode FindOrCreate(string name) => _findOrCreate(name);
+        /// <summary>
+        /// **The refusal is caught here, where its reason is still in hand**, and handed back
+        /// rather than dropped: a folder TIA would not create used to become a null and nothing
+        /// else, and the operator was told the hierarchy was ready. Creating a group is still
+        /// not worth taking TIA Portal down for - it is worth saying why it did not happen.
+        /// </summary>
+        public IGroupNode FindOrCreate(string name, out string problem)
+        {
+            try
+            {
+                IGroupNode child = _findOrCreate(name);
+
+                problem = child == null ? "TIA gave back no folder to create anything inside." : null;
+                return child;
+            }
+            catch (Exception exception)
+            {
+                problem = exception.Message;
+                return null;
+            }
+        }
 
         /// <summary>
         /// The group roots of the selected device, or null when it is not a PLC.
@@ -82,20 +103,24 @@ namespace AddIn.Adapters
         }
 
         // One overload per family. Each resolves the child composition so the walk can
-        // keep recursing without knowing which family it is in. Failures collapse to
-        // null: creating a group is not worth taking TIA Portal down for.
+        // keep recursing without knowing which family it is in. What TIA throws is left to
+        // FindOrCreate, which turns it into the reason.
         private static IGroupNode From(PlcBlockUserGroupComposition groups) =>
-            groups == null ? null : new TiaGroupNode(name => Guard(() => From((groups.Find(name) ?? groups.Create(name)).Groups)));
+            groups == null ? null : new TiaGroupNode(name => From((groups.Find(name) ?? groups.Create(name)).Groups));
 
         private static IGroupNode From(TechnologicalInstanceDBUserGroupComposition groups) =>
-            groups == null ? null : new TiaGroupNode(name => Guard(() => From((groups.Find(name) ?? groups.Create(name)).Groups)));
+            groups == null ? null : new TiaGroupNode(name => From((groups.Find(name) ?? groups.Create(name)).Groups));
 
         private static IGroupNode From(PlcTagTableUserGroupComposition groups) =>
-            groups == null ? null : new TiaGroupNode(name => Guard(() => From((groups.Find(name) ?? groups.Create(name)).Groups)));
+            groups == null ? null : new TiaGroupNode(name => From((groups.Find(name) ?? groups.Create(name)).Groups));
 
         private static IGroupNode From(PlcTypeUserGroupComposition groups) =>
-            groups == null ? null : new TiaGroupNode(name => Guard(() => From((groups.Find(name) ?? groups.Create(name)).Groups)));
+            groups == null ? null : new TiaGroupNode(name => From((groups.Find(name) ?? groups.Create(name)).Groups));
 
+        /// <summary>
+        /// For the software units only, where a service that is not there is an S7-1200 rather
+        /// than a failure.
+        /// </summary>
         private static T Guard<T>(Func<T> resolve) where T : class
         {
             try { return resolve(); }

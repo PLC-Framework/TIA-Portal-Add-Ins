@@ -21,19 +21,22 @@ namespace Satellite.DataBlockSnapshot.Handoff
     {
         public static SnapshotRequest Read(string[] arguments)
         {
-            string json = FromArguments(arguments) ?? FromStandardInput();
+            string problem = null;
+            string json = FromArguments(arguments) ?? FromStandardInput(out problem);
 
+            if (problem != null) return SnapshotRequest.Unreadable(problem);
             if (string.IsNullOrWhiteSpace(json)) return SnapshotRequest.Empty;
 
             try
             {
                 return Parse(json);
             }
-            catch (Exception)
+            catch (Exception exception)
             {
                 // A malformed handoff must not stop the window from opening: everything
-                // in it can be typed by hand, so an empty form beats a dead process.
-                return SnapshotRequest.Empty;
+                // in it can be typed by hand, so an empty form beats a dead process - but
+                // it is not a window nobody sent anything to, and it says so.
+                return SnapshotRequest.Unreadable("What TIA Portal sent could not be read: " + exception.Message);
             }
         }
 
@@ -58,8 +61,14 @@ namespace Satellite.DataBlockSnapshot.Handoff
             return null;
         }
 
-        private static string FromStandardInput()
+        /// <param name="problem">
+        /// Why input that was there could not be read; null when there simply was none, which is
+        /// a window started by hand rather than a failure.
+        /// </param>
+        private static string FromStandardInput(out string problem)
         {
+            problem = null;
+
             // Without this check a satellite started from Explorer would block forever
             // waiting on a console that is never going to send anything.
             if (!Console.IsInputRedirected) return null;
@@ -79,8 +88,9 @@ namespace Satellite.DataBlockSnapshot.Handoff
                     return reader.ReadToEnd();
                 }
             }
-            catch (Exception)
+            catch (Exception exception)
             {
+                problem = "What TIA Portal sent could not be read: " + exception.Message;
                 return null;
             }
         }

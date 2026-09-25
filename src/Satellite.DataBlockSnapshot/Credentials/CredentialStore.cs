@@ -43,7 +43,8 @@ namespace Satellite.DataBlockSnapshot.Credentials
     /// having a shared key, and a shared key would be obfuscation rather than encryption.
     ///
     /// Nothing here throws. A credential cache that breaks the application it is meant to
-    /// smooth would be worse than no cache at all.
+    /// smooth would be worse than no cache at all. **But a write says when it failed**: not
+    /// throwing and not saying are two different things, and only the first was ever meant.
     /// </summary>
     public static class CredentialStore
     {
@@ -78,13 +79,20 @@ namespace Satellite.DataBlockSnapshot.Credentials
             }
         }
 
-        public static void Save(
+        /// <returns>
+        /// Null once it is stored, or why it could not be. **Still never a throw** - the capture
+        /// already worked and this is a courtesy - but no longer a silence either: it used to
+        /// swallow the failure, so a window whose Remember box was ticked said nothing, and the
+        /// next launch asked for the password again with no way of knowing why.
+        /// </returns>
+        public static string Save(
             string projectDirectory, string plc, string address, string user, string password)
         {
             try
             {
                 string key = Key(plc, address);
-                if (string.IsNullOrWhiteSpace(key)) return;
+                if (string.IsNullOrWhiteSpace(key))
+                    return "There is neither a PLC name nor an address to remember them under.";
 
                 JArray entries = Load();
                 Remove(entries, projectDirectory, key);
@@ -99,22 +107,31 @@ namespace Satellite.DataBlockSnapshot.Credentials
                 });
 
                 Store(entries);
+                return null;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // Nothing to report: the capture already worked, and this was a courtesy.
+                return exception.Message;
             }
         }
 
-        public static void Forget(string projectDirectory, string plc, string address)
+        /// <returns>
+        /// Null once nothing is kept for this CPU - including when nothing was - or why what was
+        /// kept could not be removed, which matters more than it looks: a password somebody
+        /// asked to forget is still on disk.
+        /// </returns>
+        public static string Forget(string projectDirectory, string plc, string address)
         {
             try
             {
                 JArray entries = Load();
                 if (Remove(entries, projectDirectory, Key(plc, address))) Store(entries);
+
+                return null;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
+                return exception.Message;
             }
         }
 

@@ -111,6 +111,11 @@ namespace Satellite.ConfigEditor
                            request.ProjectDirectory);
 
             Open(Resolve(request.ProjectDirectory));
+
+            // After Open, which empties the status line: what arrived broken is the first thing
+            // worth reading on a form that otherwise looks like one started by hand.
+            if (request.Problem != null)
+                StatusLine.Text = request.Problem + " Choose the project's folder instead.";
         }
 
         private static string Describe(EditorRequest request)

@@ -49,8 +49,12 @@ namespace Satellite.CoreUpdater.Tia
         /// <summary>How many objects pass between two updates of the text the window shows.</summary>
         private const int ProgressEvery = 25;
 
+        /// <summary>How many objects a run may name before it only counts the rest.</summary>
+        private const int ListedProblems = 10;
+
         private Action<string> _progress;
         private int _done;
+        private int _refused;
 
         private TiaPortal _portal;
         private Project _project;
@@ -253,6 +257,7 @@ namespace Satellite.CoreUpdater.Tia
             _progress = progress;
             _survey = ProjectSurvey.Building();
             _done = 0;
+            _refused = 0;
 
             ProjectMap map = ProjectMap.Of(
                 _project?.Name, plc, unit,
@@ -263,6 +268,9 @@ namespace Satellite.CoreUpdater.Tia
             map.Filter = _filter.Narrows ? _filter : null;
 
             Walk(plc, unit, map);
+
+            if (_refused > ListedProblems)
+                map.Problems.Add("…and " + (_refused - ListedProblems) + " more whose title would not be read.");
 
             // What the walk **visited**, whatever the filter then kept - which is what lets the
             // window offer the tick boxes next time without walking the project again.
@@ -1355,9 +1363,9 @@ namespace Satellite.CoreUpdater.Tia
         /// divergence between the two object models, found by compiling this file against both,
         /// and it is why these two adapters are not identical the way the others are.
         /// </summary>
-        private string TitleOf(PlcBlock block, ProjectMap map) => Title(block.Title);
+        private string TitleOf(PlcBlock block, ProjectMap map) => Title(() => block.Title, block.Name, map);
 
-        private string TitleOf(PlcType type, ProjectMap map) => Title(type.Title);
+        private string TitleOf(PlcType type, ProjectMap map) => Title(() => type.Title, type.Name, map);
 
         /// <summary>
         /// Says where the walk has got to, every twenty-fifth object. **Not every one**: each
@@ -1393,7 +1401,7 @@ namespace Satellite.CoreUpdater.Tia
         /// that workbook into. `PlcTagTable` has a `Name` and nothing else - no `Title`, no
         /// `Comment` - so there is nowhere else it could be.
         /// </summary>
-        private static ProjectObject Of(PlcTagTable table, string folder, ProjectMap map)
+        private ProjectObject Of(PlcTagTable table, string folder, ProjectMap map)
         {
             string title = null;
 
@@ -1402,7 +1410,7 @@ namespace Satellite.CoreUpdater.Tia
                 PlcUserConstant marker = table.UserConstants
                     .FirstOrDefault(one => string.Equals(one.Name, table.Name, StringComparison.OrdinalIgnoreCase));
 
-                if (marker != null) title = Title(marker.Comment);
+                if (marker != null) title = Title(() => marker.Comment, table.Name, map);
             }
             catch (Exception exception)
             {
@@ -1459,23 +1467,41 @@ namespace Satellite.CoreUpdater.Tia
         /// The first thing a multilingual text actually says. **Any language will do**: the
         /// metadata is JSON, the same in every one of them, and demanding a particular
         /// language would make the map depend on which the project was edited in.
+        ///
+        /// **A title that will not come back is a problem of the map, not a silence.** It is
+        /// still not a reason to lose the object, which arrives with no metadata - but that is
+        /// exactly what "not from the core" looks like, and that filter starts off, so a core
+        /// block TIA would not describe used to vanish from the one panel meant to show it
+        /// with nothing anywhere saying why.
         /// </summary>
-        private static string Title(MultilingualText text)
+        private string Title(Func<MultilingualText> read, string name, ProjectMap map)
         {
-            if (text == null) return null;
-
             try
             {
+                MultilingualText text = read();
+                if (text == null) return null;
+
                 foreach (MultilingualTextItem item in text.Items)
                     if (!string.IsNullOrWhiteSpace(item.Text)) return item.Text;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // A title that will not come back is not a reason to lose the object: it
-                // arrives with no metadata, which is what "not from the core" looks like.
+                Refused(map, name + ": its title would not be read, so it is mapped as not from the core - " + exception.Message);
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// One object whose title would not be read. **Named for the first ten and counted after**,
+        /// as V20 does with its exports: a PLC where TIA refuses every title would otherwise bury
+        /// the map's other problems under a line per object.
+        /// </summary>
+        private void Refused(ProjectMap map, string problem)
+        {
+            _refused++;
+
+            if (_refused <= ListedProblems) map.Problems.Add(problem);
         }
 
         // ---- Plumbing -----------------------------------------------------------------------

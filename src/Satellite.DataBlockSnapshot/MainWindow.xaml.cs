@@ -80,6 +80,11 @@ namespace Satellite.DataBlockSnapshot
             Header.Subtitle = Describe(request);
 
             StatusLine.Text = Recall() ? DescribeBlocks() + "  Credentials remembered." : DescribeBlocks();
+
+            // Instead of the empty-list sentence, which would send the operator back to the
+            // Add-In they have just used: this is the one case where that advice is wrong.
+            if (request.Problem != null)
+                StatusLine.Text = request.Problem + " Type the PLC and the blocks by hand, or try again from TIA Portal.";
         }
 
         /// <summary>
@@ -308,20 +313,30 @@ namespace Satellite.DataBlockSnapshot
             string cpu = Cpu();
             Log log = _log;
 
-            // What the store was asked to do, not what it did: it keeps its own failures to
-            // itself, the capture having already worked by the time it is asked.
+            // What the store did, now that it says. It runs on the worker's thread, so a failure
+            // is kept here and put in the status line once the capture is over - the capture
+            // itself is not affected by it, and saying so mid-read would be overwritten anyway.
+            string unremembered = null;
+
             Action authenticated = () =>
             {
-                if (remember)
+                string problem = remember
+                    ? CredentialStore.Save(project, plc, settings.Address, settings.User, settings.Password)
+                    : CredentialStore.Forget(project, plc, settings.Address);
+
+                if (problem == null)
                 {
-                    log.Info("remembering the credentials for " + cpu + " - user " + settings.User);
-                    CredentialStore.Save(project, plc, settings.Address, settings.User, settings.Password);
+                    log.Info(remember
+                        ? "credentials remembered for " + cpu + " - user " + settings.User
+                        : "credentials not remembered for " + cpu + ", and any kept before forgotten");
+                    return;
                 }
-                else
-                {
-                    log.Info("not remembering the credentials for " + cpu + ", and forgetting any kept before");
-                    CredentialStore.Forget(project, plc, settings.Address);
-                }
+
+                unremembered = remember
+                    ? "The credentials could not be remembered: " + problem
+                    : "The credentials kept for this PLC could not be forgotten: " + problem;
+
+                log.Warn(unremembered);
             };
 
             _log.Info(string.Format(
@@ -365,6 +380,10 @@ namespace Satellite.DataBlockSnapshot
             }
             finally
             {
+                // Whatever the capture came to: a login that went through asked the store, and
+                // what the store could not do is worth the same line either way.
+                if (unremembered != null) StatusLine.Text += "  " + unremembered;
+
                 Working(false);
                 _cancellation.Dispose();
                 _cancellation = null;

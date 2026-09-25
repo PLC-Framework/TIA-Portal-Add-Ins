@@ -41,6 +41,8 @@ namespace Satellite.DataBlockSnapshot
                       ", addresses " + (request.Addresses.Count == 0 ? "(none)" : string.Join(", ", request.Addresses)) +
                       ", " + request.DataBlocks.Count + " data blocks");
 
+            if (request.Problem != null) _log.Warn(request.Problem);
+
             new MainWindow(request, _log).Show();
         }
 

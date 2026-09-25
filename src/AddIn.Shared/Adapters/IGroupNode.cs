@@ -14,9 +14,13 @@ namespace AddIn.Shared.Adapters
     {
         /// <summary>
         /// The existing child group with that name, or a newly created one.
-        /// Null when it could not be created; the implementation is expected to have
-        /// dealt with the reason, so callers just skip it.
+        ///
+        /// **Null when it could not be created, and <paramref name="problem"/> says why.** It
+        /// used to be null and nothing else, with the implementation expected to have dealt
+        /// with the reason - which in practice meant swallowing it, so the operator was told
+        /// the hierarchy was ready with a folder missing and nobody could say which or why.
         /// </summary>
-        IGroupNode FindOrCreate(string name);
+        /// <param name="problem">Why it could not be created; null whenever a group comes back.</param>
+        IGroupNode FindOrCreate(string name, out string problem);
     }
 }

@@ -18,13 +18,28 @@ namespace Satellite.DataBlockSnapshot.Handoff
             string projectDirectory,
             string plcName,
             IReadOnlyList<string> addresses,
-            IReadOnlyList<string> dataBlocks)
+            IReadOnlyList<string> dataBlocks,
+            string problem = null)
         {
             ProjectDirectory = projectDirectory;
             PlcName = plcName;
             Addresses = addresses ?? new string[0];
             DataBlocks = dataBlocks ?? new string[0];
+            Problem = problem;
         }
+
+        /// <summary>An empty request that says what went wrong on the way in.</summary>
+        public static SnapshotRequest Unreadable(string problem) => new SnapshotRequest(null, null, null, null, problem);
+
+        /// <summary>
+        /// Why what TIA Portal sent could not be read, or null.
+        ///
+        /// **Something that arrived broken is not a window started by hand**, and the two used
+        /// to open identically: an empty list, and a message suggesting the operator start it
+        /// from the Add-In - which is exactly what they had just done. The form is still empty,
+        /// since everything in it can be typed, but the window and the log now say why.
+        /// </summary>
+        public string Problem { get; }
 
         /// <summary>Directory of the open TIA project, where .plc-framework lives.</summary>
         public string ProjectDirectory { get; }

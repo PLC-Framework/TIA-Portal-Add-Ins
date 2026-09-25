@@ -1543,7 +1543,7 @@ namespace Satellite.CoreUpdater.Tia
         /// that workbook into. `PlcTagTable` has a `Name` and nothing else - no `Title`, no
         /// `Comment` - so there is nowhere else it could be.
         /// </summary>
-        private static ProjectObject Of(PlcTagTable table, string folder, ProjectMap map)
+        private ProjectObject Of(PlcTagTable table, string folder, ProjectMap map)
         {
             string title = null;
 
@@ -1552,7 +1552,7 @@ namespace Satellite.CoreUpdater.Tia
                 PlcUserConstant marker = table.UserConstants
                     .FirstOrDefault(one => string.Equals(one.Name, table.Name, StringComparison.OrdinalIgnoreCase));
 
-                if (marker != null) title = Title(marker.Comment);
+                if (marker != null) title = Title(() => marker.Comment, table.Name, map);
             }
             catch (Exception exception)
             {
@@ -1609,20 +1609,27 @@ namespace Satellite.CoreUpdater.Tia
         /// The first thing a multilingual text actually says. **Any language will do**: the
         /// metadata is JSON, the same in every one of them, and demanding a particular
         /// language would make the map depend on which the project was edited in.
+        ///
+        /// **A title that will not come back is a problem of the map, not a silence.** It is
+        /// still not a reason to lose the object, which arrives with no metadata - but that is
+        /// exactly what "not from the core" looks like, and that filter starts off, so a core
+        /// table TIA would not describe used to vanish from the one panel meant to show it
+        /// with nothing anywhere saying why. Counted with the exports that would not come out,
+        /// under the same limit of ten named.
         /// </summary>
-        private static string Title(MultilingualText text)
+        private string Title(Func<MultilingualText> read, string name, ProjectMap map)
         {
-            if (text == null) return null;
-
             try
             {
+                MultilingualText text = read();
+                if (text == null) return null;
+
                 foreach (MultilingualTextItem item in text.Items)
                     if (!string.IsNullOrWhiteSpace(item.Text)) return item.Text;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                // A title that will not come back is not a reason to lose the object: it
-                // arrives with no metadata, which is what "not from the core" looks like.
+                Refused(map, name + ": its title would not be read, so it is mapped as not from the core - " + exception.Message);
             }
 
             return null;

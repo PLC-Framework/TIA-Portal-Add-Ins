@@ -25,9 +25,8 @@ namespace AddIn.Shared.Actions
         private const int ListedProblems = 10;
 
         /// <param name="log">
-        /// The click's log, which gets every validation problem where the message names ten, and
-        /// every folder that could not be found or created - which the message does not name at
-        /// all: it counts the folders in place, and one missing is only a count one too low.
+        /// The click's log, which gets every validation problem and every folder TIA refused,
+        /// where the message names ten of each and counts the rest.
         /// </param>
         public static void Execute(ITiaNotifier notifier, Hierarchy hierarchy, HierarchyTargets targets, Log log = null)
         {
@@ -71,26 +70,59 @@ namespace AddIn.Shared.Actions
 
             // Named after the keys of config.json rather than after TIA's folders, whose names
             // follow the interface language: a line points at the file somebody would open.
-            int groups = Ensure(targets.Blocks, hierarchy.Blocks, "blocks", said)
-                       + Ensure(targets.TechnologyObjects, hierarchy.TechnologyObjects, "technologyObjects", said)
-                       + Ensure(targets.TagTables, hierarchy.TagTables, "tagTables", said)
-                       + Ensure(targets.Types, hierarchy.Types, "types", said);
+            List<string> missing = new List<string>();
+
+            int groups = Ensure(targets.Blocks, hierarchy.Blocks, "blocks", missing, said)
+                       + Ensure(targets.TechnologyObjects, hierarchy.TechnologyObjects, "technologyObjects", missing, said)
+                       + Ensure(targets.TagTables, hierarchy.TagTables, "tagTables", missing, said)
+                       + Ensure(targets.Types, hierarchy.Types, "types", missing, said);
 
             int unitCount = targets.SoftwareUnits?.Count ?? 0;
-            int unitGroups = EnsureSoftwareUnits(hierarchy.SoftwareUnits, targets.SoftwareUnits, said);
+            int unitGroups = EnsureSoftwareUnits(hierarchy.SoftwareUnits, targets.SoftwareUnits, missing, said);
 
-            if (groups + unitGroups == 0)
+            if (groups + unitGroups == 0 && missing.Count == 0)
             {
                 notifier.Warning(Title, $"'{ConfigPaths.File}' declares no groups under 'projectConfig.hierarchy'.");
                 return;
             }
 
-            string message = $"Hierarchy ready: {groups} group(s).";
+            string counts = $"{groups} group(s).";
 
             if (unitCount > 0)
-                message += $"\nSoftware units: {unitGroups} group(s) across {unitCount} unit(s).";
+                counts += $"\nSoftware units: {unitGroups} group(s) across {unitCount} unit(s).";
 
-            notifier.Success(Title, message);
+            // **A hierarchy with a folder missing is not "ready"**, and until 2026-09-25 it said it
+            // was: the adapter swallowed TIA's refusal and the count simply came out lower. Now the
+            // folders that would not be created are named, with why, and the message is a warning.
+            if (missing.Count > 0)
+            {
+                notifier.Warning(Title, Partly(counts, missing));
+                return;
+            }
+
+            notifier.Success(Title, "Hierarchy ready: " + counts);
+        }
+
+        /// <summary>
+        /// The hierarchy as far as it got, and every folder TIA refused with its reason - the first
+        /// ten on screen, all of them in the log, which already has them from <see cref="Ensure"/>.
+        /// </summary>
+        private static string Partly(string counts, List<string> missing)
+        {
+            StringBuilder text = new StringBuilder();
+
+            text.Append("\n\nHierarchy created in part: ").Append(counts).Append("\n\n");
+            text.Append(missing.Count == 1
+                ? "This folder could not be created, nor anything under it:\n\n"
+                : "These folders could not be created, nor anything under them:\n\n");
+
+            foreach (string one in missing.Take(ListedProblems))
+                text.Append("  ").Append(one).Append('\n');
+
+            int rest = missing.Count - ListedProblems;
+            if (rest > 0) text.Append($"  ...and {rest} more.\n");
+
+            return text.ToString();
         }
 
         /// <summary>
@@ -103,6 +135,7 @@ namespace AddIn.Shared.Actions
         private static int EnsureSoftwareUnits(
             SoftwareUnitHierarchy desired,
             IReadOnlyList<HierarchySoftwareUnitTargets> units,
+            List<string> missing,
             Log said)
         {
             if (desired == null || units == null) return 0;
@@ -115,9 +148,9 @@ namespace AddIn.Shared.Actions
 
                 string where = "softwareUnits[" + unit.Name + "].";
 
-                count += Ensure(unit.Blocks, desired.Blocks, where + "blocks", said);
-                count += Ensure(unit.TagTables, desired.TagTables, where + "tagTables", said);
-                count += Ensure(unit.Types, desired.Types, where + "types", said);
+                count += Ensure(unit.Blocks, desired.Blocks, where + "blocks", missing, said);
+                count += Ensure(unit.TagTables, desired.TagTables, where + "tagTables", missing, said);
+                count += Ensure(unit.Types, desired.Types, where + "types", missing, said);
             }
 
             return count;
@@ -129,9 +162,10 @@ namespace AddIn.Shared.Actions
         /// a project that declares no tag-table groups is not an error.
         /// </summary>
         public static int Ensure(IGroupNode parent, IReadOnlyList<Group> desired) =>
-            Ensure(parent, desired, string.Empty, Log.Nothing());
+            Ensure(parent, desired, string.Empty, new List<string>(), Log.Nothing());
 
-        private static int Ensure(IGroupNode parent, IReadOnlyList<Group> desired, string where, Log said)
+        private static int Ensure(
+            IGroupNode parent, IReadOnlyList<Group> desired, string where, List<string> missing, Log said)
         {
             if (parent == null || desired == null) return 0;
 
@@ -143,18 +177,18 @@ namespace AddIn.Shared.Actions
 
                 string here = where + "/" + group.Name;
 
-                IGroupNode child = parent.FindOrCreate(group.Name);
+                IGroupNode child = parent.FindOrCreate(group.Name, out string problem);
                 if (child == null)
                 {
-                    // The adapter answers null when TIA refused, and keeps the reason to itself;
-                    // nothing under this folder can be made either. Until the port can say why,
-                    // the log at least says which.
-                    said.Warn("the folder " + here + " could not be found or created, nor anything under it");
+                    // Nothing under a folder TIA refused can be made either, so the branch stops
+                    // here - and says so, with TIA's own reason.
+                    missing.Add(here + ": " + problem);
+                    said.Warn("the folder " + here + " could not be created, nor anything under it - " + problem);
                     continue;
                 }
 
                 count++;
-                count += Ensure(child, group.Groups, here, said);
+                count += Ensure(child, group.Groups, here, missing, said);
             }
 
             return count;
