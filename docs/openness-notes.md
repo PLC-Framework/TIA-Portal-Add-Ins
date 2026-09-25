@@ -279,6 +279,10 @@ So a tag table that lives as `.xlsx` is built object by object, and `PlcUserCons
 
 **A comment is a `MultilingualText`, and `MultilingualTextItemComposition` has no `Create`.** The items that exist are the project's editing languages, so writing a comment means writing into those; a project with none keeps no comment, and that is not a failure.
 
+### What a folder name may be
+
+**Any character, up to 128 of them** — measured on the VM (2026-09-25) while trying to make TIA refuse a folder for the hierarchy. `PlcBlockUserGroupComposition.Create` and its three siblings took every character they were handed and refused only a name over 128. The refusal arrives as an exception from `Create`, which `TiaGroupNode.FindOrCreate` hands back as the reason rather than swallowing.
+
 ### There is no move
 
 Searched across all 2,269 types of `Siemens.Engineering.AddIn.dll`: no `Move`, no `Cut`, no `Reparent`, no `ChangeGroup`, no `Relocate` anywhere under `Siemens.Engineering.SW.*`. `PlcBlock` has `Export`, `ExportAsDocuments`, `Delete` and `ShowInEditor`, and that is the whole of it.
