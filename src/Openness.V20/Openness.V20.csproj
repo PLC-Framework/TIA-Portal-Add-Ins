@@ -6,7 +6,7 @@
     <TargetFramework>net48</TargetFramework>
     <LangVersion>latest</LangVersion>
     <RootNamespace>Core</RootNamespace>
-    <AssemblyName>PLC-Framework.ImportObjects</AssemblyName>
+    <AssemblyName>PLC-Framework.Openness.V20</AssemblyName>
   </PropertyGroup>
 
   <!-- References. All framework assemblies TIA Portal's own process already holds: Core is

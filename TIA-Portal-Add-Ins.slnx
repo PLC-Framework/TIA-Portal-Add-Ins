@@ -4,14 +4,19 @@
   <Project Path="src/AddIn.V21/AddIn.V21.csproj" Id="2df26466-bf86-49f0-9739-22f866dbaeaa" />
   <Project Path="src/Core/Core.csproj" Id="79efcd26-b240-41de-95b8-4a553c1e2358" />
   <Project Path="src/GitHubApi/GitHubApi.csproj" Id="095664cb-8cf8-46ec-8e82-8dc5887a3f7a" />
+  <Project Path="src/Openness.Shared/Openness.Shared.csproj" Id="09ff6d9c-d5a0-4eab-8de8-bbd2c5503992" />
+  <Project Path="src/Openness.V20/Openness.V20.csproj" Id="14a638d0-cdb2-4dc4-a6f9-f9effede69e5" />
+  <Project Path="src/Openness.V21/Openness.V21.csproj" Id="75cfd6f6-62f2-4fea-96ab-c73b0cd94df0" />
   <Project Path="src/S7PlcWebserverApi/S7PlcWebserverApi.csproj" Id="d3cdd670-337c-4678-8c35-54dc8d04ca02" />
   <Project Path="src/Satellite.About/Satellite.About.csproj" Id="b79d7afe-f267-4aa1-a347-b6d1494acd06" />
   <Project Path="src/Satellite.CodingStyleReport/Satellite.CodingStyleReport.csproj" Id="5f79d405-0361-47b9-8fbb-be4c14ce64a2" />
   <Project Path="src/Satellite.ConfigEditor/Satellite.ConfigEditor.csproj" Id="7b00b3da-bdaa-47d6-bf26-f41003173e28" />
-  <Project Path="src/Satellite.CoreUpdater/Satellite.CoreUpdater.csproj" Id="83b02bb0-0e0c-4350-b9e8-9309e39a9811" />
   <Project Path="src/Satellite.CoreUpdater.V20/Satellite.CoreUpdater.V20.csproj" />
   <Project Path="src/Satellite.CoreUpdater.V21/Satellite.CoreUpdater.V21.csproj" />
+  <Project Path="src/Satellite.CoreUpdater/Satellite.CoreUpdater.csproj" Id="83b02bb0-0e0c-4350-b9e8-9309e39a9811" />
   <Project Path="src/Satellite.DataBlockSnapshot/Satellite.DataBlockSnapshot.csproj" Id="49aadeee-f757-4f43-b2b0-4326fdcffe22" />
-  <Project Path="src/Satellite.ImportObjects/Satellite.ImportObjects.csproj" Id="37f2171b-8041-41ef-88c1-e30e393eeb1c" />
+  <Project Path="src/Satellite.ImportObjects.V20/Satellite.ImportObjects.V20.csproj" Id="08fb96a0-f0ee-4c15-b2c9-d3a04ff40176" />
+  <Project Path="src/Satellite.ImportObjects.V21/Satellite.ImportObjects.V21.csproj" Id="87e2890e-616b-4160-b5e0-ca3ec66e8ac4" />
+  <Project Path="src/Satellite.ImportObjects/Satellite.ImportObjects.csproj" Id="dd6e12b8-66be-48de-be4f-983f68b8880b" />
   <Project Path="src/UI.Shared/UI.Shared.csproj" Id="7dc1d8ba-91fc-4080-834a-e54bfc1030df" />
 </Solution>
