@@ -33,6 +33,7 @@ namespace Core.Logging
         public const string ConfigEditor = "config-editor";
         public const string CodingStyleReport = "coding-style-report";
         public const string DataBlockSnapshot = "data-block-snapshot";
+        public const string ImportObjects = "import-objects";
 
         /// <summary>Inside <see cref="InstallPaths.UserRoot"/>.</summary>
         public const string Folder = "logs";

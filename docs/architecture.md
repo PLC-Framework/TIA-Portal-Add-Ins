@@ -26,7 +26,7 @@ TIA-Portal-Add-Ins.slnx
     ├── Openness.Shared/              (net48, AnyCPU) — the Openness client, NO Siemens  ← EXISTS
     ├── Openness.V20/                 (net48, x64) — the same client's Siemens half, V17–V20
     ├── Openness.V21/                 (net48, x64) — the same client's Siemens half, V21
-    ├── Satellite.ImportObjects/      (net48, WPF, LIBRARY) — imports files into a folder  ← EXISTS, empty until stage 3
+    ├── Satellite.ImportObjects/      (net48, WPF, LIBRARY) — imports files into a folder  ← EXISTS
     ├── Satellite.ImportObjects.V20/  (net48, x64) — the same app, Openness V17–V20
     ├── Satellite.ImportObjects.V21/  (net48, x64) — the same app, Openness V21
     ├── Satellite.<Name>/     (net48, WPF) — a UI app the Add-In launches
@@ -86,7 +86,9 @@ src/Core/
 │   ├── ImportFiles.cs        the entry point: a file's format, what it declares, the order files go in
 │   ├── ImportFile.cs         one file, the unit an import works in · ImportSelection.cs what was chosen
 │   ├── DeclaredObject.cs     a name and a kind a file declares · ImportFormat.cs · ImportRank.cs
-│   └── SimaticMlObjects.cs · SourceDeclarations.cs   the two readers, names only
+│   ├── SimaticMlObjects.cs · SourceDeclarations.cs   the two readers, names only
+│   ├── ImportPlace.cs        the folder clicked, and the command line that carries it · ObjectTree.cs
+│   └── ExistingObject.cs · FileToImport.cs · FileImport.cs · ImportOutcome.cs   what meets what, and how it went
 ├── Repo/                     the core a project is built on, and the workspace for it
 │   ├── RepoPaths.cs          what lives inside .plc-framework\repo\
 │   ├── StrandedFiles.cs      repo\stranded\: an object's export while it is out of the project
@@ -154,6 +156,7 @@ src/AddIn.Shared/
 src/Openness.Shared/
 ├── Openness.Shared.csproj    SDK-style net48, AnyCPU, references Core and System.Management
 ├── ITiaClient.cs             what every satellite's session starts from: attach, or attach to one
+├── IImportSession.cs         and what one that imports asks: is the folder there, what exists, take this file
 ├── TiaWanted.cs              which TIA Portal this is, and choosing it out of what is running
 ├── TiaAttachment.cs · RunningPortal.cs   what an attach came to, and what was running
 ├── TiaWorker.cs              the one thread Openness objects live on, generic over the session
@@ -207,6 +210,17 @@ src/Satellite.CodingStyleReport/
 │   └── ReportFile.cs         file name, " (n)" on a collision, the folder checked first
 ├── App.xaml(.cs)             no instance guard; a .xlsx argument is imported, not read as a handoff
 └── MainWindow.xaml(.cs)      the table, filters, export; import only when TIA sent nothing
+```
+
+```
+src/Satellite.ImportObjects/
+├── Satellite.ImportObjects.csproj  LIBRARY: references Core, UI.Shared, Openness.Shared; System.Windows.Forms
+├── ImportObjectsApp.cs       the application both executables run: the place off the command line, then attach
+├── MainWindow.xaml(.cs)      the folder clicked, a Windows folder, its files in import order, one run
+├── Files/FileRow.cs          one file as the list shows it, and what became of it
+└── Overwrite/                the one question: what would be overwritten, Yes to all / No to all
+    ├── OverwriteWindow.xaml(.cs)
+    └── OverwriteRow.cs
 ```
 
 ```
