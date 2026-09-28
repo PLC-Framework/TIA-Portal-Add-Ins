@@ -12,5 +12,6 @@
   <Project Path="src/Satellite.CoreUpdater.V20/Satellite.CoreUpdater.V20.csproj" />
   <Project Path="src/Satellite.CoreUpdater.V21/Satellite.CoreUpdater.V21.csproj" />
   <Project Path="src/Satellite.DataBlockSnapshot/Satellite.DataBlockSnapshot.csproj" Id="49aadeee-f757-4f43-b2b0-4326fdcffe22" />
+  <Project Path="src/Satellite.ImportObjects/Satellite.ImportObjects.csproj" Id="37f2171b-8041-41ef-88c1-e30e393eeb1c" />
   <Project Path="src/UI.Shared/UI.Shared.csproj" Id="7dc1d8ba-91fc-4080-834a-e54bfc1030df" />
 </Solution>
