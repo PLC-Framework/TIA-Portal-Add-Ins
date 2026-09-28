@@ -2,20 +2,38 @@
 
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- The half of the Openness client that touches Siemens, for TIA Portal V17-V20: attaching,
+       finding a PLC, a unit and a folder, and importing into it. Every satellite that talks to
+       TIA from outside it uses this through its own V20 executable.
+
+       x64 for the reason the executables are: the process this is loaded into loads TIA's own
+       64-bit assemblies. -->
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>Core</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>Openness</RootNamespace>
     <AssemblyName>PLC-Framework.Openness.V20</AssemblyName>
   </PropertyGroup>
 
-  <!-- References. All framework assemblies TIA Portal's own process already holds: Core is
-       loaded inside it, so nothing here may bring a package with it. Compression reads the
-       core's .xlsx enumerations, which Openness refuses to import. -->
+  <PropertyGroup>
+    <SiemensPublicApi Condition="'$(SiemensPublicApi)' == ''">$(MSBuildThisFileDirectory)..\..\..\.lib\Siemens\PublicAPI</SiemensPublicApi>
+    <!-- The client assemblies, in V20\ - not the Add-In ones in V20.addIn\. -->
+    <TiaApi>$(SiemensPublicApi)\V20</TiaApi>
+  </PropertyGroup>
+
+  <!-- An Openness *client*: no AddIn assembly, so IEngineeringObject exists exactly once and
+       the V20 rule about never referencing both does not arise. Never copied: the executable
+       finds TIA's own at run time, since they are not redistributable. -->
   <ItemGroup>
-    <Reference Include="System.Runtime.Serialization" />
-    <Reference Include="System.IO.Compression" />
-    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="Siemens.Engineering">
+      <HintPath>$(TiaApi)\Siemens.Engineering.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Openness.Shared\Openness.Shared.csproj" />
   </ItemGroup>
 
 </Project>

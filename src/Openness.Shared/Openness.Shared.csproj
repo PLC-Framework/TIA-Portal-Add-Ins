@@ -2,20 +2,23 @@
 
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- What every satellite that talks to TIA Portal from outside it shares, and none of it
+       touches Siemens: the session's port, the thread Openness objects have to live on, what
+       an attach is and how the right instance is recognised, and finding TIA's assemblies on
+       the machine. The half that does touch Siemens is Openness.V20 and Openness.V21, compiled
+       once per version because the two are different assemblies with different public key
+       tokens - the same split as AddIn.Shared and the two Add-Ins.
+
+       AnyCPU, like AddIn.Shared: it loads nothing of TIA's itself. -->
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>Core</RootNamespace>
+    <RootNamespace>Openness.Shared</RootNamespace>
     <AssemblyName>PLC-Framework.Openness.Shared</AssemblyName>
   </PropertyGroup>
 
-  <!-- References. All framework assemblies TIA Portal's own process already holds: Core is
-       loaded inside it, so nothing here may bring a package with it. Compression reads the
-       core's .xlsx enumerations, which Openness refuses to import. -->
   <ItemGroup>
-    <Reference Include="System.Runtime.Serialization" />
-    <Reference Include="System.IO.Compression" />
-    <Reference Include="System.IO.Compression.FileSystem" />
+    <ProjectReference Include="..\Core\Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -7,17 +7,17 @@
     <TargetFramework>net48</TargetFramework>
     <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>Satellite.ImportObjects.V21</RootNamespace>
+    <!-- x64, unlike the satellites that never touch TIA: this process loads TIA Portal's own
+         64-bit Openness assemblies into itself. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>Satellite.ImportObjects</RootNamespace>
     <AssemblyName>PLC-Framework.Satellite.ImportObjects.V21</AssemblyName>
-    <!-- Win32 icon resource: what Explorer, Alt-Tab and shortcuts show. It must be a
-         file on disk at build time, so it reads assets\ directly rather than through
-         the copy Core embeds. Window.Icon is set separately, in XAML. -->
     <ApplicationIcon>..\..\assets\Brand\favicon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Core\Core.csproj" />
-    <ProjectReference Include="..\UI.Shared\UI.Shared.csproj" />
+    <ProjectReference Include="..\Satellite.ImportObjects\Satellite.ImportObjects.csproj" />
+    <ProjectReference Include="..\Openness.V21\Openness.V21.csproj" />
   </ItemGroup>
 
 </Project>

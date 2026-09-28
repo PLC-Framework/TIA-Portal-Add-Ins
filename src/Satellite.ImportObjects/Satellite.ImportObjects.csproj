@@ -2,20 +2,25 @@
 
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- A library, for the core updater's reason: the window and everything it does are
+       version-agnostic, and only talking to TIA Portal is not. The two executables beside
+       this are thin, and the work lives here.
+
+       No ApplicationIcon: a library has no Win32 resource to put one in. The executables
+       carry it. -->
   <PropertyGroup>
+    <OutputType>Library</OutputType>
     <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>Core</RootNamespace>
-    <AssemblyName>PLC-Framework.ImportObjects</AssemblyName>
+    <RootNamespace>Satellite.ImportObjects</RootNamespace>
+    <AssemblyName>PLC-Framework.Satellite.ImportObjects</AssemblyName>
   </PropertyGroup>
 
-  <!-- References. All framework assemblies TIA Portal's own process already holds: Core is
-       loaded inside it, so nothing here may bring a package with it. Compression reads the
-       core's .xlsx enumerations, which Openness refuses to import. -->
   <ItemGroup>
-    <Reference Include="System.Runtime.Serialization" />
-    <Reference Include="System.IO.Compression" />
-    <Reference Include="System.IO.Compression.FileSystem" />
+    <ProjectReference Include="..\Core\Core.csproj" />
+    <ProjectReference Include="..\UI.Shared\UI.Shared.csproj" />
+    <ProjectReference Include="..\Openness.Shared\Openness.Shared.csproj" />
   </ItemGroup>
 
 </Project>

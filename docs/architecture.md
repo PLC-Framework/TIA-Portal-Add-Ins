@@ -23,6 +23,12 @@ TIA-Portal-Add-Ins.slnx
     ├── Satellite.CoreUpdater/        (net48, WPF, LIBRARY) — the window, its port, Compare\, Download\ ← EXISTS
     ├── Satellite.CoreUpdater.V20/    (net48, x64) — the same app, Openness V17–V20   ← EXISTS
     ├── Satellite.CoreUpdater.V21/    (net48, x64) — the same app, Openness V21       ← EXISTS
+    ├── Openness.Shared/              (net48, AnyCPU) — the Openness client, NO Siemens  ← EXISTS, empty until stage 2
+    ├── Openness.V20/                 (net48, x64) — the same client's Siemens half, V17–V20
+    ├── Openness.V21/                 (net48, x64) — the same client's Siemens half, V21
+    ├── Satellite.ImportObjects/      (net48, WPF, LIBRARY) — imports files into a folder  ← EXISTS, empty until stage 3
+    ├── Satellite.ImportObjects.V20/  (net48, x64) — the same app, Openness V17–V20
+    ├── Satellite.ImportObjects.V21/  (net48, x64) — the same app, Openness V21
     ├── Satellite.<Name>/     (net48, WPF) — a UI app the Add-In launches
     └── Tool.<Name>/          (net48) — a command-line helper
 ```
@@ -76,6 +82,11 @@ src/Core/
 │   └── StyleReport.cs        the report document the Add-In sends and the satellite reads
 ├── Exports/
 │   └── ExportTree.cs         where an exported object goes: exports\ shaped like the project
+├── Imports/                  what a chosen file is, as an import — pure over the files
+│   ├── ImportFiles.cs        the entry point: a file's format, what it declares, the order files go in
+│   ├── ImportFile.cs         one file, the unit an import works in · ImportSelection.cs what was chosen
+│   ├── DeclaredObject.cs     a name and a kind a file declares · ImportFormat.cs · ImportRank.cs
+│   └── SimaticMlObjects.cs · SourceDeclarations.cs   the two readers, names only
 ├── Repo/                     the core a project is built on, and the workspace for it
 │   ├── RepoPaths.cs          what lives inside .plc-framework\repo\
 │   ├── StrandedFiles.cs      repo\stranded\: an object's export while it is out of the project
