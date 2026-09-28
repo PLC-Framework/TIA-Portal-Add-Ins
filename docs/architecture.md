@@ -23,7 +23,7 @@ TIA-Portal-Add-Ins.slnx
     ├── Satellite.CoreUpdater/        (net48, WPF, LIBRARY) — the window, its port, Compare\, Download\ ← EXISTS
     ├── Satellite.CoreUpdater.V20/    (net48, x64) — the same app, Openness V17–V20   ← EXISTS
     ├── Satellite.CoreUpdater.V21/    (net48, x64) — the same app, Openness V21       ← EXISTS
-    ├── Openness.Shared/              (net48, AnyCPU) — the Openness client, NO Siemens  ← EXISTS, empty until stage 2
+    ├── Openness.Shared/              (net48, AnyCPU) — the Openness client, NO Siemens  ← EXISTS
     ├── Openness.V20/                 (net48, x64) — the same client's Siemens half, V17–V20
     ├── Openness.V21/                 (net48, x64) — the same client's Siemens half, V21
     ├── Satellite.ImportObjects/      (net48, WPF, LIBRARY) — imports files into a folder  ← EXISTS, empty until stage 3
@@ -151,6 +151,19 @@ src/AddIn.Shared/
 ```
 
 ```
+src/Openness.Shared/
+├── Openness.Shared.csproj    SDK-style net48, AnyCPU, references Core and System.Management
+├── ITiaClient.cs             what every satellite's session starts from: attach, or attach to one
+├── TiaWanted.cs              which TIA Portal this is, and choosing it out of what is running
+├── TiaAttachment.cs · RunningPortal.cs   what an attach came to, and what was running
+├── TiaWorker.cs              the one thread Openness objects live on, generic over the session
+├── ParentProcess.cs          the chain of processes this one descends from
+└── OpennessAssemblies.cs     TIA's assemblies found at run time, for either version
+```
+
+> **Copied out of `Satellite.CoreUpdater`, which keeps its own until it moves onto this** (the maintainer's choice). What differs from the copies it came from is what makes it shareable: the worker is generic over the session and hands answers back through a delegate instead of a WPF `Dispatcher`, the resolver takes the TIA version as an argument instead of carrying it in two near-identical files, and choosing the TIA Portal moved out of the Siemens half into `TiaWanted.Pick`, where it is tested with no TIA Portal at all.
+
+```
 src/UI.Shared/
 ├── UI.Shared.csproj          SDK-style net48, UseWPF, references Core
 ├── SingleInstance.cs         named Mutex + bring the running window to the front; PathKey hashes a path into a name
@@ -261,6 +274,7 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
 | `AddIn.VXX` | anything, Siemens included | `+ Siemens.Engineering.AddIn` |
 | `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window |  |
 | `Satellite.<Name>.VXX` | the above **plus Openness**, as a *client* | `+ Siemens.Engineering` (V20) / `.Base` (V21) |
+| `Openness.Shared` | `Core`, and nothing of Siemens or of WPF | `mscorlib`, `System`, `System.Core`, `System.Management`, `PLC-Framework.Core` |
 
 **That last row was added on 2026-09-16 and it is a real widening, not a clarification.** Until then no satellite touched Siemens at all, and the rule read as though none ever would. `Satellite.CoreUpdater` has to: it reads a PLC's program and will write to it, and handing that much through a JSON payload would be an Add-In doing the work with a window watching. Two things keep the widening narrow. **Only the `.VXX` executables may reference Openness** — the satellite's own project is a library that must not, which is checkable from the metadata rather than by intention. And **an Openness client runs in full trust**, so the constraints that shape the Add-In half — `Assembly.Location` throwing, serialization needing public types, the Publisher refusing a field that holds an engineering object — simply do not apply on this side. That is the point of moving the work here.
 

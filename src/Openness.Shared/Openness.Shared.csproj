@@ -21,4 +21,10 @@
     <ProjectReference Include="..\Core\Core.csproj" />
   </ItemGroup>
 
+  <!-- WMI, to read the chain of processes this one descends from - one of the signals that
+       say which TIA Portal to attach to. Not part of the default net48 reference set. -->
+  <ItemGroup>
+    <Reference Include="System.Management" />
+  </ItemGroup>
+
 </Project>
