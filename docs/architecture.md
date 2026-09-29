@@ -24,11 +24,11 @@ TIA-Portal-Add-Ins.slnx
     ├── Satellite.CoreUpdater.V20/    (net48, x64) — the same app, Openness V17–V20   ← EXISTS
     ├── Satellite.CoreUpdater.V21/    (net48, x64) — the same app, Openness V21       ← EXISTS
     ├── Openness.Shared/              (net48, AnyCPU) — the Openness client, NO Siemens  ← EXISTS
-    ├── Openness.V20/                 (net48, x64) — the same client's Siemens half, V17–V20
-    ├── Openness.V21/                 (net48, x64) — the same client's Siemens half, V21
+    ├── Openness.V20/                 (net48, x64) — the same client's Siemens half, V17–V20  ← EXISTS
+    ├── Openness.V21/                 (net48, x64) — Openness.V20's files, built against V21  ← EXISTS
     ├── Satellite.ImportObjects/      (net48, WPF, LIBRARY) — imports files into a folder  ← EXISTS
-    ├── Satellite.ImportObjects.V20/  (net48, x64) — the same app, Openness V17–V20
-    ├── Satellite.ImportObjects.V21/  (net48, x64) — the same app, Openness V21
+    ├── Satellite.ImportObjects.V20/  (net48, x64) — the same app, Openness V17–V20  ← EXISTS
+    ├── Satellite.ImportObjects.V21/  (net48, x64) — the same app, Openness V21      ← EXISTS
     ├── Satellite.<Name>/     (net48, WPF) — a UI app the Add-In launches
     └── Tool.<Name>/          (net48) — a command-line helper
 ```
@@ -165,6 +165,15 @@ src/Openness.Shared/
 ```
 
 > **Copied out of `Satellite.CoreUpdater`, which keeps its own until it moves onto this** (the maintainer's choice). What differs from the copies it came from is what makes it shareable: the worker is generic over the session and hands answers back through a delegate instead of a WPF `Dispatcher`, the resolver takes the TIA version as an argument instead of carrying it in two near-identical files, and choosing the TIA Portal moved out of the Siemens half into `TiaWanted.Pick`, where it is tested with no TIA Portal at all.
+
+```
+src/Openness.V20/
+├── Openness.V20.csproj       SDK-style net48, x64, references Siemens.Engineering and Openness.Shared
+├── TiaClient.cs              the attach every satellite's session starts from, and the project's PLCs
+└── ImportSession.cs          IImportSession: the place found again, what exists, and three doors in
+```
+
+> **`Openness.V21` has no source of its own.** Its `.csproj` links every `.cs` of `Openness.V20` and builds it against `Siemens.Engineering.Base` and `Step7` — the surface is the same in both versions, the assemblies are not, and this is the first place the repository uses source linking rather than a duplicate. A file that has to differ one day is excluded from the link and written in `Openness.V21` instead.
 
 ```
 src/UI.Shared/

@@ -90,7 +90,8 @@ namespace Satellite.ImportObjects.Files
 
         /// <summary>
         /// **A refusal is what is marked**, and an overwrite in the warning ink: the one is what
-        /// needs acting on, the other what TIA did without asking anybody but this window.
+        /// needs acting on, the other what TIA did without asking anybody but this window. An
+        /// import TIA added a note to is in the warning ink too - it went in, and it is not clean.
         /// </summary>
         public Brush ResultInk
         {
@@ -103,7 +104,7 @@ namespace Satellite.ImportObjects.Files
                     case ImportOutcome.Refused: return _ink("InkBad");
                     case ImportOutcome.Overwritten: return _ink("InkWarn");
                     case ImportOutcome.Left: return _ink("InkMuted");
-                    default: return _ink("InkGood");
+                    default: return _ink(_result.Note == null ? "InkGood" : "InkWarn");
                 }
             }
         }

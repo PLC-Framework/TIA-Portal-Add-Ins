@@ -36,6 +36,18 @@
     </Reference>
   </ItemGroup>
 
+  <!-- The code is Openness.V20's, compiled a second time against V21's assemblies. The surface
+       it touches is the same in both versions - read off both - but the assemblies carry
+       different names and public key tokens, so one binary cannot serve both. Linking rather
+       than copying is the mechanism the decision record names for identical code with Siemens
+       dependencies; this is the first place it is used. A file that has to differ between the
+       versions is excluded here and written in this folder instead. -->
+  <ItemGroup>
+    <Compile Include="..\Openness.V20\**\*.cs"
+             Exclude="..\Openness.V20\bin\**;..\Openness.V20\obj\**"
+             Link="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Openness.Shared\Openness.Shared.csproj" />
   </ItemGroup>

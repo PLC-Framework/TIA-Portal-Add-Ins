@@ -37,11 +37,13 @@ function Copy-Tree($from, $to, $extra)
     if ($code -ge 8) { throw "robocopy failed with $code copying $from" }
 }
 
-# The core updater is two executables, one per TIA version, because it is an Openness client
-# and Openness is a different assembly with a different public key token in V20 and V21. Its
-# shared library travels inside each of their build outputs, so it is not listed here.
+# The core updater and the object import are two executables each, one per TIA version, because
+# they are Openness clients and Openness is a different assembly with a different public key
+# token in V20 and V21. Their shared libraries - the window, Openness.Shared and the version's
+# Openness.V2x - travel inside each build output, so they are not listed here.
 $satellites = @("Satellite.About", "Satellite.DataBlockSnapshot", "Satellite.ConfigEditor", "Satellite.CodingStyleReport",
-                "Satellite.CoreUpdater.V20", "Satellite.CoreUpdater.V21")
+                "Satellite.CoreUpdater.V20", "Satellite.CoreUpdater.V21",
+                "Satellite.ImportObjects.V20", "Satellite.ImportObjects.V21")
 $versions   = @(@{ Project = "AddIn.V20"; Package = "PLC-Framework.V20.addin" },
                 @{ Project = "AddIn.V21"; Package = "PLC-Framework.V21.addin" })
 
@@ -62,7 +64,7 @@ foreach ($name in $satellites) {
     $from = Join-Path $repo "src\$name\bin\Debug\net48"
     if (-not (Test-Path $from)) { throw "$name has not been built: $from" }
 
-    # All three land in one flat folder, which is what InstallPaths.Root expects. They share
+    # All of them land in one flat folder, which is what InstallPaths.Root expects. They share
     # Core.dll and UI.Shared.dll; the copies are identical because they were built together.
     # /XF *.pdb: line numbers in stack traces are worth having on the VM, but not the noise
     # here - drop the switch if a crash needs chasing.

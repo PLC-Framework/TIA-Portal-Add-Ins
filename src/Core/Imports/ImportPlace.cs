@@ -153,17 +153,20 @@ namespace Core.Imports
         /// TIA's own name for it follows the interface language, and the satellite finds the
         /// tree through the object model rather than by name.
         /// </summary>
-        public string TreeName
+        public string TreeName => NameOf(Tree);
+
+        /// <summary>
+        /// Any tree's name, for saying where an object already is - which can be another tree
+        /// than the place's: a source dropped into a block folder may declare a data type too.
+        /// </summary>
+        public static string NameOf(ObjectTree tree)
         {
-            get
+            switch (tree)
             {
-                switch (Tree)
-                {
-                    case ObjectTree.Types: return "PLC data types";
-                    case ObjectTree.TagTables: return "PLC tags";
-                    case ObjectTree.TechnologyObjects: return "Technology objects";
-                    default: return "Program blocks";
-                }
+                case ObjectTree.Types: return "PLC data types";
+                case ObjectTree.TagTables: return "PLC tags";
+                case ObjectTree.TechnologyObjects: return "Technology objects";
+                default: return "Program blocks";
             }
         }
 
