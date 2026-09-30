@@ -64,6 +64,7 @@ src/Core/
 ├── Core.csproj               SDK-style net48, AnyCPU
 ├── Product.cs                literals shared by every consumer
 ├── SafeFile.cs               write beside the destination and swap it in — every file repo\ writes
+├── CommandLine.cs            arguments quoted by Windows' own rules, so any name comes back whole
 ├── InstallPaths.cs           C:\Program Files\PLC-Framework\ and %LOCALAPPDATA%\...\ per user
 ├── Config/
 │   ├── ConfigLoader.cs       config.json → Config, and why it could not be read
@@ -138,7 +139,8 @@ src/AddIn.Shared/
 ├── Actions/                  use cases: AboutAction, ConfigEditorAction,
 │                             DataBlockSnapshotAction, CreateProjectHierarchyAction,
 │                             CheckCodingStyleAction, OpenProjectFolderAction,
-│                             ExportObjectsAction, Selection (how a selection is worded),
+│                             ExportObjectsAction, ImportObjectsAction, CoreUpdaterAction,
+│                             Selection (how a selection is worded),
 │                             and HelloWorldAction, kept but no longer wired into the menu
 │                             Handoff.cs holds the payload types — public and top level,
 │                             because partial trust refuses to serialize anything else
@@ -255,7 +257,7 @@ src/AddIn.VXX/
 │   ├── TiaGroupNode.cs       IGroupNode over this version's group compositions
 │   ├── TiaBusy.cs            ITiaBusy over ExclusiveAccess: text, and a Cancel that is obeyed
 │   ├── ProcessLauncher.cs    IProcessLauncher over Siemens' Process wrapper
-│   ├── TiaProjectPlaces.cs   where a PLC is, and where an object sits inside one
+│   ├── TiaProjectPlaces.cs   where a PLC is, where an object sits inside one, and the folder an import goes into
 │   ├── TiaCheckedObjects.cs  the walk the coding-style check reads
 │   └── TiaExportObjects.cs   the walk the export writes
 └── Config.xml                PackageConfiguration for the Publisher

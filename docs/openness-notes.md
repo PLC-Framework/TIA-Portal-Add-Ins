@@ -200,6 +200,8 @@ That redirection is worth remembering: it is a ready-made IPC channel between th
 
 The backslash escapes the closing quote, so the path swallows whatever follows it and the program is handed one argument nobody meant. `ProcessLauncher.Browse` trims the separator before quoting — and leaves a drive root alone, since `E:` on its own means something else.
 
+**Trimming is not enough for a name, and `Core.CommandLine` quotes by the parser's own rules instead** (2026-09-29). A TIA folder takes any character, so the import entry can be handed a name with a quote in it or one ending in `\` — and trimming would change the name, where the satellite looks for it exactly. A quote is written `\"`, backslashes are doubled only where a quote follows them, the closing one included, and left alone everywhere else. Measured both ways the result is read: by a real .NET `Main`, which is how a satellite receives its arguments, and by `CommandLineToArgvW` — quotes, trailing backslashes, backslashes before a quote, empty arguments, tabs, newlines and non-Latin letters all came back whole.
+
 **The process that starts a satellite is not the process `TiaPortal.GetProcesses()` lists**, and that is worth knowing before building anything on the parent process. Measured on the VM with two TIA Portals open, in both versions:
 
 ```
@@ -409,6 +411,8 @@ Nodes that are not IP — a PROFIBUS node's address is a number like `2` — are
 | `PlcBlock`, `PlcTagTable`, `PlcType`, `PlcAlarmTextlist` | the selected objects |
 
 **Technology objects get no registration of their own**, and that is not an omission: `TechnologicalInstanceDB` derives from `InstanceDB`, so it already is a `PlcBlock` and a second registration would show the entry twice. The adapter recognises it and files it under `technologyObjects`. Every registration takes the whole selection, and the action drops an object reached twice — a folder selected together with a folder inside it.
+
+**TIA's own "System blocks" folders are not reached by any of these.** Read off both versions, each tree's system root and user folders derive from its base — `PlcBlockSystemGroup` and `PlcBlockUserGroup` from `PlcBlockGroup`, and likewise for types, tag tables and `TechnologicalInstanceDBSystemGroup` / `…UserGroup` — while `PlcSystemBlockGroup` and `PlcSystemTypeGroup` derive from nothing of ours. The import entry relies on it: registered on the four bases, it appears on every folder a file can go into and on none TIA fills itself.
 
 **The action loads and validates before it walks.** The walk arrives as a delegate, so a broken `codingStyle` is reported without first reading several thousand objects on TIA's own thread; only `codingStyle` is validated, so a broken `hierarchy` does not stop a naming check. Before any of that it checks the report window is installed, since no amount of walking helps a missing executable. The result travels to `Satellite.CodingStyleReport` as a `Core.Checks.StyleReport` over standard input — see [the satellites page](satellites.md).
 

@@ -90,6 +90,14 @@ namespace Core.Imports
         }
 
         /// <summary>
+        /// <see cref="Arguments"/> as the one string a process is started with, **quoted so that
+        /// any name comes back whole** - see <see cref="Core.CommandLine"/>. What the Add-In hands
+        /// the launcher; the satellite's <c>Main</c> receives the array and gives it to
+        /// <see cref="Parse"/>.
+        /// </summary>
+        public string ToCommandLine() => Core.CommandLine.Join(Arguments());
+
+        /// <summary>
         /// A place read back off the command line. **Null with no problem** means there were no
         /// arguments at all - a window started by hand, which is not a mistake - and null with a
         /// problem means arguments that do not say a place.

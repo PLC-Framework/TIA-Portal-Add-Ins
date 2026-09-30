@@ -19,6 +19,7 @@ using AddIn.Shared.Adapters;
 using Core;
 using Core.Checks;
 using Core.Config;
+using Core.Imports;
 using Core.Logging;
 
 using AddIn.Adapters;
@@ -195,6 +196,16 @@ namespace AddIn
             AddExport<PlcAlarmTextlistGroup>(menuAddInRoot, "PLC alarm text lists", "PLC alarm text list groups", TiaExportObjects.FromAlarmTextListGroups);
             AddExport<PlcAlarmTextlist>(menuAddInRoot, "text list", "text lists", TiaExportObjects.FromAlarmTextLists);
 
+            // The import, on the four kinds of folder a file can go into, their roots included:
+            // the folder clicked is the destination. Not on a PLC, a unit or the project, where
+            // there is no one folder to put anything. Each registration is on the tree's base
+            // group type, which a system root and a user folder share - and which TIA's own
+            // "System blocks" folders do not, being types of their own.
+            AddImport<PlcBlockGroup>(menuAddInRoot);
+            AddImport<PlcTypeGroup>(menuAddInRoot);
+            AddImport<PlcTagTableGroup>(menuAddInRoot);
+            AddImport<TechnologicalInstanceDBGroup>(menuAddInRoot);
+
             // On the project root, and last: it is about the framework rather than about
             // anything selected. The window itself is a separate executable on disk, so
             // all this does is launch it.
@@ -203,6 +214,32 @@ namespace AddIn
                 AboutAction.Title,
                 AboutAction.IconPath,
                 (menuSelectionProvider, click) => AboutAction.Execute(click.Notifier, click.Launcher));
+        }
+
+        /// <summary>
+        /// One import entry for one kind of folder. **The place is read here, where the folder is
+        /// still an engineering object**, and only its names cross to the action - the satellite
+        /// finds the folder again on its own side, and an engineering object could not cross to
+        /// another process anyway.
+        /// </summary>
+        private void AddImport<T>(ContextMenuAddInRoot root) where T : IEngineeringObject
+        {
+            AddAction<T>(
+                root,
+                ImportObjectsAction.Title,
+                ImportObjectsAction.IconPath,
+                (menuSelectionProvider, click) =>
+                {
+                    List<T> selected = menuSelectionProvider?.GetSelection<T>().ToList() ?? new List<T>();
+
+                    string problem = null;
+                    ImportPlace place = selected.Count == 1
+                        ? TiaProjectPlaces.ImportPlaceOf(selected[0], ProjectFile(), out problem)
+                        : null;
+
+                    ImportObjectsAction.Execute(
+                        click.Notifier, click.Launcher, TiaVersion, selected.Count, place, problem);
+                });
         }
 
         /// <summary>

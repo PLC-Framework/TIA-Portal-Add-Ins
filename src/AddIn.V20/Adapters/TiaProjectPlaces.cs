@@ -12,6 +12,8 @@ using Siemens.Engineering.SW.TechnologicalObjects;
 using Siemens.Engineering.SW.Types;
 using Siemens.Engineering.SW.Units;
 
+using Core.Imports;
+
 namespace AddIn.Adapters
 {
     /// <summary>
@@ -163,6 +165,94 @@ namespace AddIn.Adapters
 
             return null;
         }
+
+        /// <summary>
+        /// The folder an import goes into, as <c>Core.Imports.ImportPlace</c> carries it on the
+        /// command line: the PLC, the software unit, which of the four trees, and the folders
+        /// below that tree's root - or null, and why not.
+        ///
+        /// **The tree is read off the folder's type, never its name**: the root is called
+        /// whatever TIA's interface language calls it, and the satellite finds it through the
+        /// object model. **Only the engineer's folders are named** - the climb collects user
+        /// groups and stops at the first link that is not one, which has to be the root of the
+        /// same tree. <see cref="LocationOf"/> answers the PLC and the unit from there, the same
+        /// climb the coding-style report and the export already trust.
+        ///
+        /// **Nothing here may fail a click**: a folder that cannot be read is a sentence the
+        /// action shows, not an exception out of TIA's menu.
+        /// </summary>
+        public static ImportPlace ImportPlaceOf(IEngineeringObject folder, string projectFile, out string problem)
+        {
+            problem = null;
+
+            try
+            {
+                ObjectTree tree;
+
+                if (!TreeOf(folder, out tree))
+                {
+                    problem = "This is not a folder of program blocks, PLC data types, PLC tags or technology objects.";
+                    return null;
+                }
+
+                List<string> folders = new List<string>();
+                IEngineeringObject current = folder;
+
+                for (int step = 0; current != null && step < MaxParentSteps && IsUserGroup(current); step++)
+                {
+                    folders.Add(FolderName(current));
+                    current = current.Parent;
+                }
+
+                ObjectTree rootTree;
+
+                if (!TreeOf(current, out rootTree) || rootTree != tree)
+                {
+                    problem = "The root of this folder's tree could not be found, so there is no way to say where the files would go.";
+                    return null;
+                }
+
+                folders.Reverse();
+
+                Location location = LocationOf(current);
+
+                if (string.IsNullOrEmpty(location.Plc))
+                {
+                    problem = "This folder is not inside a PLC's software.";
+                    return null;
+                }
+
+                return ImportPlace.Of(projectFile, location.Plc, location.Unit, tree, folders);
+            }
+            catch (Exception exception)
+            {
+                problem = "The folder could not be read: " + exception.Message;
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Which of the four trees a folder belongs to. **Technology objects first**, as
+        /// everywhere a type decides a family here - not because its group derives from a block
+        /// group, which reflection says it does not in either version, but so that the day one
+        /// does, this is not the line that has to be found.
+        /// </summary>
+        private static bool TreeOf(IEngineeringObject link, out ObjectTree tree)
+        {
+            tree = ObjectTree.Blocks;
+
+            if (link is TechnologicalInstanceDBGroup) tree = ObjectTree.TechnologyObjects;
+            else if (link is PlcBlockGroup) tree = ObjectTree.Blocks;
+            else if (link is PlcTypeGroup) tree = ObjectTree.Types;
+            else if (link is PlcTagTableGroup) tree = ObjectTree.TagTables;
+            else return false;
+
+            return true;
+        }
+
+        private static bool IsUserGroup(IEngineeringObject link) =>
+            link is PlcBlockUserGroup || link is PlcTypeUserGroup ||
+            link is PlcTagTableUserGroup || link is TechnologicalInstanceDBUserGroup;
 
         /// <summary>The name a link contributes to a path, or null for one that contributes none.</summary>
         public static string FolderName(IEngineeringObject link)
