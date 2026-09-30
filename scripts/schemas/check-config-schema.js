@@ -74,8 +74,13 @@ function drop(doc, dotted) {
 
 // --- the real files, which must be clean -------------------------------------------------
 let failures = 0;
-for (const project of ["TestAddins-v20", "TestAddins-v21"]) {
-    const file = path.join(repo, ".example", project, ".plc-framework/config.json");
+const real = {
+    "TestAddins-v20": path.join(repo, ".example/TestAddins-v20/.plc-framework/config.json"),
+    "TestAddins-v21": path.join(repo, ".example/TestAddins-v21/.plc-framework/config.json"),
+    // What every new configuration starts from, so it is held to the schema it ships beside.
+    "system template": path.join(repo, "src/Satellite.ConfigEditor/Resources/config.template.json")
+};
+for (const [project, file] of Object.entries(real)) {
     const doc = JSON.parse(fs.readFileSync(file, "utf8"));
     const ok = validate(doc);
     console.log(`real   ${project.padEnd(16)} ${ok ? "valid" : "INVALID"}`);
@@ -108,6 +113,11 @@ const mustFail = {
     "provider in the wrong case":       (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.provider", "GitHub"),
     "provider empty":                   (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.provider", ""),
     "local folder missing":             (d) => drop(d, "coreLocalRepositoryConfig.folder"),
+    "local coreFolder empty":           (d) => set(renamed(d), "coreLocalRepositoryConfig.coreFolder", ""),
+    "remote coreFolder only whitespace": (d) => set(set(renamed(d), "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.coreFolder", "  "),
+    "remote with neither name":         (d) => drop(set(renamed(d), "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.coreFolder"),
+    "local templateFolder not a string":  (d) => set(set(d, "metadata.coreSource", "local"), "coreLocalRepositoryConfig.templateFolder", 3),
+    "remote templateFolder not a string": (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.templateFolder", ["plc/s7-1x00/template"]),
     "projectConfig missing":            (d) => drop(d, "projectConfig"),
     "hierarchy missing":                (d) => drop(d, "projectConfig.hierarchy"),
     "codingStyle missing":              (d) => drop(d, "projectConfig.codingStyle"),
@@ -166,6 +176,18 @@ function modern(doc) {
         { id: "a_constant", regex: "^[A-Z]+$" }
     ];
 
+    return doc;
+}
+
+/**
+ * The real configurations carry the core's path under `folder`, its name until 2026-09-30.
+ * This moves it to `coreFolder` in both sections, as the editor does on opening.
+ */
+function renamed(doc) {
+    for (const section of ["coreLocalRepositoryConfig", "coreRemoteRepositoryConfig"]) {
+        const s = doc[section];
+        if (s && "folder" in s) { s.coreFolder = s.folder; delete s.folder; }
+    }
     return doc;
 }
 
@@ -239,7 +261,29 @@ const mustPass = {
     "remote with no provider key":
         (d) => drop(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.provider"),
     "remote naming its provider":
-        (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.provider", "github")
+        (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.provider", "github"),
+
+    // The core's path under its current name, under the one it had until 2026-09-30, and under
+    // both - which Core reports, and the schema cannot, having to accept either.
+    "local and remote under coreFolder":
+        (d) => set(renamed(d), "metadata.coreSource", "local"),
+    "remote under coreFolder":
+        (d) => set(renamed(d), "metadata.coreSource", "remote"),
+    "the core's path under its former name alone":
+        (d) => set(d, "metadata.coreSource", "remote"),
+    "both coreFolder and folder present":
+        (d) => { const m = renamed(set(d, "metadata.coreSource", "local")); m.coreLocalRepositoryConfig.folder = "x"; return m; },
+
+    // Optional on both sides, and empty is how Core reads "no templates" - so an empty string
+    // must pass here too, where every required path carries a pattern that would refuse it.
+    "local with a template folder":
+        (d) => set(set(d, "metadata.coreSource", "local"), "coreLocalRepositoryConfig.templateFolder", "plc/s7-1x00/template"),
+    "remote with a template folder":
+        (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.templateFolder", "plc/s7-1x00/template"),
+    "local with the template folder empty":
+        (d) => set(set(d, "metadata.coreSource", "local"), "coreLocalRepositoryConfig.templateFolder", ""),
+    "remote with the template folder empty":
+        (d) => set(set(d, "metadata.coreSource", "remote"), "coreRemoteRepositoryConfig.templateFolder", "")
 };
 
 console.log("\n--- must be rejected ---");

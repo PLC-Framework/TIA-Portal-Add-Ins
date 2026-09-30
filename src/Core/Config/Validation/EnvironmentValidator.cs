@@ -77,22 +77,83 @@ namespace Core.Config.Validation
 
             // Only worth walking further once the root is there; otherwise every level
             // below reports the same absence again.
+            CoreFiles(repository, local, path, lookup, issues);
+            TemplateFolder(repository, local, path, lookup, issues);
+        }
+
+        private static void CoreFiles(
+            string repository, CoreLocalRepositoryConfig local, string path,
+            Func<string, string> lookup, Issues issues)
+        {
             if (string.IsNullOrWhiteSpace(local.Folder)) return;
 
-            string folder = Path.Combine(repository, Variables.Expand(local.Folder, lookup));
+            // Named by whichever key the file used, coreFolder or its former name.
+            string field = Issues.Field(path, local.FolderKey);
+
+            string folder = Beneath(repository, local.Folder, field, lookup, issues);
+            if (folder == null) return;
 
             if (!DirectoryExists(folder))
             {
-                issues.Add(Issues.Field(path, "folder"), "'" + folder + "' does not exist.");
+                issues.Add(field, "'" + folder + "' does not exist.");
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(local.DependencyFile)) return;
 
-            string dependencies = Path.Combine(folder, Variables.Expand(local.DependencyFile, lookup));
+            string dependencies = Beneath(folder, local.DependencyFile, Issues.Field(path, "dependencyFile"), lookup, issues);
 
-            if (!FileExists(dependencies))
+            if (dependencies != null && !FileExists(dependencies))
                 issues.Add(Issues.Field(path, "dependencyFile"), "'" + dependencies + "' does not exist.");
+        }
+
+        /// <summary>
+        /// Optional, so blank is nothing to report: this repository offers no templates.
+        ///
+        /// **Checked on its own rather than after the core folder**, because it hangs off the
+        /// repository root and not off the core: a core folder that is missing says nothing
+        /// about whether the templates are there, and stopping at it would hide the one problem
+        /// behind the other.
+        /// </summary>
+        private static void TemplateFolder(
+            string repository, CoreLocalRepositoryConfig local, string path,
+            Func<string, string> lookup, Issues issues)
+        {
+            if (string.IsNullOrWhiteSpace(local.TemplateFolder)) return;
+
+            string field = Issues.Field(path, "templateFolder");
+            string templates = Beneath(repository, local.TemplateFolder, field, lookup, issues);
+
+            if (templates != null && !DirectoryExists(templates))
+                issues.Add(field, "'" + templates + "' does not exist.");
+        }
+
+        /// <summary>
+        /// A path from the file joined onto one that exists, or null when it cannot be one -
+        /// reported against the field it came from.
+        ///
+        /// **`Path.Combine` throws on a character Windows refuses**, where `Directory.Exists`
+        /// quietly answers false, and the editor runs this pass on every keystroke with nothing
+        /// around it. Measured on 2026-09-30, adding the template folder: one `|` typed into the
+        /// core's folder box ended the config editor, *"Illegal characters in path"* out of
+        /// `Path.Combine` in its log as the last line it wrote.
+        /// </summary>
+        private static string Beneath(
+            string root, string relative, string field, Func<string, string> lookup, Issues issues)
+        {
+            string expanded = Variables.Expand(relative, lookup);
+
+            try
+            {
+                // The file writes forward slashes, as a node's `file` does; the message names
+                // a Windows path, as `LocalSource` resolves one, rather than half of each.
+                return Path.Combine(root, expanded.Replace('/', Path.DirectorySeparatorChar));
+            }
+            catch (Exception)
+            {
+                issues.Add(field, "'" + expanded + "' is not a path Windows accepts.");
+                return null;
+            }
         }
 
         /// <summary>

@@ -44,7 +44,8 @@ GitHub has two kinds. You want a **fine-grained** one, which is the kind that ca
   "owner":    "your-org",
   "repository": "code",
   "branch":   "main",
-  "folder":   "plc/s7-1x00/core",
+  "coreFolder": "plc/s7-1x00/core",
+  "templateFolder": "plc/s7-1x00/template",
   "dependencyFile": "core.json",
   "token":    "${REPO_TOKEN}"
 }

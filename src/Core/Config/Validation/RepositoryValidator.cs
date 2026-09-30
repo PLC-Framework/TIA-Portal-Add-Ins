@@ -77,8 +77,12 @@ namespace Core.Config.Validation
             issues.Required(Issues.Field(path, "owner"), remote.Owner);
             issues.Required(Issues.Field(path, "repository"), remote.Repository);
             issues.Required(Issues.Field(path, "branch"), remote.Branch);
-            issues.Required(Issues.Field(path, "folder"), remote.Folder);
+            CollectFolder(remote.CoreFolder, remote.LegacyFolder, remote.FolderKey, path, issues);
             issues.Required(Issues.Field(path, "dependencyFile"), remote.DependencyFile);
+
+            // templateFolder is optional and has nothing structural to be wrong about: blank
+            // means the repository offers no templates, and whether the folder is there is the
+            // repository's to answer, over the network, when somebody asks for the templates.
 
             // token is optional and intentionally unchecked here. Empty means a public
             // repository, and a file carrying a literal token instead of ${REPO_TOKEN}
@@ -95,8 +99,29 @@ namespace Core.Config.Validation
             // configuration written on one station is not wrong because it is being read
             // on another where the drive is not mapped.
             issues.Required(Issues.Field(path, "repository"), local.Repository);
-            issues.Required(Issues.Field(path, "folder"), local.Folder);
+            CollectFolder(local.CoreFolder, local.LegacyFolder, local.FolderKey, path, issues);
             issues.Required(Issues.Field(path, "dependencyFile"), local.DependencyFile);
+
+            // templateFolder is optional - blank means no templates - and that it exists is
+            // the other pass's, for the reason the repository's own path is.
+        }
+
+        /// <summary>
+        /// The core's path, under <c>coreFolder</c> or the name it had until 2026-09-30.
+        /// Either alone is fine and required; both is reported rather than picked between in
+        /// silence - the same rule, in the same words, as <c>objectRules</c> and <c>rules</c>.
+        /// </summary>
+        private static void CollectFolder(
+            string current, string legacy, string inForce, string path, Issues issues)
+        {
+            if (current != null && legacy != null)
+            {
+                issues.Add(Issues.Field(path, "folder"),
+                    "Both 'coreFolder' and 'folder' are present. 'folder' is the former name " +
+                    "of the same path and is ignored; remove it.");
+            }
+
+            issues.Required(Issues.Field(path, inForce), current ?? legacy);
         }
 
         /// <summary>

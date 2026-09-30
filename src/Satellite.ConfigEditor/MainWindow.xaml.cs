@@ -43,6 +43,13 @@ namespace Satellite.ConfigEditor
         /// </summary>
         private const string NoCoreSource = "none";
 
+        /// <summary>
+        /// The core's path inside either repository, and the name it had until 2026-09-30 -
+        /// renamed on opening, so the editor only ever writes the first.
+        /// </summary>
+        private const string CoreFolderKey = "coreFolder";
+        private const string LegacyFolderKey = "folder";
+
         private readonly EditorRequest _request;
         private readonly ObservableCollection<Section> _sections = new ObservableCollection<Section>();
 
@@ -275,6 +282,12 @@ namespace Satellite.ConfigEditor
 
         private void Fill()
         {
+            // The core's path was "folder" until the templates arrived beside it. Renamed on the
+            // tree, so a file migrates the first time somebody saves it and nobody has to know
+            // the key ever had another name - the way `rules` became `objectRules`.
+            _document.RenameKey("coreLocalRepositoryConfig", LegacyFolderKey, CoreFolderKey);
+            _document.RenameKey("coreRemoteRepositoryConfig", LegacyFolderKey, CoreFolderKey);
+
             _loading = true;
             try
             {
@@ -284,7 +297,8 @@ namespace Satellite.ConfigEditor
                 DescriptionBox.Text = _document.Get("metadata.description") ?? string.Empty;
 
                 LocalRepositoryBox.Text = _document.Get("coreLocalRepositoryConfig.repository") ?? string.Empty;
-                LocalFolderBox.Text = _document.Get("coreLocalRepositoryConfig.folder") ?? string.Empty;
+                LocalCoreFolderBox.Text = _document.Get("coreLocalRepositoryConfig.coreFolder") ?? string.Empty;
+                LocalTemplateBox.Text = _document.Get("coreLocalRepositoryConfig.templateFolder") ?? string.Empty;
                 LocalDependencyBox.Text = _document.Get("coreLocalRepositoryConfig.dependencyFile") ?? string.Empty;
 
                 SelectProvider(_document.Get("coreRemoteRepositoryConfig.provider"));
@@ -293,7 +307,8 @@ namespace Satellite.ConfigEditor
                 OwnerBox.Text = _document.Get("coreRemoteRepositoryConfig.owner") ?? string.Empty;
                 RemoteRepositoryBox.Text = _document.Get("coreRemoteRepositoryConfig.repository") ?? string.Empty;
                 BranchBox.Text = _document.Get("coreRemoteRepositoryConfig.branch") ?? string.Empty;
-                RemoteFolderBox.Text = _document.Get("coreRemoteRepositoryConfig.folder") ?? string.Empty;
+                RemoteCoreFolderBox.Text = _document.Get("coreRemoteRepositoryConfig.coreFolder") ?? string.Empty;
+                RemoteTemplateBox.Text = _document.Get("coreRemoteRepositoryConfig.templateFolder") ?? string.Empty;
                 RemoteDependencyBox.Text = _document.Get("coreRemoteRepositoryConfig.dependencyFile") ?? string.Empty;
 
                 LoadToken();
@@ -380,14 +395,19 @@ namespace Satellite.ConfigEditor
             _document.Set("metadata.description", DescriptionBox.Text);
 
             _document.Set("coreLocalRepositoryConfig.repository", LocalRepositoryBox.Text.Trim());
-            _document.Set("coreLocalRepositoryConfig.folder", LocalFolderBox.Text.Trim());
+            _document.Set("coreLocalRepositoryConfig." + CoreFolderKey, LocalCoreFolderBox.Text.Trim());
+
+            // Optional, and emptied means none: `Set` removes the key rather than writing "",
+            // which is the absence every configuration before the key existed already has.
+            _document.Set("coreLocalRepositoryConfig.templateFolder", LocalTemplateBox.Text.Trim());
             _document.Set("coreLocalRepositoryConfig.dependencyFile", LocalDependencyBox.Text.Trim());
 
             _document.Set("coreRemoteRepositoryConfig.apiUrl", ApiUrlBox.Text.Trim());
             _document.Set("coreRemoteRepositoryConfig.owner", OwnerBox.Text.Trim());
             _document.Set("coreRemoteRepositoryConfig.repository", RemoteRepositoryBox.Text.Trim());
             _document.Set("coreRemoteRepositoryConfig.branch", BranchBox.Text.Trim());
-            _document.Set("coreRemoteRepositoryConfig.folder", RemoteFolderBox.Text.Trim());
+            _document.Set("coreRemoteRepositoryConfig." + CoreFolderKey, RemoteCoreFolderBox.Text.Trim());
+            _document.Set("coreRemoteRepositoryConfig.templateFolder", RemoteTemplateBox.Text.Trim());
             _document.Set("coreRemoteRepositoryConfig.dependencyFile", RemoteDependencyBox.Text.Trim());
 
             // The reference, never the secret - and the provider beside it, both only when the

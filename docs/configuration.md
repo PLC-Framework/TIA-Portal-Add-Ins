@@ -36,7 +36,8 @@ Two kinds of check, kept apart because only one of them touches the disk:
 | `owner` | **Yes** | string | Repository owner |
 | `repository` | **Yes** | string | Repository name |
 | `branch` | **Yes** | string | Branch. The template ships `main`; empty is an error |
-| `folder` | **Yes** | string | Path inside the repository down to the core |
+| `coreFolder` | **Yes** | string | Path inside the repository down to the core, `plc/s7-1x00/core`. **`folder` is its former name, still read** — see below |
+| `templateFolder` | No | string | Path inside the repository down to the templates a block can be generated from, `plc/s7-1x00/template`. Absent or empty means this repository offers none |
 | `dependencyFile` | **Yes** | string | Dependency graph file name, today `core.json` |
 | `token` | No | string | **Always a `${VARIABLE}` reference and never the secret** — `${REPO_TOKEN}` for `github`; see below. Absent or empty means a public repository |
 
@@ -49,8 +50,15 @@ Two kinds of check, kept apart because only one of them touches the disk:
 | Field | Required | Type | Description |
 | --- | --- | --- | --- |
 | `repository` | **Yes** | string | Local path. That it exists on disk is*environmental*, checked separately |
-| `folder` | **Yes** | string | Path inside the repository down to the core |
+| `coreFolder` | **Yes** | string | Path inside the repository down to the core. **`folder` is its former name, still read** |
+| `templateFolder` | No | string | Path inside the repository down to the templates. Absent or empty means none; that it exists is environmental, and a warning |
 | `dependencyFile` | **Yes** | string | Dependency graph file name |
+
+### `coreFolder` and `templateFolder` — 2026-09-30
+
+**The templates live in the core's repository, so their folder is a key of the repository section rather than a section of its own.** They call the core's blocks and are kept beside them — `plc/s7-1x00/core` and `plc/s7-1x00/template` in the same repository — so the `coreSource` that picks where the core comes from picks where the templates come from, and a project that names no core has no templates. **It is optional on both sides**: blank means the repository offers none, which is every configuration written before the key existed, so neither validator nor the schema has anything to say about an empty one — the schema deliberately does not hold it to the `\S` pattern the required paths carry. On a local repository, a folder that is not there is an environmental warning like the repository's own path; on a remote one nothing is looked for until somebody asks for the templates, since that is the network.
+
+**`folder` became `coreFolder` the same day, because a bare "folder" stopped saying which of the two it meant.** It is the first key renamed in a repository section, and it follows the migration `rules` → `objectRules` already set: **the former name is still read**, so a `config.json` already sitting in a TIA project keeps working; **`Satellite.ConfigEditor` renames it in place the first time it opens the file**, so it migrates on the next save and keeps its position among its siblings; and **a section carrying both is an error**, reported at `folder`, rather than a guess at which the author meant. With neither, the problem names `coreFolder`. The editor shows it as **Core folder**, with **Template folder** under it.
 
 ### `projectConfig`
 
@@ -193,7 +201,7 @@ Three decisions worth keeping:
 
 **It expresses the mechanical half.** Required fields, types, the five closed `type` sets, `coreSource` deciding which repository section is required (`if`/`then`) — and validated: a section nobody selected is kept and ignored here as it is in `Core`, since checking a half-written one only in the schema would underline a file `Core` loads without a word — the recursive `Group` through a `$ref` to itself, the `version` pattern, an `apiUrl` that is absolute and `http`/`https`, and lists that may be empty but must exist.
 
-**Six rules are beyond it, and they are the ones a typo breaks silently:**
+**Seven rules are beyond it, and they are the ones a typo breaks silently:**
 
 | Not expressible | Why |
 | --- | --- |
@@ -202,6 +210,7 @@ Three decisions worth keeping:
 | `Group.name` unique among siblings | same |
 | an interface section listed twice for one rule | same |
 | carrying both `objectRules` and `rules` | the schema has to accept either, so it cannot object to both |
+| carrying both `coreFolder` and `folder` | same |
 | a `regex` that compiles | `format: "regex"` is annotation-only in most validators |
 
 So **the schema does not replace `Core`'s validators; it takes the boring half earlier.** Anyone who mistakes it for the authority will ship a file the Add-In then refuses.
@@ -237,11 +246,14 @@ node scripts\schemas\check-config-schema.js
 
 **`ajv` is resolved from outside the repo deliberately** — this is a .NET solution, and a `node_modules\` inside it would be the only one, kept alive by a single test. `Newtonsoft.Json.Schema` would have been the in-house choice, since `Newtonsoft.Json` is already here, and it is commercially licensed beyond 1000 validations an hour: a poor thing to bury in a test.
 
-It checks both real configurations, forty-two broken variants — every one rejected, at the right path — and sixteen documents the schema must accept, **which must pass**: the test asserts the limits rather than trusting this prose. The wiring was then exercised end to end through the real `ConfigDocument`: the schema lands beside the file, `$schema` is first, `Core` still loads and validates a document carrying a key its model does not know, a second save neither duplicates nor moves it, a `$schema` aimed elsewhere survives untouched with no file written, and the file the editor wrote validates against the copy it wrote next to it.
+It checks both real configurations and the system template every new one starts from, fifty broken variants — every one rejected, at the right path — and twenty-six documents the schema must accept, **which must pass**: the test asserts the limits rather than trusting this prose. The wiring was then exercised end to end through the real `ConfigDocument`: the schema lands beside the file, `$schema` is first, `Core` still loads and validates a document carrying a key its model does not know, a second save neither duplicates nor moves it, a `$schema` aimed elsewhere survives untouched with no file written, and the file the editor wrote validates against the copy it wrote next to it.
 
 ### The environmental pass is separate, and that is the point
 
-`EnvironmentValidator.Validate(config, lookup)` checks what depends on the machine: that a local repository path exists, that the folder and the dependency file under it exist, that every `${VAR}` resolves.
+`EnvironmentValidator.Validate(config, lookup)` checks what depends on the machine: that a local repository path exists, that the core folder and the dependency file under it exist, that the template folder exists when one is named, that every `${VAR}` resolves.
+
+- **The template folder is checked on its own, not after the core folder.** It hangs off the repository root, so a core folder that is missing says nothing about whether the templates are there — stopping at the first would hide the second.
+- **A path Windows refuses is a warning naming the field, never an exception.** `Path.Combine` throws on a `|` where `Directory.Exists` quietly answers false, and the editor runs this pass on every keystroke with nothing around it: until 2026-09-30, one `|` typed into the core folder box ended the config editor — measured with a real keystroke, *"Illegal characters in path"* the last line in its log.
 
 **A configuration is not wrong because a drive is not mapped here.** It is unusable *here, now* — a different sentence, and often a temporary one. So this pass runs when somebody asks rather than on every load, and it is the reason the two never share a method.
 

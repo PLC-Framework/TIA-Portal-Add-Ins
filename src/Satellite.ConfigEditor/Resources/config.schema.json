@@ -129,8 +129,12 @@
         "owner",
         "repository",
         "branch",
-        "folder",
         "dependencyFile"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/definitions/coreFolderRequired"
+        }
       ],
       "properties": {
         "provider": {
@@ -159,10 +163,14 @@
           "pattern": "\\S",
           "description": "Branch to read from. The template ships main."
         },
+        "coreFolder": {
+          "$ref": "#/definitions/coreFolder"
+        },
         "folder": {
-          "type": "string",
-          "pattern": "\\S",
-          "description": "Path inside the repository down to the core."
+          "$ref": "#/definitions/legacyFolder"
+        },
+        "templateFolder": {
+          "$ref": "#/definitions/templateFolder"
         },
         "dependencyFile": {
           "type": "string",
@@ -181,8 +189,12 @@
       "description": "A core on this machine or a mapped drive. Required and validated when coreSource is local, ignored otherwise.",
       "required": [
         "repository",
-        "folder",
         "dependencyFile"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/definitions/coreFolderRequired"
+        }
       ],
       "properties": {
         "repository": {
@@ -190,10 +202,14 @@
           "pattern": "\\S",
           "description": "Local path to the repository. That it exists is environmental, and checked separately: a configuration is not wrong because a drive is not mapped here."
         },
+        "coreFolder": {
+          "$ref": "#/definitions/coreFolder"
+        },
         "folder": {
-          "type": "string",
-          "pattern": "\\S",
-          "description": "Path inside the repository down to the core."
+          "$ref": "#/definitions/legacyFolder"
+        },
+        "templateFolder": {
+          "$ref": "#/definitions/templateFolder"
         },
         "dependencyFile": {
           "type": "string",
@@ -201,6 +217,39 @@
           "description": "Dependency graph file name, today core.json."
         }
       }
+    },
+
+    "coreFolderRequired": {
+      "description": "The core's path is required under either name, coreFolder or the folder it was called until 2026-09-30. Carrying both is what Core's validator reports: the schema has to accept either, so it cannot object to the pair.",
+      "anyOf": [
+        {
+          "required": [
+            "coreFolder"
+          ]
+        },
+        {
+          "required": [
+            "folder"
+          ]
+        }
+      ]
+    },
+
+    "coreFolder": {
+      "type": "string",
+      "pattern": "\\S",
+      "description": "Path inside the repository down to the core, with forward slashes: plc/s7-1x00/core."
+    },
+
+    "legacyFolder": {
+      "type": "string",
+      "pattern": "\\S",
+      "description": "The former name of coreFolder, still read so that a configuration already living in a TIA project keeps working. The editor renames it the first time it opens the file, so a document migrates on its next save."
+    },
+
+    "templateFolder": {
+      "type": "string",
+      "description": "Optional. Path inside the repository down to the templates a block can be generated from, such as plc/s7-1x00/template. Absent or empty means this repository offers none - so it is not held to the pattern the required paths carry, which would underline an empty value Core reads as no templates. On a local repository, that it exists is environmental, like the repository's own path."
     },
 
     "projectConfig": {

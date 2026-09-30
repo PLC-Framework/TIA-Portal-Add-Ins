@@ -13,14 +13,16 @@
     "owner" : "PLC-Framework",
     "repository" : "code",
     "branch": "main",
-    "folder" : "plc/s7-1x00/core",
+    "coreFolder" : "plc/s7-1x00/core",
+    "templateFolder" : "plc/s7-1x00/template",
     "dependencyFile" :  "core.json",
     "token" : "${REPO_TOKEN}"
   },
   "coreLocalRepositoryConfig" :
   {
     "repository" : "C:/path/to/your/core-repository",
-    "folder" : "plc/s7-1x00/core",
+    "coreFolder" : "plc/s7-1x00/core",
+    "templateFolder" : "plc/s7-1x00/template",
     "dependencyFile": "core.json"
   },
   "projectConfig" :

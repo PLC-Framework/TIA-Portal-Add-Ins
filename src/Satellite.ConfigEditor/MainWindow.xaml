@@ -259,17 +259,28 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Repository" Style="{StaticResource FieldLabel}" />
                                 <TextBox   Grid.Row="0" Grid.Column="1" x:Name="LocalRepositoryBox" TextChanged="OnFieldChanged" />
                                 <Button    Grid.Row="0" Grid.Column="2" Content="..." Width="32" Margin="8,0,0,0" Style="{StaticResource Quiet}" Click="OnBrowseLocalRepository" />
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Folder" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <TextBox   Grid.Row="1" Grid.Column="1" x:Name="LocalFolderBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
+                                <!-- The two paths inside the repository side by side, each
+                                     named for what it leads to: a bare "Folder" stopped saying
+                                     which once there were two. -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Core folder" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="1" Grid.Column="1" x:Name="LocalCoreFolderBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Dependency file" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <TextBox   Grid.Row="2" Grid.Column="1" x:Name="LocalDependencyBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
+                                <!-- Optional, unlike the rest: empty means this repository
+                                     offers no templates, and the key goes. -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Template folder" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="2" Grid.Column="1" x:Name="LocalTemplateBox" Margin="0,10,0,0"
+                                           ToolTip="Path inside the repository down to the templates, such as plc/s7-1x00/template. Empty means this repository offers none."
+                                           TextChanged="OnFieldChanged" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Dependency file" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="3" Grid.Column="1" x:Name="LocalDependencyBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
                             </Grid>
 
                             <!-- Remote -->
@@ -280,6 +291,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -314,17 +326,22 @@
                                 <TextBox   Grid.Row="4" Grid.Column="1" x:Name="BranchBox" Margin="0,10,0,0"
                                            HorizontalAlignment="Left" Width="200" TextChanged="OnFieldChanged" />
 
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Folder" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <TextBox   Grid.Row="5" Grid.Column="1" x:Name="RemoteFolderBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Core folder" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="5" Grid.Column="1" x:Name="RemoteCoreFolderBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
 
-                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Dependency file" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <TextBox   Grid.Row="6" Grid.Column="1" x:Name="RemoteDependencyBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="Template folder" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="6" Grid.Column="1" x:Name="RemoteTemplateBox" Margin="0,10,0,0"
+                                           ToolTip="Path inside the repository down to the templates, such as plc/s7-1x00/template. Empty means this repository offers none."
+                                           TextChanged="OnFieldChanged" />
+
+                                <TextBlock Grid.Row="7" Grid.Column="0" Text="Dependency file" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <TextBox   Grid.Row="7" Grid.Column="1" x:Name="RemoteDependencyBox" Margin="0,10,0,0" TextChanged="OnFieldChanged" />
 
                                 <!-- The token, and it never enters config.json: the file
                                      always carries the reference the provider needs and the
                                      secret goes to the per-user .env. -->
-                                <TextBlock Grid.Row="7" Grid.Column="0" Text="Token" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
-                                <Grid      Grid.Row="7" Grid.Column="1" Margin="0,10,0,0">
+                                <TextBlock Grid.Row="8" Grid.Column="0" Text="Token" Style="{StaticResource FieldLabel}" Margin="0,10,10,0" />
+                                <Grid      Grid.Row="8" Grid.Column="1" Margin="0,10,0,0">
                                     <PasswordBox x:Name="TokenBox" Padding="6,4,26,4"
                                                  PasswordChanged="OnTokenChanged" />
                                     <TextBox     x:Name="TokenPlain" Padding="6,4,26,4" Visibility="Collapsed"
@@ -335,7 +352,7 @@
                                                   Checked="OnTokenRevealChanged" Unchecked="OnTokenRevealChanged" />
                                 </Grid>
 
-                                <TextBlock Grid.Row="8" Grid.Column="1" x:Name="TokenNote" Margin="0,6,0,0"
+                                <TextBlock Grid.Row="9" Grid.Column="1" x:Name="TokenNote" Margin="0,6,0,0"
                                            TextWrapping="Wrap" Foreground="{StaticResource InkMuted}" />
                             </Grid>
                         </StackPanel>

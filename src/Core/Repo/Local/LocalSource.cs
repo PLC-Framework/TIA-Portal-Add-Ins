@@ -14,7 +14,7 @@ namespace Core.Repo.Local
     /// import never learn which half brought them. That used to be said of one mirrored folder;
     /// since 2026-09-22 nothing is mirrored, and it is true of those two places instead.
     ///
-    /// **`folder` is the path inside the repository, and it is written with forward slashes**
+    /// **`coreFolder` is the path inside the repository, and it is written with forward slashes**
     /// in a file that Windows will resolve. `plc/s7-1x00/core` is what the real configuration
     /// carries, so the separators are normalised here rather than at four call sites.
     /// </summary>
@@ -71,7 +71,7 @@ namespace Core.Repo.Local
                 return Failed("coreLocalRepositoryConfig.repository is empty.");
 
             if (string.IsNullOrWhiteSpace(local.Folder))
-                return Failed("coreLocalRepositoryConfig.folder is empty.");
+                return Failed("coreLocalRepositoryConfig." + local.FolderKey + " is empty.");
 
             if (string.IsNullOrWhiteSpace(local.DependencyFile))
                 return Failed("coreLocalRepositoryConfig.dependencyFile is empty.");

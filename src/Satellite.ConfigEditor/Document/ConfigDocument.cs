@@ -166,6 +166,26 @@ namespace Satellite.ConfigEditor.Document
         public bool Has(string path) => _root.SelectToken(path) != null;
 
         /// <summary>
+        /// Moves a value off a key's former name, inside the object at <paramref name="objectPath"/>.
+        ///
+        /// **The property is replaced where it stands**, so it keeps its place among its
+        /// siblings - `CodingStyleEditor` does the same for `rules`, for the same reason: this
+        /// file is read by hand, and a key that jumped to the end would look like an edit
+        /// nobody made. Nothing happens when the former name is absent, and **nothing when both
+        /// are there**: Core reports that, and which of the two the author meant is not for
+        /// the editor to decide in silence.
+        /// </summary>
+        public void RenameKey(string objectPath, string from, string to)
+        {
+            JObject parent = _root.SelectToken(objectPath) as JObject;
+            JProperty former = parent?.Property(from);
+
+            if (former == null || parent.Property(to) != null) return;
+
+            former.Replace(new JProperty(to, former.Value.DeepClone()));
+        }
+
+        /// <summary>
         /// A list inside the document, created on the way if asked for.
         ///
         /// The tree is handed out rather than copied into a model and back: that is what

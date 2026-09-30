@@ -32,12 +32,35 @@ namespace Core.Config
         [DataMember(Name = "branch")]
         public string Branch { get; set; }
 
+        /// <summary>
+        /// Path inside the repository down to the core. **Read <see cref="Folder"/> rather than
+        /// this**, which falls back to the key's former name - see
+        /// <see cref="CoreLocalRepositoryConfig.LegacyFolder"/>.
+        /// </summary>
+        [DataMember(Name = "coreFolder")]
+        public string CoreFolder { get; set; }
+
+        /// <summary>What <c>coreFolder</c> was called until 2026-09-30, still read.</summary>
         [DataMember(Name = "folder")]
-        public string Folder { get; set; }
+        public string LegacyFolder { get; set; }
+
+        /// <summary>The core's path in force: <c>coreFolder</c>, or the former key without it.</summary>
+        public string Folder => CoreFolder ?? LegacyFolder;
+
+        /// <summary>Which key <see cref="Folder"/> came from, for an issue's path.</summary>
+        public string FolderKey => CoreFolder != null || LegacyFolder == null ? "coreFolder" : "folder";
+
+        /// <summary>
+        /// Path inside the repository down to the templates, as
+        /// <see cref="CoreLocalRepositoryConfig.TemplateFolder"/> is on the local side.
+        /// Optional: blank means this repository offers none.
+        /// </summary>
+        [DataMember(Name = "templateFolder")]
+        public string TemplateFolder { get; set; }
 
         [DataMember(Name = "dependencyFile")]
         public string DependencyFile { get; set; }
-        
+
         [DataMember(Name = "token")]
         public string Token { get; set; }
     }

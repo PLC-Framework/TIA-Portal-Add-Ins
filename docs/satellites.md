@@ -502,6 +502,8 @@ The `Coding style` section is where the editor stops being a form and starts pre
 - **A value the set does not hold is shown as it is**, not blanked, and `Save` stays off with the problem named in the status line. Blanking it would let the next edit anywhere on the form write a decision nobody made over somebody's typo.
 - **It is written only into a remote section that already exists.** The other fields write back empty and create nothing; a provider always has a value, so writing it unconditionally would plant a whole remote section in a purely local configuration.
 
+**Both sections read *Core folder*, then *Template folder*, then *Dependency file*.** The first was *Folder* until 2026-09-30, when the templates' folder arrived beside it and a bare "folder" stopped saying which. A file that still says `folder` opens with it renamed to `coreFolder` in place — the status line says there is something to save — and one that says both cannot be saved until the stray key is removed by hand, since which was meant is not the editor's to guess. **Template folder is optional**: emptied, its key goes, and on a local repository a folder that is not there is a warning that never blocks `Save`.
+
 `config.json` always carries the token as a `${VARIABLE}` reference — `${REPO_TOKEN}` for `github` — never the secret, which goes to the per-user `.env`. The field is masked with the same twin-control eye as the PLC password, and the `.env` is written **before** the JSON — there is no point leaving a `config.json` behind that references a variable nobody managed to set.
 
 ### One editor per TIA Portal
