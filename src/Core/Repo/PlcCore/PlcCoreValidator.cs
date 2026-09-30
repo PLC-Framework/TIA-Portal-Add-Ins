@@ -89,7 +89,39 @@ namespace Core.Repo.PlcCore
                 if (!PlcCoreStatus.IsKnown(node.Status))
                     issues.Add(Issues.Field(at, "status"),
                         "Must be one of: " + PlcCoreStatus.Current + ", " + PlcCoreStatus.Deprecated + ".");
+
+                Kind(node, at, issues);
             }
+        }
+
+        /// <summary>
+        /// A node's kind, and whether its interface agrees with it. **Absent is not wrong**: a
+        /// <c>core.json</c> written before 2026-09-30 has no <c>kind</c>, and says nothing rather
+        /// than something false. **A present one is held to its interface**, because that pair is
+        /// what a call is written from: an FC always has a return type - <c>Void</c> when it
+        /// returns nothing - and an FB never has one, so a file saying otherwise would produce a
+        /// call TIA refuses.
+        /// </summary>
+        private static void Kind(Node node, string at, Issues issues)
+        {
+            if (node.Kind == null) return;
+
+            if (!PlcCoreKind.IsKnown(node.Kind))
+            {
+                issues.Add(Issues.Field(at, "kind"), "Must be one of: " + string.Join(", ", PlcCoreKind.All) + ".");
+                return;
+            }
+
+            if (node.Interface == null || !PlcCoreKind.IsCallable(node.Kind)) return;
+
+            bool isFc = string.Equals(node.Kind, PlcCoreKind.FC, StringComparison.Ordinal);
+
+            if (isFc && node.Interface.Return == null)
+                issues.Add(Issues.Field(Issues.Field(at, "interface"), "return"),
+                    "An FC always has a return type - Void when it returns nothing.");
+            else if (!isFc && node.Interface.Return != null)
+                issues.Add(Issues.Field(Issues.Field(at, "interface"), "return"),
+                    "An FB has no return type, and this one says '" + node.Interface.Return + "'.");
         }
 
         /// <summary>

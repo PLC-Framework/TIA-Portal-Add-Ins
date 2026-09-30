@@ -18,6 +18,16 @@ namespace Core.Repo.PlcCore.Graph
         [DataMember(Name = "name")]
         public string Name { get; set; }
 
+        /// <summary>
+        /// What the node is, from its declaration: <c>FB</c>, <c>FC</c>, <c>OB</c>, <c>DB</c>,
+        /// <c>PlcStruct</c> or <c>PlcTagTable</c> - the words <see cref="PlcCoreKind"/> spells.
+        /// **Null in a <c>core.json</c> written before 2026-09-30**, which has no such key: a
+        /// template writing a call needs to know an FC from an FB, and nothing but the
+        /// declaration says so.
+        /// </summary>
+        [DataMember(Name = "kind")]
+        public string Kind { get; set; }
+
         /// <summary>Id without the -vX.Y suffix; unversioned dependencies resolve against this.</summary>
         [DataMember(Name = "base")]
         public string Base { get; set; }
@@ -51,8 +61,11 @@ namespace Core.Repo.PlcCore.Graph
         /// <c>interface-unreadable</c>), and for every node of a <c>core.json</c> generated
         /// before 2026-09-25, which has no such key - so a caller can tell "this block takes no
         /// parameters" (empty lists) from "nothing is known" (null).
+        ///
+        /// **Not a data member**: the key has held two shapes, and
+        /// <see cref="PlcCoreInterfaceReader"/> fills this from the same file once the rest of
+        /// the node has been read.
         /// </summary>
-        [DataMember(Name = "interface")]
         public BlockInterface Interface { get; set; }
     }
 }

@@ -94,9 +94,12 @@ namespace Core.Repo.PlcCore
                 {
                     DependencyGraph graph = new DataContractJsonSerializer(typeof(DependencyGraph)).ReadObject(payload) as DependencyGraph;
 
-                    return graph == null
-                        ? PlcCoreLoadResult.Failed(Describe(source, "is not a dependency file."))
-                        : PlcCoreLoadResult.Loaded(PlcCoreCatalog.Of(graph, sourceFolder, folderInRepository));
+                    if (graph == null) return PlcCoreLoadResult.Failed(Describe(source, "is not a dependency file."));
+
+                    // The one key the serializer cannot read, in either of the shapes it has had.
+                    PlcCoreInterfaceReader.Fill(bytes, offset, graph);
+
+                    return PlcCoreLoadResult.Loaded(PlcCoreCatalog.Of(graph, sourceFolder, folderInRepository));
                 }
             }
             catch (Exception exception)

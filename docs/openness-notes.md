@@ -287,6 +287,8 @@ So a tag table that lives as `.xlsx` is built object by object, and `PlcUserCons
 
 - **Neither `<Engineering version>` nor `<DocumentInfo>` is required.** Both were taken out of a real export and it imported.
 - **A file carrying either is refused by the other TIA version**, and so is one with a part whose schema version belongs to the other TIA — `<BlockTypeSupervisions>` is `…/v3` in a V20 export and `…/v4` in a V21 one. **Without them the same file imports into both**; the interface and the networks carry `v5` in either version. See [`reference/S7-exports.md`](reference/S7-exports.md).
+- **`<BlockTypeSupervisions>` may be left out entirely**, and the block imports — a block for an S7-1200, which has no supervisions, never carries it. **Present without its `xmlns`, it is refused.** So a file meant for either version either omits it or names the version it was written for.
+- **A LAD call needs the `Type` of every `<Parameter>` in its `CallInfo`.** The schema marks it optional; TIA refuses to import a call without it. Which is why the core's `core.json` carries each parameter's type — see `CLAUDE.md`, *A core block's call interface*.
 
 **`ImportFromDocuments` takes a `.s7dcl` with or without its `.s7res`** (VM, 2026-09-30). It is handed a folder and a name, and reads the `.s7res` of that name when the folder has one.
 
