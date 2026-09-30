@@ -264,6 +264,8 @@ Read off the assemblies and then measured in TIA Portal, which is the only order
 | Blocks | `PlcExternalSourceComposition.CreateFromFile(name, path)` then `PlcExternalSource.GenerateBlocksFromSource(PlcBlockUserGroup, GenerateBlockOption)` | the destination folder is an argument, so nothing has to be moved afterwards |
 | PLC data types | the same call, with the `PlcTypeUserGroup` overload | |
 | Blocks, types | `PlcBlockComposition.Import(FileInfo, ImportOptions)`, `PlcTypeComposition.Import(...)` | **SimaticML**, which is what an export writes |
+| Blocks, types | `PlcBlockComposition.ImportFromDocuments(DirectoryInfo, string, ImportDocumentOptions)`, and the same on `PlcTypeComposition` | **SIMATIC SD**. Answers `DocumentImportResultForBlocks` / `…ForTypes` with a `State`, like its export twin — a clean return can still be a failure |
+| Technology objects | `TechnologicalInstanceDBComposition.Import(FileInfo, ImportOptions)` | SimaticML |
 | Tag tables | `PlcTagTableComposition.Import(FileInfo, ImportOptions)` | **SimaticML only** — see below |
 | A tag table's contents | `PlcTagTableComposition.Create(name)`, `PlcUserConstantComposition.Create(name, dataTypeName, value)`, `PlcTagComposition.Create(name, dataTypeName, logicalAddress)` | one object at a time |
 
@@ -278,6 +280,15 @@ Simatic ML file: Data at the root level is invalid. Line 1, position 1.
 So a tag table that lives as `.xlsx` is built object by object, and `PlcUserConstantComposition.Create(name, dataTypeName, value)` is the three-argument overload that makes it possible. A tag has `Create(name)` and `Create(name, dataTypeName, logicalAddress)` and **nothing between**, so a tag with a type and no address cannot be expressed.
 
 **`GenerateBlockOption` is `None` or `KeepOnError` and nothing else** — there is no `Override` on the source route, and none is needed: **a block that already exists is overwritten, silently, and where it is** — measured on the VM (2026-09-19), with no refusal, no message, and the new block left in the old one's folder: the `PlcBlockUserGroup` or `PlcTypeUserGroup` passed to `GenerateBlocksFromSource` decides where a *new* block goes and nothing more. Worth knowing twice over: TIA will never stop an overwrite on this route, and putting an existing block somewhere else means taking it out first — which, with no move in the API, is an export and a delete. `ImportOptions` is `None | Override | SkipInactiveCultures | ActivateInactiveCultures`, so the SimaticML route does have one.
+
+**`GenerateBlockOption.None` is whole or nothing** — measured on the VM (2026-09-30): a source that fails half way leaves nothing in the project. `KeepOnError` keeps what generated before the failure, which is why the core updater takes it and the import window does not.
+
+**What an import needs of a SimaticML file, and what stops it crossing versions** — measured on the VM (2026-09-30), in both directions:
+
+- **Neither `<Engineering version>` nor `<DocumentInfo>` is required.** Both were taken out of a real export and it imported.
+- **A file carrying either is refused by the other TIA version**, and so is one with a part whose schema version belongs to the other TIA — `<BlockTypeSupervisions>` is `…/v3` in a V20 export and `…/v4` in a V21 one. **Without them the same file imports into both**; the interface and the networks carry `v5` in either version. See [`reference/S7-exports.md`](reference/S7-exports.md).
+
+**`ImportFromDocuments` takes a `.s7dcl` with or without its `.s7res`** (VM, 2026-09-30). It is handed a folder and a name, and reads the `.s7res` of that name when the folder has one.
 
 **A comment is a `MultilingualText`, and `MultilingualTextItemComposition` has no `Create`.** The items that exist are the project's editing languages, so writing a comment means writing into those; a project with none keeps no comment, and that is not a failure.
 

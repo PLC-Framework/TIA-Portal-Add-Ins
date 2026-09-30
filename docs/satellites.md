@@ -421,6 +421,36 @@ The grid was driven on the real window, shown and laid out: six rows in the orde
 
 **And writing into a project, in TIA Portal V20 and V21 on the VM** (2026-09-21): a block the project held in another folder came down and ended in the folder its family names, a tag table found elsewhere was rebuilt in its own with its marker constant, the download window listed what it would write over and brought the dependencies with `All`, and the small waiting window is what makes TIA's confirmation dialog reachable — with the full-sized one it was covered, and the attach could not go on. One branch stays unexercised and says so: the fallback for an object TIA will not export needs a know-how protected or inconsistent one, and the core has none.
 
+## Importing objects
+
+`Satellite.ImportObjects` opens from **"Import objects"** on a folder of program blocks, PLC data types, PLC tags or technology objects — the root of each tree included — and imports files into **that folder**. It is not offered on a PLC, a unit or the project, where there is no one folder to put anything, nor on TIA's own "System blocks".
+
+**Like the core updater, it talks to TIA Portal itself.** The Add-In only says where — the project, the PLC, the unit, the tree and the folders, on the command line — and the window attaches through Openness and imports there, so TIA stays free while it works. Like the core updater it is one executable per TIA version, opens small in a corner so TIA's confirmation dialog stays reachable, and takes one window per project.
+
+```
+Into   PLC_1 · * · Program blocks / 03-ALL / adt
+From   E:\exports\adt                                        [...]
+
+[x] _queue.s7dcl        SIMATIC SD, with .s7res   FB _queue
+[x] _queueGet.scl       source                    FC _queueGet
+[x] DB_queue.xml        SimaticML                 GlobalDB DB_queue
+```
+
+- **A Windows folder, then its files** — not its subfolders. It starts in `.plc-framework\exports\` when the project has one and in the project's folder otherwise, and **TIA reads the files where they are**: nothing is copied first.
+- **SimaticML `.xml`, SIMATIC SD `.s7dcl`, and the sources `.scl`, `.awl`, `.db`, `.udt`.** A `.s7res` is not a row of its own: TIA reads it beside its `.s7dcl` whether ticked or not, so that row says so, and one with no `.s7dcl` is named under the list as not offered.
+- **The list is the order they go in**: PLC data types, tag tables, FCs and FBs, data blocks, OBs — a type before the block that names it, an FB before its instance DB. **Each file is one unit**, a source declaring three blocks included.
+- **What the project already has is asked about once, in one list**, before anything is written — with *Yes to all* and *No to all*, nothing ticked to start with, and *Cancel* writing nothing. **An object is overwritten where it is**, which may not be the folder that was clicked, and the list says where.
+- **Nothing the project has is written without having been asked about**, checked again just before each file, since a source overwrites without saying a word. The one exception is the same object chosen in two formats: it goes in twice, the second over the first.
+- **What TIA refuses, it refuses**, and its reason is that file's result — a data type offered to a block folder, a file from the other TIA version that still carries its `<Engineering>` line. **A refusal does not end the run**, *Stop* acts between two files, and nothing is compiled or rolled back.
+- **A source goes in whole or not at all**, and the external source it is generated from is deleted again. A SIMATIC SD file TIA takes with something to say is shown as imported, in amber, with what it said.
+- Every file's outcome is in `%LOCALAPPDATA%\PLC-Framework\logs\import-objects.log`, in the window's own words.
+
+### Moving objects between TIA versions
+
+**A SimaticML file goes into V20 or V21 alike once it carries nothing that belongs to one of them** — measured on the VM (2026-09-30), in both directions. It needs neither `<Engineering version>` nor `<DocumentInfo>`, and it is refused by the other version while it carries either, or a part whose schema version is the other TIA's — `<BlockTypeSupervisions>` is `v3` from V20 and `v4` from V21. The window does not strip them: what TIA would refuse, TIA refuses, and says why. What differs between two exports of one block is in [`reference/S7-exports.md`](reference/S7-exports.md).
+
+**Confirmed in TIA Portal V20 and V21 on the VM (2026-09-30)**: the entry on every folder a file can go into and on none TIA fills itself, SimaticML, SIMATIC SD and sources into the general program and into a unit, a folder whose name holds a quote, the overwrite question, and an object overwritten in the folder it was in.
+
 ## Editing a configuration
 
 `Satellite.ConfigEditor` opens from **"Config. Editor"** on the project root of both Add-Ins. Section navigation down the left rather than tabs — two of the four sections subdivide again — and a **dot beside a section** marks where the problems are, which costs nothing because the validator already reports per concern.

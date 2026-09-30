@@ -8,7 +8,7 @@ Written against Siemens Openness for <b>TIA Portal V17–V20 and V21</b>.
 
 ## What it does
 
-Right-click the project, or a PLC, or a selection of blocks, and:
+Right-click the project, a PLC, a folder or a selection of blocks, and:
 
 |  |  |
 | --- | --- |
@@ -18,6 +18,7 @@ Right-click the project, or a PLC, or a selection of blocks, and:
 | **Open project folder** | opens the folder the project lives in, where `.plc-framework\` and its exports and reports are |
 | **Core updater** | on a PLC, or on the project: opens a window that attaches to TIA Portal itself and compares the program with the core library it is built on — then offers to download what is missing or out of date, and to move core blocks back into the folders their family names. Nothing is read or written until you ask for it |
 | **Export objects** | writes the selection to `.plc-framework\exports\`, in a tree shaped like the project's — so two exports can be compared. **Every format TIA offers for each object**: SimaticML `.xml` for all of them, the SIMATIC SD pair where it applies, and the language source — `.scl`, `.awl`, `.db`, `.udt`. A PLC's alarm text lists come out as one `.xlsx`, which is all Openness offers for them |
+| **Import objects** | on a folder of blocks, PLC data types, tag tables or technology objects: opens a window that takes files from a Windows folder into that one — SimaticML `.xml`, SIMATIC SD `.s7dcl`, and sources `.scl`, `.awl`, `.db`, `.udt` — in the order TIA needs them, **asking once before it overwrites anything the project already has** |
 
 The configuration lives **inside the TIA project**, in `.plc-framework\`, so it travels with the project and belongs to it rather than to whoever last ran the tool.
 

@@ -47,6 +47,19 @@ TIA's **Version Control Interface** wrote them: a VCI workspace exports the proj
 
 `ProgrammingLanguage` seen in these files: `LAD`, `FBD`, `SCL`, `STL`, `GRAPH`, `DB`, `F_FBD`, `F_DB`, `Motion_DB`. The safety ones differ from the rest **only** in that word.
 
+### One block, exported from V20 and from V21
+
+Read off `template\_oc_test_v20.xml` and `template\_oc_test_v21.xml` — the same LAD FB of 21 networks, built in each version: contacts, coils, set and reset, OR, `MOVE`, `TON`, and calls to FCs with and without `EN`. **1,973 lines each, and 16 differ**:
+
+| Differs | V20 | V21 |
+| --- | --- | --- |
+| `Name`, `Number` | the block's own | the block's own |
+| `HeaderAuthor` · `HeaderFamily` · `HeaderName` · `HeaderVersion` | as set in each | as set in each |
+| `BooleanAttribute Name="SetPoint"` | as set in each | as set in each |
+| `<BlockTypeSupervisions xmlns=…>` | `…/SW/BlockTypeSupervisions/v3` | `…/SW/BlockTypeSupervisions/v4` |
+
+**The interface (`…/SW/Interface/v5`) and the networks (`…/SW/NetworkSource/FlgNet/v5`) are the same in both.** On import that is what decides whether a file crosses from one TIA version to the other — measured on the VM on 2026-09-30: it does, in both directions, once it carries no `<Engineering version>`, no `<DocumentInfo>` and no part versioned for the other TIA. Neither of the first two is needed by an import at all.
+
 ## The interface
 
 ```xml
@@ -176,5 +189,6 @@ The interface is there — `VAR_INPUT … END_VAR` — but as text with a gramma
 | `vci-v20\EHmiCommand.xml` | a tag table |
 | `vci-v20\G02_OC020_PT_120A1.xml`, `vci\PositioningAxis_1\PositioningAxis_1.xml` | technology objects |
 | `vci-v20\*.scl` | blocks VCI exported as SCL sources |
+| `template\_oc_test_v20.xml`, `template\_oc_test_v21.xml` | one LAD FB built in each version — the networks a template can hold, and what differs between the two exports |
 
-**These are the maintainer's own project files**, kept in the repo because a reader for this format is worth no more than the real files it was tested against. They carry no Siemens code — only a project's names and structure.
+**These are the maintainer's own project files**, kept in `.example\` beside the sources because a reader for this format is worth no more than the real files it was tested against. **That folder is not versioned** — `.gitignore` names it — so a clone has this page and not the files: what is written here is the record of what they showed. They carry no Siemens code — only a project's names and structure.
