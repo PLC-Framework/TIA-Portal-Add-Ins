@@ -1,16 +1,16 @@
 using Core.Imports;
 
-namespace BlockTemplate
+namespace BlockTemplate.Reading
 {
     /// <summary>
     /// One file a template renders - the template's own or a sub-template - with its text. **Nothing
-    /// in it is the template's description**: that is the <c>.json</c> beside it, so every byte here
-    /// is meant for TIA Portal once rendered.
+    /// in it is the template's description**: that is the manifest beside it, so every byte here is
+    /// meant for TIA Portal once rendered.
     /// </summary>
     public sealed class TemplateFile
     {
-        public TemplateFile(string path, TemplateFileName name, ImportFormat format, string text,
-                            string companion, string companionText)
+        internal TemplateFile(string path, TemplateFileName name, ImportFormat format, string text,
+                              string companion, string companionText)
         {
             Path = path;
             Name = name;

@@ -1,4 +1,7 @@
-namespace BlockTemplate
+using BlockTemplate.Manifest;
+using BlockTemplate.Reading;
+
+namespace BlockTemplate.Rendering
 {
     /// <summary>
     /// One file a template rendered into: the template's own, or a generated type's - with its
@@ -7,7 +10,7 @@ namespace BlockTemplate
     /// </summary>
     public sealed class RenderedFile
     {
-        public RenderedFile(TemplateFile source, GeneratedType type, string name, string text, string companionText)
+        internal RenderedFile(TemplateFile source, GeneratedType type, string name, string text, string companionText)
         {
             Source = source;
             Type = type;

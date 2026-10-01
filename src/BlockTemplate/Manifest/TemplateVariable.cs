@@ -1,12 +1,12 @@
-namespace BlockTemplate
+namespace BlockTemplate.Manifest
 {
     /// <summary>
-    /// One entry of the CONFIG-JSON's <c>variables</c>: a value the operator fills in on the form,
+    /// One entry of the manifest's <c>variables</c>: a value the operator fills in on the form,
     /// with a type that decides the field and a default it starts from.
     /// </summary>
     public sealed class TemplateVariable
     {
-        public TemplateVariable(string id, TemplateVariableType type, decimal? min, decimal? max, object @default)
+        internal TemplateVariable(string id, TemplateVariableType type, decimal? min, decimal? max, object @default)
         {
             Id = id;
             Type = type;

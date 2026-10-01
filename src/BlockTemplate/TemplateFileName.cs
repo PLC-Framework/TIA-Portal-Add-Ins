@@ -7,7 +7,7 @@ using Core.Imports;
 namespace BlockTemplate
 {
     /// <summary>
-    /// What a template's file name says: <c>&lt;base&gt;.v&lt;major&gt;.json</c> for its CONFIG-JSON,
+    /// What a template's file name says: <c>&lt;base&gt;.v&lt;major&gt;.json</c> for its manifest,
     /// <c>&lt;base&gt;.v&lt;major&gt;.&lt;extension&gt;</c> for the file it renders, and
     /// <c>&lt;base&gt;.&lt;id&gt;.v&lt;major&gt;.&lt;extension&gt;</c> for one of its sub-templates -
     /// <c>_oc_conveyor.v1.json</c>, <c>_oc_conveyor.v1.xml</c>, <c>_oc_conveyor.settings.v1.udt</c>.
@@ -20,17 +20,17 @@ namespace BlockTemplate
     ///
     /// **Neither the base nor the id may hold a dot**, or the name could be read two ways. Note what
     /// that means for a name carrying a TIA version - <c>_oc_seq000.v20.xml</c> reads as major 20:
-    /// what differs between TIA versions belongs in the CONFIG-JSON's <c>tiaVersions</c>, not in a
+    /// what differs between TIA versions belongs in the manifest's <c>tiaVersions</c>, not in a
     /// file name.
     /// </summary>
     public sealed class TemplateFileName
     {
         /// <summary>
-        /// The CONFIG-JSON's own file, beside the one it describes (the maintainer's choice,
+        /// The manifest's own file, beside the one it describes (the maintainer's choice,
         /// 2026-10-01). It sat in the template's first comment until TIA refused a <c>.s7dcl</c>
         /// carrying a <c>(* *)</c>: a file of its own asks nothing of any format.
         /// </summary>
-        public const string ConfigExtension = ".json";
+        public const string ManifestExtension = ".json";
 
         private static readonly Regex Shape = new Regex(
             @"^(?<base>[^.]+)(?:\.(?<part>[^.]+))?\.[vV](?<major>[0-9]+)(?<extension>\.[^.]+)$",
@@ -54,17 +54,17 @@ namespace BlockTemplate
         /// <summary>Lower case, with its dot: <c>.json</c>, <c>.xml</c>, <c>.s7dcl</c>.</summary>
         public string Extension { get; }
 
-        /// <summary>The template's own - its CONFIG-JSON or the file it renders - not a sub-template's.</summary>
+        /// <summary>The template's own - its manifest or the file it renders - not a sub-template's.</summary>
         public bool IsMain => Part == null;
 
-        /// <summary>A CONFIG-JSON: what a template is read through, and never rendered.</summary>
-        public bool IsConfig => Extension == ConfigExtension;
+        /// <summary>A manifest: what a template is read through, and never rendered.</summary>
+        public bool IsManifest => Extension == ManifestExtension;
 
         /// <summary>A <c>.s7res</c>: never a template on its own, only the second half of a <c>.s7dcl</c>.</summary>
         public bool IsResource => Extension == ImportFiles.ResourceExtension;
 
-        /// <summary>The template's CONFIG-JSON file name: <c>&lt;base&gt;.v&lt;major&gt;.json</c>.</summary>
-        public string ConfigName => Base + ".v" + Major + ConfigExtension;
+        /// <summary>The template's manifest file name: <c>&lt;base&gt;.v&lt;major&gt;.json</c>.</summary>
+        public string ManifestName => Base + ".v" + Major + ManifestExtension;
 
         /// <summary>
         /// What <paramref name="fileName"/> says, or null with <paramref name="problem"/> saying why
@@ -85,15 +85,14 @@ namespace BlockTemplate
 
             string extension = match.Groups["extension"].Value.ToLowerInvariant();
 
-            if (extension != ConfigExtension && !ImportFiles.Extensions.Contains(extension))
+            if (extension != ManifestExtension && !ImportFiles.Extensions.Contains(extension))
             {
-                problem = "'" + fileName + "' ends in " + extension + ", which is neither a template's " + ConfigExtension +
+                problem = "'" + fileName + "' ends in " + extension + ", which is neither a template's " + ManifestExtension +
                           " nor a format TIA Portal takes in: " + string.Join(", ", ImportFiles.Extensions) + ".";
                 return null;
             }
 
-            int major;
-            if (!int.TryParse(match.Groups["major"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out major))
+            if (!int.TryParse(match.Groups["major"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int major))
             {
                 problem = "'" + fileName + "' carries a major version too large to be one.";
                 return null;

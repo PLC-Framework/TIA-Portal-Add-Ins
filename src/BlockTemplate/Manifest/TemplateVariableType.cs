@@ -1,8 +1,8 @@
-namespace BlockTemplate
+namespace BlockTemplate.Manifest
 {
     /// <summary>
-    /// What a variable of the CONFIG-JSON holds, and so which field the form draws for it.
-    /// Spelled in the file as <c>list</c>, <c>bool</c>, <c>numeric</c> and <c>string</c>.
+    /// What a variable of the manifest holds, and so which field the form draws for it. Spelled in
+    /// the file as <c>list</c>, <c>bool</c>, <c>numeric</c> and <c>string</c>.
     /// </summary>
     public enum TemplateVariableType
     {

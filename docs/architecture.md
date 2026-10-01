@@ -158,17 +158,39 @@ src/AddIn.Shared/
 ```
 
 ```
-src/BlockTemplate/
-├── BlockTemplate.csproj      SDK-style net48, AnyCPU, references Core; Newtonsoft.Json, Scriban 7.5.0
-├── TemplateReader.cs         the entry point: a template's .json, the file it renders and its sub-templates, or every problem
-├── TemplateFileName.cs       <base>.v<major>.json beside <base>.v<major>.<extension>, and <base>.<id>.v<major>.<extension> for a sub-template
-├── ConfigParser.cs           what the .json says - tolerant in how it is written, strict in what it says
-├── TemplateRenderer.cs       a template rendered with a form's values: every file's text, or every problem
-├── TemplateValues.cs         what a form fills in, and where it starts
-├── TemplateRender.cs · RenderedFile.cs
-├── Template.cs · TemplateFile.cs · TemplatePart.cs · TemplateRead.cs · TemplateProblem.cs
-└── TemplateConfig.cs · TemplateVariable.cs · TemplateVariableType.cs · TiaVersion.cs · TiaVersionVariable.cs · GeneratedType.cs
+src/BlockTemplate/                      BlockTemplate - what every stage shares
+├── BlockTemplate.csproj              SDK-style net48, AnyCPU, references Core; Newtonsoft.Json, Scriban 7.5.0
+├── TemplateProblem.cs                one thing wrong, against its file and line
+├── TemplateFileName.cs               <base>.v<major>.json beside <base>.v<major>.<ext>, and <base>.<id>.v<major>.<ext> for a sub-template
+├── Manifest/                         BlockTemplate.Manifest - what a template's .json says
+│   ├── TemplateManifest.cs · TemplateVariable.cs · TemplateVariableType.cs
+│   ├── TiaVersion.cs · TiaVersionVariable.cs · GeneratedType.cs
+│   ├── TemplateNames.cs              header, types, uid, name, version and Scriban's own words, each spelled once
+│   ├── RangeText.cs                  how a range is worded, for the manifest and for a form's values alike
+│   ├── Json/                         BlockTemplate.Manifest.Json - the JSON reader, knowing nothing of what a manifest means
+│   │   ├── ManifestJson.cs           Json.NET set up: decimals, no dates, no duplicate keys, undefined said
+│   │   ├── ExactNumbers.cs           the literal held against the decimal: no octal, no hex, no rounding
+│   │   └── JsonProblems.cs           problems at their line, and the shape questions every section asks
+│   └── Parsing/                      BlockTemplate.Manifest.Parsing - the parser, one reader per section
+│       ├── ManifestParser.cs         reads the JSON, checks the top, hands each section to its reader
+│       ├── HeaderSection.cs · VariablesSection.cs · TiaVersionsSection.cs · GeneratedTypesSection.cs
+│       └── NameRules.cs              a word the template writes bare, and a file name's part
+├── Reading/                          BlockTemplate.Reading - a template on disk
+│   ├── TemplateReader.cs             the entry point: a manifest, the file it renders and its sub-templates, or every problem
+│   ├── TemplateReadResult.cs · Template.cs · TemplateFile.cs · TemplatePart.cs
+│   ├── TemplateFolder.cs             the one type that touches the disk
+│   ├── SiblingFile.cs · FilePairing.cs   one format, a .s7res only beside a .s7dcl
+│   └── SubTemplateMatching.cs        sub-templates held against generatedTypes, both ways
+└── Rendering/                        BlockTemplate.Rendering - a form's values into texts
+    ├── TemplateRenderer.cs           the entry point: every file's text, or every problem
+    ├── TemplateValues.cs · TemplateRenderResult.cs · RenderedFile.cs
+    ├── ValuesCheck.cs                the values held against the manifest
+    ├── RenderModel.cs                what a file sees: empty is null, escaped for XML in SimaticML
+    ├── ReadOnlyList.cs · UidCounter.cs
+    └── ScribanText.cs                the one place Scriban runs
 ```
+
+> **Dependencies run one way**: the root ← `Manifest` and `Manifest.Json`, which never meet ← `Manifest.Parsing` ← `Reading` ← `Rendering`. **Public is only what the stages after this one use** — the reader, the renderer, the model, the values and the results — and every constructor but `TemplateValues`' is `internal`, so the renderer is never handed a template the reader did not make. The `.claude` battery's `block-template-shape` holds both, reading the sources with comments and strings taken out.
 
 > **A project of its own, like `GitHubApi`, and for the same reason**: every behaviour is exercised from PowerShell with no window and no TIA Portal. It references `Core` because what a file is as an import is `Core.Imports`' answer already; `Core` does not reference it, since Json.NET and Scriban are packages, and `Core` is loaded inside TIA Portal's process. **On `net48` Scriban needs binding redirects** — it is built against older `System.Threading.Tasks.Extensions` and `System.Text.Json` than its packages bring — which an SDK executable generates for itself and a PowerShell test has to supply through `AssemblyResolve`.
 

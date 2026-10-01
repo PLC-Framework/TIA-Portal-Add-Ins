@@ -2,23 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace BlockTemplate
+using BlockTemplate.Manifest;
+
+namespace BlockTemplate.Rendering
 {
     /// <summary>
     /// What a template is rendered with: the TIA Portal version it is for, the header's fields and
     /// the variables' values - what the form will fill in. <see cref="Defaults"/> is where it starts.
     ///
-    /// **Keys are matched whatever their case**, and reach the template spelled as the CONFIG-JSON
-    /// spells them: the CONFIG-JSON already refuses two names differing only in case, so one key can
+    /// **Keys are matched whatever their case**, and reach the template spelled as the manifest
+    /// spells them: the manifest already refuses two names differing only in case, so one key can
     /// only ever mean one name.
     /// </summary>
     public sealed class TemplateValues
     {
-        /// <summary>What a header field named so starts at; every other field starts empty.</summary>
-        public const string VersionField = "version";
-
-        public const string FirstVersion = "0.1";
-
         public TemplateValues(string tiaVersion)
         {
             TiaVersion = tiaVersion;
@@ -41,14 +38,18 @@ namespace BlockTemplate
         /// author always typed, since the VM's own user is <c>vm</c> - and every variable at its
         /// default.
         /// </summary>
-        public static TemplateValues Defaults(TemplateConfig config, string tiaVersion)
+        public static TemplateValues Defaults(TemplateManifest manifest, string tiaVersion)
         {
+            if (manifest == null) throw new ArgumentNullException(nameof(manifest));
+
             TemplateValues values = new TemplateValues(tiaVersion);
 
-            foreach (string field in config.Header)
-                values.Header[field] = string.Equals(field, VersionField, StringComparison.OrdinalIgnoreCase) ? FirstVersion : string.Empty;
+            foreach (string field in manifest.Header)
+                values.Header[field] = string.Equals(field, TemplateNames.VersionField, StringComparison.OrdinalIgnoreCase)
+                    ? TemplateNames.FirstVersion
+                    : string.Empty;
 
-            foreach (TemplateVariable variable in config.Variables)
+            foreach (TemplateVariable variable in manifest.Variables)
                 values.Variables[variable.Id] = variable.Default is IEnumerable<string> list && !(variable.Default is string)
                     ? list.ToList()
                     : variable.Default;

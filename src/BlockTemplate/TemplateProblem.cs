@@ -1,15 +1,12 @@
 namespace BlockTemplate
 {
     /// <summary>
-    /// One thing wrong with a template, said against its file and, when there is one, the line.
-    ///
-    /// **The line is the file's, never the JSON's.** The CONFIG-JSON sits inside a comment some
-    /// way down the file, and a line counted from the start of the JSON would send whoever opens
-    /// the template to the wrong place.
+    /// One thing wrong with a template, said against its file and, when there is one, the line:
+    /// the manifest's, a template file's, or the values a form filled in, held against the manifest.
     /// </summary>
     public sealed class TemplateProblem
     {
-        public TemplateProblem(string file, int? line, string message)
+        internal TemplateProblem(string file, int? line, string message)
         {
             File = file;
             Line = line;

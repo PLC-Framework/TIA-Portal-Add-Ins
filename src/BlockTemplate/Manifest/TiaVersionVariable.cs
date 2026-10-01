@@ -1,4 +1,4 @@
-namespace BlockTemplate
+namespace BlockTemplate.Manifest
 {
     /// <summary>
     /// A value that differs between TIA Portal versions - a schema version, typically - and that
@@ -6,7 +6,7 @@ namespace BlockTemplate
     /// </summary>
     public sealed class TiaVersionVariable
     {
-        public TiaVersionVariable(string id, object value)
+        internal TiaVersionVariable(string id, object value)
         {
             Id = id;
             Value = value;

@@ -1,14 +1,19 @@
 using System.Collections.Generic;
 
-namespace BlockTemplate
+namespace BlockTemplate.Manifest
 {
     /// <summary>
-    /// What a template's CONFIG-JSON says, once it has read cleanly. Every list is empty rather
-    /// than null when the file leaves its key out - absent and empty mean the same here.
+    /// What a template's manifest says, once it has read cleanly. Every list is empty rather than
+    /// null when the file leaves its key out - absent and empty mean the same here.
+    ///
+    /// **Called the CONFIG-JSON until 2026-10-01**, after the marker that found it inside the
+    /// template's first comment. Once it was a file of its own the marker had no job, and "config"
+    /// already means the project's <c>config.json</c> everywhere else in this repository; a manifest
+    /// is what declares what a package holds and needs, which is what this does.
     /// </summary>
-    public sealed class TemplateConfig
+    public sealed class TemplateManifest
     {
-        public TemplateConfig(
+        internal TemplateManifest(
             IReadOnlyList<string> header, IReadOnlyList<TiaVersion> tiaVersions,
             IReadOnlyList<TemplateVariable> variables, IReadOnlyList<GeneratedType> generatedTypes)
         {
