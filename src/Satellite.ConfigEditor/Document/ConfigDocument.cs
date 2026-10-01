@@ -124,6 +124,18 @@ namespace Satellite.ConfigEditor.Document
         }
 
         /// <summary>
+        /// Writes an empty string, where <see cref="Set"/> would remove the key - and creates
+        /// nothing on the way, for the reason `Set` creates nothing when removing. For the one
+        /// case where the key's presence is the point: an emptied field whose key, gone, would
+        /// let another one take its place unseen.
+        /// </summary>
+        public void SetEmpty(string path)
+        {
+            JObject parent = ParentOf(path, create: false);
+            if (parent != null) parent[Leaf(path)] = string.Empty;
+        }
+
+        /// <summary>
         /// Writes an explicit JSON null, creating the objects on the way. For a key whose
         /// null is a decision rather than an absence - <c>metadata.coreSource</c>, where it
         /// means "no repository" - so a reader sees it was chosen, not forgotten.

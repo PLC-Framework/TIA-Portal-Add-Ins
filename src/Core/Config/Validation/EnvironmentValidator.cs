@@ -64,47 +64,63 @@ namespace Core.Config.Validation
         {
             if (local == null) return;
 
-            string repository = Variables.Expand(local.Repository, lookup);
+            string repositoryField = Issues.Field(path, "repository");
+            string folderField = Issues.Field(path, local.FolderKey);     // coreFolder, or its former name
+            string graphField = Issues.Field(path, "dependencyFile");
+            string templatesField = Issues.Field(path, "templateFolder");
 
-            if (Unresolved(local.Repository, Issues.Field(path, "repository"), lookup, issues)) return;
+            // **Every ${VAR} first, in every path field, before the disk is asked anything.**
+            // Whether a variable is set does not depend on whether a folder exists, so a missing
+            // repository must not hide an unset variable below it. Left literal, an unset one
+            // came out as "'…\${TEMPLATES}' does not exist" - true and useless - or as nothing
+            // where a folder of that literal name happened to exist. Codex's first two reviews
+            // found it (2026-10-01): the template folder never asked, then a missing repository
+            // stopping the walk before the folders below it were asked.
+            bool repositoryUnset = Unresolved(local.Repository, repositoryField, lookup, issues);
+            bool folderUnset = Unresolved(local.Folder, folderField, lookup, issues);
+            bool graphUnset = Unresolved(local.DependencyFile, graphField, lookup, issues);
+            bool templatesUnset = Unresolved(local.TemplateFolder, templatesField, lookup, issues);
+
+            if (repositoryUnset) return;
+
+            string repository = Variables.Expand(local.Repository, lookup);
             if (string.IsNullOrWhiteSpace(repository)) return;
 
             if (!DirectoryExists(repository))
             {
-                issues.Add(Issues.Field(path, "repository"), "'" + repository + "' does not exist.");
+                issues.Add(repositoryField, "'" + repository + "' does not exist.");
                 return;
             }
 
-            // Only worth walking further once the root is there; otherwise every level
-            // below reports the same absence again.
-            CoreFiles(repository, local, path, lookup, issues);
-            TemplateFolder(repository, local, path, lookup, issues);
+            // Only worth walking further once the root is there; otherwise every level below
+            // reports the same absence again. A field whose variable is unset has been said and
+            // is not looked for.
+            if (!folderUnset) CoreFiles(repository, local, folderField, graphUnset ? null : graphField, lookup, issues);
+            if (!templatesUnset) TemplateFolder(repository, local, templatesField, lookup, issues);
         }
 
+        /// <param name="graphField">Null when the dependency file's variable is unset - already said.</param>
         private static void CoreFiles(
-            string repository, CoreLocalRepositoryConfig local, string path,
+            string repository, CoreLocalRepositoryConfig local, string folderField, string graphField,
             Func<string, string> lookup, Issues issues)
         {
             if (string.IsNullOrWhiteSpace(local.Folder)) return;
 
-            // Named by whichever key the file used, coreFolder or its former name.
-            string field = Issues.Field(path, local.FolderKey);
-
-            string folder = Beneath(repository, local.Folder, field, lookup, issues);
+            string folder = Beneath(repository, local.Folder, folderField, lookup, issues);
             if (folder == null) return;
 
             if (!DirectoryExists(folder))
             {
-                issues.Add(field, "'" + folder + "' does not exist.");
+                issues.Add(folderField, "'" + folder + "' does not exist.");
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(local.DependencyFile)) return;
+            if (graphField == null || string.IsNullOrWhiteSpace(local.DependencyFile)) return;
 
-            string dependencies = Beneath(folder, local.DependencyFile, Issues.Field(path, "dependencyFile"), lookup, issues);
+            string dependencies = Beneath(folder, local.DependencyFile, graphField, lookup, issues);
 
             if (dependencies != null && !FileExists(dependencies))
-                issues.Add(Issues.Field(path, "dependencyFile"), "'" + dependencies + "' does not exist.");
+                issues.Add(graphField, "'" + dependencies + "' does not exist.");
         }
 
         /// <summary>
@@ -116,12 +132,11 @@ namespace Core.Config.Validation
         /// behind the other.
         /// </summary>
         private static void TemplateFolder(
-            string repository, CoreLocalRepositoryConfig local, string path,
+            string repository, CoreLocalRepositoryConfig local, string field,
             Func<string, string> lookup, Issues issues)
         {
             if (string.IsNullOrWhiteSpace(local.TemplateFolder)) return;
 
-            string field = Issues.Field(path, "templateFolder");
             string templates = Beneath(repository, local.TemplateFolder, field, lookup, issues);
 
             if (templates != null && !DirectoryExists(templates))
@@ -130,7 +145,8 @@ namespace Core.Config.Validation
 
         /// <summary>
         /// A path from the file joined onto one that exists, or null when it cannot be one -
-        /// reported against the field it came from.
+        /// reported against the field it came from. Its variables have already been asked about
+        /// by the caller, so only set ones arrive here.
         ///
         /// **`Path.Combine` throws on a character Windows refuses**, where `Directory.Exists`
         /// quietly answers false, and the editor runs this pass on every keystroke with nothing

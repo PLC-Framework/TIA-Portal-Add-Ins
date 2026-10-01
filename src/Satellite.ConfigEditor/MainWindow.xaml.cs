@@ -395,7 +395,7 @@ namespace Satellite.ConfigEditor
             _document.Set("metadata.description", DescriptionBox.Text);
 
             _document.Set("coreLocalRepositoryConfig.repository", LocalRepositoryBox.Text.Trim());
-            _document.Set("coreLocalRepositoryConfig." + CoreFolderKey, LocalCoreFolderBox.Text.Trim());
+            SetCoreFolder("coreLocalRepositoryConfig", LocalCoreFolderBox.Text.Trim());
 
             // Optional, and emptied means none: `Set` removes the key rather than writing "",
             // which is the absence every configuration before the key existed already has.
@@ -406,7 +406,7 @@ namespace Satellite.ConfigEditor
             _document.Set("coreRemoteRepositoryConfig.owner", OwnerBox.Text.Trim());
             _document.Set("coreRemoteRepositoryConfig.repository", RemoteRepositoryBox.Text.Trim());
             _document.Set("coreRemoteRepositoryConfig.branch", BranchBox.Text.Trim());
-            _document.Set("coreRemoteRepositoryConfig." + CoreFolderKey, RemoteCoreFolderBox.Text.Trim());
+            SetCoreFolder("coreRemoteRepositoryConfig", RemoteCoreFolderBox.Text.Trim());
             _document.Set("coreRemoteRepositoryConfig.templateFolder", RemoteTemplateBox.Text.Trim());
             _document.Set("coreRemoteRepositoryConfig.dependencyFile", RemoteDependencyBox.Text.Trim());
 
@@ -421,6 +421,24 @@ namespace Satellite.ConfigEditor
                 _document.Set("coreRemoteRepositoryConfig.provider", ProviderBox.SelectedItem as string);
                 _document.Set("coreRemoteRepositoryConfig.token", TokenReference);
             }
+        }
+
+        /// <summary>
+        /// The core's path, written under its current key.
+        ///
+        /// **While the former key is still in the section, an emptied box writes `""` rather
+        /// than removing `coreFolder`.** The former key survives opening only when the file
+        /// carried both, which is an error the operator resolves by hand; removing `coreFolder`
+        /// would end that error and let the hidden `folder` stand in for a box showing nothing,
+        /// with Save back on. Codex's first review found it (2026-10-01). Kept, the pair stays
+        /// reported and Save stays off until `folder` is taken out.
+        /// </summary>
+        private void SetCoreFolder(string section, string value)
+        {
+            if (value.Length == 0 && _document.Has(section + "." + LegacyFolderKey))
+                _document.SetEmpty(section + "." + CoreFolderKey);
+            else
+                _document.Set(section + "." + CoreFolderKey, value);
         }
 
         private void OnFieldChanged(object sender, TextChangedEventArgs e) => Touched();
