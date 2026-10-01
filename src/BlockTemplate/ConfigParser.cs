@@ -10,7 +10,8 @@ using Newtonsoft.Json.Linq;
 namespace BlockTemplate
 {
     /// <summary>
-    /// A CONFIG-JSON, read into a <see cref="TemplateConfig"/> or into every problem it has.
+    /// A template's CONFIG-JSON - its <c>.json</c> - read into a <see cref="TemplateConfig"/> or into
+    /// every problem it has, each at its line of that file.
     ///
     /// **Tolerant in how it is written, strict in what it says** (the maintainer's rule). Comments
     /// and trailing commas are accepted - the file is written by hand - but <c>undefined</c> is
@@ -97,14 +98,13 @@ namespace BlockTemplate
         /// fourth review found it waiting for the key to be fixed (2026-10-01). It is never handed to
         /// anybody with problems beside it - <see cref="TemplateReader"/> returns no template then.
         /// </summary>
-        /// <param name="linesBefore">How many lines of the file come before the JSON's first one.</param>
         /// <param name="typesWhole">
         /// Every <c>generatedTypes</c> entry read into a type. Only then can a sub-template no entry
         /// describes be called a stray: otherwise it may be the one a broken entry meant.
         /// </param>
-        public static TemplateConfig Parse(string json, int linesBefore, string file, List<TemplateProblem> problems, out bool typesWhole)
+        public static TemplateConfig Parse(string json, string file, List<TemplateProblem> problems, out bool typesWhole)
         {
-            Reading reading = new Reading(file, linesBefore, problems, json);
+            Reading reading = new Reading(file, problems, json);
             typesWhole = false;
 
             JToken root;
@@ -114,7 +114,7 @@ namespace BlockTemplate
             }
             catch (JsonReaderException failed)
             {
-                problems.Add(new TemplateProblem(file, failed.LineNumber > 0 ? linesBefore + failed.LineNumber : (int?)null,
+                problems.Add(new TemplateProblem(file, failed.LineNumber > 0 ? failed.LineNumber : (int?)null,
                                                  "The CONFIG-JSON does not read: " + Plain(failed.Message)));
                 return null;
             }
@@ -708,18 +708,16 @@ namespace BlockTemplate
                 yield return child;
         }
 
-        /// <summary>One read: the file, where its JSON starts, and the problems so far.</summary>
+        /// <summary>One read: the file, its lines, and the problems so far.</summary>
         private sealed class Reading
         {
             private readonly string _file;
-            private readonly int _linesBefore;
             private readonly List<TemplateProblem> _problems;
             private readonly string[] _lines;
 
-            public Reading(string file, int linesBefore, List<TemplateProblem> problems, string json)
+            public Reading(string file, List<TemplateProblem> problems, string json)
             {
                 _file = file;
-                _linesBefore = linesBefore;
                 _problems = problems;
                 _lines = (json ?? string.Empty).Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
             }
@@ -751,7 +749,7 @@ namespace BlockTemplate
             public void Add(JToken at, string message)
             {
                 IJsonLineInfo line = at;
-                int? number = line != null && line.HasLineInfo() ? _linesBefore + line.LineNumber : (int?)null;
+                int? number = line != null && line.HasLineInfo() ? line.LineNumber : (int?)null;
                 _problems.Add(new TemplateProblem(_file, number, message));
             }
 

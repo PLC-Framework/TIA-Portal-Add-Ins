@@ -160,10 +160,9 @@ src/AddIn.Shared/
 ```
 src/BlockTemplate/
 ├── BlockTemplate.csproj      SDK-style net48, AnyCPU, references Core; Newtonsoft.Json
-├── TemplateReader.cs         the entry point: a template, its CONFIG-JSON and its sub-templates, or every problem
-├── TemplateFileName.cs       <base>.v<major>.<extension>, and <base>.<id>.v<major>.<extension> for a sub-template
-├── ConfigComment.cs          where the CONFIG-JSON is: <!-- --> in an .xml, the first (* *) of a text format
-├── ConfigParser.cs           what it says - tolerant in how it is written, strict in what it says
+├── TemplateReader.cs         the entry point: a template's .json, the file it renders and its sub-templates, or every problem
+├── TemplateFileName.cs       <base>.v<major>.json beside <base>.v<major>.<extension>, and <base>.<id>.v<major>.<extension> for a sub-template
+├── ConfigParser.cs           what the .json says - tolerant in how it is written, strict in what it says
 ├── Template.cs · TemplateFile.cs · TemplatePart.cs · TemplateRead.cs · TemplateProblem.cs
 └── TemplateConfig.cs · TemplateVariable.cs · TemplateVariableType.cs · TiaVersion.cs · TiaVersionVariable.cs · GeneratedType.cs
 ```

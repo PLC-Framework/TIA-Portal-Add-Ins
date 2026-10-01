@@ -2,19 +2,20 @@ using Core.Imports;
 
 namespace BlockTemplate
 {
-    /// <summary>One file of a template - the template itself or a sub-template - with its text.</summary>
+    /// <summary>
+    /// One file a template renders - the template's own or a sub-template - with its text. **Nothing
+    /// in it is the template's description**: that is the <c>.json</c> beside it, so every byte here
+    /// is meant for TIA Portal once rendered.
+    /// </summary>
     public sealed class TemplateFile
     {
-        public TemplateFile(string path, TemplateFileName name, ImportFormat format, string companion,
-                            string text, int configStart, int configLength)
+        public TemplateFile(string path, TemplateFileName name, ImportFormat format, string companion, string text)
         {
             Path = path;
             Name = name;
             Format = format;
             Companion = companion;
             Text = text;
-            ConfigStart = configStart;
-            ConfigLength = configLength;
         }
 
         public string Path { get; }
@@ -30,14 +31,5 @@ namespace BlockTemplate
         public string Companion { get; }
 
         public string Text { get; }
-
-        /// <summary>
-        /// Where the CONFIG-JSON comment starts in <see cref="Text"/>, delimiters included, or -1
-        /// in a file that carries none - every sub-template. Kept so rendering can take the comment
-        /// out: it describes the template, and nothing it says may reach TIA Portal.
-        /// </summary>
-        public int ConfigStart { get; }
-
-        public int ConfigLength { get; }
     }
 }

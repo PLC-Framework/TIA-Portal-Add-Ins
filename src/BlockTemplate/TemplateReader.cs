@@ -8,19 +8,25 @@ using Core.Imports;
 namespace BlockTemplate
 {
     /// <summary>
-    /// Reads a template - its file, its CONFIG-JSON and its sub-templates - and says everything
-    /// wrong with it. **Never throws**: a file that has gone, a folder that will not list and a
-    /// CONFIG-JSON that does not parse are all problems in the answer.
+    /// Reads a template - its CONFIG-JSON, the file it renders and its sub-templates - and says
+    /// everything wrong with it. **Never throws**: a file that has gone, a folder that will not list
+    /// and a CONFIG-JSON that does not parse are all problems in the answer.
     ///
-    /// **The sub-templates are found beside the template**, by name: the same base and the same
-    /// major, with an id between them - <c>_oc_conveyor.settings.v1.udt</c> beside
-    /// <c>_oc_conveyor.v1.xml</c>. Each <c>generatedTypes</c> entry needs exactly one, and each one
-    /// needs its entry: a sub-template nothing describes is a type that would never be generated,
-    /// and an entry with no file is one that cannot be.
+    /// **A template is read through its <c>.json</c>**, which names it: <c>_oc_conveyor.v1.json</c>.
+    /// Beside it, by name, are the file it renders - exactly one, <c>_oc_conveyor.v1.xml</c> or in
+    /// any other format TIA takes in - and its sub-templates: the same base and the same major, with
+    /// an id between them, <c>_oc_conveyor.settings.v1.udt</c>. Each <c>generatedTypes</c> entry
+    /// needs exactly one, and each one needs its entry: a sub-template nothing describes is a type
+    /// that would never be generated, and an entry with no file is one that cannot be.
+    ///
+    /// **Nothing here reads inside a rendered file.** The CONFIG-JSON lived in the template's first
+    /// comment until TIA refused a <c>.s7dcl</c> carrying a <c>(* *)</c> (2026-10-01), and with it
+    /// went the reader that found that comment and the checks it carried: what a file holds is
+    /// TIA's to refuse when it is imported, as it is for any other import.
     /// </summary>
     public static class TemplateReader
     {
-        /// <param name="path">The template itself: <c>&lt;base&gt;.v&lt;major&gt;.&lt;extension&gt;</c>.</param>
+        /// <param name="path">The template's CONFIG-JSON: <c>&lt;base&gt;.v&lt;major&gt;.json</c>.</param>
         public static TemplateRead Read(string path)
         {
             List<TemplateProblem> problems = new List<TemplateProblem>();
@@ -30,57 +36,69 @@ namespace BlockTemplate
             if (name == null) return Failed(problems, file, problem);
 
             if (!name.IsMain)
-                return Failed(problems, file, "It is a sub-template of " + name.Base + ": read " +
-                                              name.Base + ".v" + name.Major + " instead.");
+                return Failed(problems, file, (name.IsConfig ? "A sub-template has no .json of its own: it is " : "It is ") +
+                                              "part of the template " + name.ConfigName + " - read that instead.");
 
-            if (name.IsResource)
-                return Failed(problems, file, "A " + ImportFiles.ResourceExtension + " is read beside its " +
-                                              ImportFiles.DocumentExtension + ", never as a template of its own.");
+            if (!name.IsConfig)
+                return Failed(problems, file, "A template is read through its CONFIG-JSON: read " + name.ConfigName + " instead.");
 
-            // A folder that will not list leaves the template itself still to read: its CONFIG-JSON is
-            // in a file that may well open, and says nothing about the folder. Only the sub-templates
-            // go unchecked - every one of them would otherwise be reported missing. Codex's seventh
-            // review found the read stopping here (2026-10-01).
+            // A folder that will not list leaves the CONFIG-JSON still to read: it is a file that may
+            // well open, and says nothing about the folder. Only the files beside it go unchecked -
+            // every one of them would otherwise be reported missing. Codex's seventh review of
+            // stage 1.1 found the read stopping here (2026-10-01).
             List<Sibling> siblings = Siblings(path, name, problems, file);
             bool listed = siblings != null;
-            if (!listed) siblings = new List<Sibling>();
 
-            List<Sibling> mains = siblings.Where(s => s.Name.IsMain && !s.Name.IsResource).ToList();
-            if (mains.Count > 1)
-                problems.Add(new TemplateProblem(file, null, "Version " + name.Major + " of " + name.Base + " exists in " +
-                                                             mains.Count + " formats - " + string.Join(", ", mains.Select(m => m.File)) +
-                                                             " - and only one can be the template."));
+            string json = ReadText(path, problems, file);
+
+            bool typesWhole = false;
+            TemplateConfig config = json == null ? null : ConfigParser.Parse(json, file, problems, out typesWhole);
+
+            TemplateFile main = listed ? Main(siblings, name, problems, file) : null;
+            List<TemplatePart> parts = listed ? Parts(siblings, config, typesWhole, name, problems, file) : null;
+
+            return problems.Count > 0
+                ? new TemplateRead(null, problems)
+                : new TemplateRead(new Template(name.Base, name.Major, path, config, main, parts), problems);
+        }
+
+        /// <summary>
+        /// The file the template renders - exactly one beside its <c>.json</c>, and a <c>.s7res</c>
+        /// only as the second half of a <c>.s7dcl</c> - or null, every fault said.
+        /// </summary>
+        private static TemplateFile Main(List<Sibling> siblings, TemplateFileName name, List<TemplateProblem> problems, string file)
+        {
+            List<Sibling> group = siblings.Where(s => s.Name.IsMain && !s.Name.IsConfig).ToList();
 
             // A .s7res beside anything but a .s7dcl belongs to nothing, and left unsaid it would sit in
             // the folder looking like part of a template that reads cleanly. Codex's review found it.
-            Paired(siblings.Where(s => s.Name.IsMain).ToList(), problems, "template");
+            bool paired = Paired(group, problems, "template");
 
-            // From here a fault in the template's own text leaves its sub-templates still to be looked
-            // at: a file that will not read, or carries no CONFIG-JSON, says nothing about the files
-            // beside it. Codex's fifth review found them waiting on it (2026-10-01).
-            string text = ReadText(path, problems, file);
+            List<Sibling> mains = group.Where(s => !s.Name.IsResource).ToList();
 
-            ConfigComment comment = null;
-            if (text != null)
+            if (mains.Count == 0)
             {
-                List<string> said = new List<string>();
-                comment = ConfigComment.Find(text, name.Extension == ImportFiles.SimaticMlExtension, said);
-                problems.AddRange(said.Select(s => new TemplateProblem(file, null, s)));
+                problems.Add(new TemplateProblem(file, null, "It has nothing to render: it needs " + name.Base + ".v" + name.Major +
+                                                             ".<extension> beside it, in a format TIA Portal takes in."));
+                return null;
             }
 
-            bool typesWhole = false;
-            TemplateConfig config = comment == null
-                ? null
-                : ConfigParser.Parse(comment.Json, ConfigComment.LineAt(text, comment.JsonStart) - 1, file, problems, out typesWhole);
+            if (mains.Count > 1)
+            {
+                problems.Add(new TemplateProblem(file, null, "Version " + name.Major + " of " + name.Base + " exists in " +
+                                                             mains.Count + " formats - " + string.Join(", ", mains.Select(m => m.File)) +
+                                                             " - and only one can be the template."));
+                return null;
+            }
 
-            List<TemplatePart> parts = listed ? Parts(siblings, config, typesWhole, name, problems, file) : null;
+            if (!paired) return null;
 
-            if (problems.Count > 0) return new TemplateRead(null, problems);
+            Sibling chosen = mains[0];
+            string text = ReadText(chosen.Path, problems, chosen.File);
+            if (text == null) return null;
 
-            TemplateFile main = new TemplateFile(path, name, ImportFiles.FormatOf(path).Value,
-                                                 Companion(siblings, name, name.Part), text, comment.Start, comment.Length);
-
-            return new TemplateRead(new Template(name.Base, name.Major, main, config, parts), problems);
+            Sibling resource = group.FirstOrDefault(s => s.Name.IsResource);
+            return new TemplateFile(chosen.Path, chosen.Name, ImportFiles.FormatOf(chosen.Path).Value, resource?.Path, text);
         }
 
         /// <summary>
@@ -97,8 +115,14 @@ namespace BlockTemplate
         {
             List<TemplatePart> parts = new List<TemplatePart>();
 
+            // A sub-template is described by the template's .json and has none of its own: one would
+            // be a second description nobody reads, waiting to disagree with the first.
+            foreach (Sibling stray in siblings.Where(s => !s.Name.IsMain && s.Name.IsConfig))
+                problems.Add(new TemplateProblem(stray.File, null, "A sub-template has no .json of its own: " + main.ConfigName +
+                                                                   " describes it in its generatedTypes."));
+
             Dictionary<string, List<Sibling>> byId = siblings
-                .Where(s => !s.Name.IsMain)
+                .Where(s => !s.Name.IsMain && !s.Name.IsConfig)
                 .GroupBy(s => s.Name.Part, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
@@ -108,19 +132,11 @@ namespace BlockTemplate
             // the other. Codex's fourth, fifth and seventh reviews each found one waiting (2026-10-01).
             Dictionary<string, bool> sound = byId.ToDictionary(g => g.Key, g => Sound(g.Value, problems), StringComparer.OrdinalIgnoreCase);
 
-            // And every sub-template is read and its comments checked, matched or not: a CONFIG-JSON
-            // copied into one, or a comment left open, is wrong whatever describes the file. Codex's
-            // eleventh review found it checked only for the ones an entry matched (2026-10-01).
+            // And every sub-template is read, matched or not, so a file that will not open is said
+            // whatever describes it. Codex's eleventh review found it read only when matched.
             Dictionary<string, string> texts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (Sibling part in siblings.Where(s => !s.Name.IsMain && !s.Name.IsResource))
-            {
-                string text = ReadText(part.Path, problems, part.File);
-                texts[part.Path] = text;
-                if (text == null) continue;
-
-                foreach (string said in ConfigComment.InPart(text, part.Name.Extension == ImportFiles.SimaticMlExtension))
-                    problems.Add(new TemplateProblem(part.File, null, said));
-            }
+            foreach (Sibling part in siblings.Where(s => !s.Name.IsMain && !s.Name.IsConfig && !s.Name.IsResource))
+                texts[part.Path] = ReadText(part.Path, problems, part.File);
 
             // With no CONFIG-JSON there is nothing to hold them against, and calling every one of
             // them stray would bury the one problem that matters under several that do not.
@@ -179,18 +195,17 @@ namespace BlockTemplate
 
         /// <summary>
         /// One sound sub-template's file: one format, or a <c>.s7dcl</c> with its <c>.s7res</c> - its
-        /// text already read and checked, null when it would not read.
+        /// text already read, null when it would not.
         /// </summary>
         private static TemplateFile PartFile(List<Sibling> files, Dictionary<string, string> texts)
         {
-            List<Sibling> resources = files.Where(f => f.Name.IsResource).ToList();
             Sibling chosen = files.Single(f => !f.Name.IsResource);
 
             string text = texts[chosen.Path];
             if (text == null) return null;
 
-            return new TemplateFile(chosen.Path, chosen.Name, ImportFiles.FormatOf(chosen.Path).Value,
-                                    resources.Count > 0 ? resources[0].Path : null, text, -1, 0);
+            Sibling resource = files.FirstOrDefault(f => f.Name.IsResource);
+            return new TemplateFile(chosen.Path, chosen.Name, ImportFiles.FormatOf(chosen.Path).Value, resource?.Path, text);
         }
 
         /// <summary>
@@ -218,19 +233,9 @@ namespace BlockTemplate
             return resources.Count == 0;
         }
 
-        /// <summary>The <c>.s7res</c> beside a <c>.s7dcl</c>, or null.</summary>
-        private static string Companion(List<Sibling> siblings, TemplateFileName name, string part)
-        {
-            if (name.Extension != ImportFiles.DocumentExtension) return null;
-
-            Sibling resource = siblings.FirstOrDefault(s => s.Name.IsResource &&
-                                                            string.Equals(s.Name.Part, part, StringComparison.OrdinalIgnoreCase));
-            return resource?.Path;
-        }
-
         /// <summary>
         /// Every template file beside <paramref name="path"/> of the same base and major, the
-        /// template itself included. Null when the folder will not list, said.
+        /// <c>.json</c> itself included. Null when the folder will not list, said.
         /// </summary>
         private static List<Sibling> Siblings(string path, TemplateFileName name, List<TemplateProblem> problems, string file)
         {
