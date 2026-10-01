@@ -9,13 +9,15 @@ namespace BlockTemplate
     /// </summary>
     public sealed class TemplateFile
     {
-        public TemplateFile(string path, TemplateFileName name, ImportFormat format, string companion, string text)
+        public TemplateFile(string path, TemplateFileName name, ImportFormat format, string text,
+                            string companion, string companionText)
         {
             Path = path;
             Name = name;
             Format = format;
-            Companion = companion;
             Text = text;
+            Companion = companion;
+            CompanionText = companionText;
         }
 
         public string Path { get; }
@@ -24,12 +26,18 @@ namespace BlockTemplate
 
         public ImportFormat Format { get; }
 
+        public string Text { get; }
+
         /// <summary>
         /// The <c>.s7res</c> beside a <c>.s7dcl</c>, or null. TIA reads a <c>.s7dcl</c> with or
         /// without one (measured on the VM, 2026-09-30), so its absence is not a problem.
         /// </summary>
         public string Companion { get; }
 
-        public string Text { get; }
+        /// <summary>
+        /// The <c>.s7res</c>'s text, rendered with the <c>.s7dcl</c> it belongs to: a SIMATIC SD pair
+        /// links its texts by id, so the two are one document as far as <c>uid()</c> is concerned.
+        /// </summary>
+        public string CompanionText { get; }
     }
 }

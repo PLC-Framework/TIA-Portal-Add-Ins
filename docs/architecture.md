@@ -159,15 +159,18 @@ src/AddIn.Shared/
 
 ```
 src/BlockTemplate/
-├── BlockTemplate.csproj      SDK-style net48, AnyCPU, references Core; Newtonsoft.Json
+├── BlockTemplate.csproj      SDK-style net48, AnyCPU, references Core; Newtonsoft.Json, Scriban 7.5.0
 ├── TemplateReader.cs         the entry point: a template's .json, the file it renders and its sub-templates, or every problem
 ├── TemplateFileName.cs       <base>.v<major>.json beside <base>.v<major>.<extension>, and <base>.<id>.v<major>.<extension> for a sub-template
 ├── ConfigParser.cs           what the .json says - tolerant in how it is written, strict in what it says
+├── TemplateRenderer.cs       a template rendered with a form's values: every file's text, or every problem
+├── TemplateValues.cs         what a form fills in, and where it starts
+├── TemplateRender.cs · RenderedFile.cs
 ├── Template.cs · TemplateFile.cs · TemplatePart.cs · TemplateRead.cs · TemplateProblem.cs
 └── TemplateConfig.cs · TemplateVariable.cs · TemplateVariableType.cs · TiaVersion.cs · TiaVersionVariable.cs · GeneratedType.cs
 ```
 
-> **A project of its own, like `GitHubApi`, and for the same reason**: every behaviour is exercised from PowerShell with no window and no TIA Portal. It references `Core` because what a file is as an import is `Core.Imports`' answer already; `Core` does not reference it, since Json.NET — and Scriban, from stage 1.2 — are packages, and `Core` is loaded inside TIA Portal's process.
+> **A project of its own, like `GitHubApi`, and for the same reason**: every behaviour is exercised from PowerShell with no window and no TIA Portal. It references `Core` because what a file is as an import is `Core.Imports`' answer already; `Core` does not reference it, since Json.NET and Scriban are packages, and `Core` is loaded inside TIA Portal's process. **On `net48` Scriban needs binding redirects** — it is built against older `System.Threading.Tasks.Extensions` and `System.Text.Json` than its packages bring — which an SDK executable generates for itself and a PowerShell test has to supply through `AssemblyResolve`.
 
 ```
 src/Openness.Shared/
@@ -311,7 +314,7 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
 | `UI.Shared` | `Core` + WPF | `mscorlib`, `System` — see below |
 | `S7PlcWebserverApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |
 | `GitHubApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |
-| `BlockTemplate` | `Core`, and packages — it never loads inside TIA | `+ PLC-Framework.Core`, `Newtonsoft.Json` |
+| `BlockTemplate` | `Core`, and packages — it never loads inside TIA | `+ PLC-Framework.Core`, `Newtonsoft.Json`, `Scriban` |
 | `AddIn.VXX` | anything, Siemens included | `+ Siemens.Engineering.AddIn` |
 | `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window |  |
 | `Satellite.<Name>.VXX` | the above **plus Openness**, as a *client* | `+ Siemens.Engineering` (V20) / `.Base` (V21) |

@@ -95,10 +95,14 @@ namespace BlockTemplate
 
             Sibling chosen = mains[0];
             string text = ReadText(chosen.Path, problems, chosen.File);
-            if (text == null) return null;
 
             Sibling resource = group.FirstOrDefault(s => s.Name.IsResource);
-            return new TemplateFile(chosen.Path, chosen.Name, ImportFiles.FormatOf(chosen.Path).Value, resource?.Path, text);
+            string resourceText = resource == null ? null : ReadText(resource.Path, problems, resource.File);
+
+            if (text == null || (resource != null && resourceText == null)) return null;
+
+            return new TemplateFile(chosen.Path, chosen.Name, ImportFiles.FormatOf(chosen.Path).Value, text,
+                                    resource?.Path, resourceText);
         }
 
         /// <summary>
@@ -133,9 +137,10 @@ namespace BlockTemplate
             Dictionary<string, bool> sound = byId.ToDictionary(g => g.Key, g => Sound(g.Value, problems), StringComparer.OrdinalIgnoreCase);
 
             // And every sub-template is read, matched or not, so a file that will not open is said
-            // whatever describes it. Codex's eleventh review found it read only when matched.
+            // whatever describes it. Codex's eleventh review found it read only when matched. A
+            // .s7res is read too, since it is rendered with its .s7dcl.
             Dictionary<string, string> texts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (Sibling part in siblings.Where(s => !s.Name.IsMain && !s.Name.IsConfig && !s.Name.IsResource))
+            foreach (Sibling part in siblings.Where(s => !s.Name.IsMain && !s.Name.IsConfig))
                 texts[part.Path] = ReadText(part.Path, problems, part.File);
 
             // With no CONFIG-JSON there is nothing to hold them against, and calling every one of
@@ -200,12 +205,14 @@ namespace BlockTemplate
         private static TemplateFile PartFile(List<Sibling> files, Dictionary<string, string> texts)
         {
             Sibling chosen = files.Single(f => !f.Name.IsResource);
+            Sibling resource = files.FirstOrDefault(f => f.Name.IsResource);
 
             string text = texts[chosen.Path];
-            if (text == null) return null;
+            string resourceText = resource == null ? null : texts[resource.Path];
+            if (text == null || (resource != null && resourceText == null)) return null;
 
-            Sibling resource = files.FirstOrDefault(f => f.Name.IsResource);
-            return new TemplateFile(chosen.Path, chosen.Name, ImportFiles.FormatOf(chosen.Path).Value, resource?.Path, text);
+            return new TemplateFile(chosen.Path, chosen.Name, ImportFiles.FormatOf(chosen.Path).Value, text,
+                                    resource?.Path, resourceText);
         }
 
         /// <summary>

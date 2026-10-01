@@ -23,9 +23,10 @@ namespace BlockTemplate
     {
         /// <summary>
         /// Names a variable may not take, because the template itself uses them: <c>header</c> holds
-        /// the header's fields and <c>uid</c> numbers the parts of a network.
+        /// the header's fields, <c>types</c> the names of the generated types and <c>uid</c> numbers
+        /// the parts of a network.
         /// </summary>
-        public static readonly IReadOnlyList<string> Reserved = new[] { "header", "uid" };
+        public static readonly IReadOnlyList<string> Reserved = new[] { TemplateRenderer.HeaderName, TemplateRenderer.TypesName, TemplateRenderer.UidName };
 
         /// <summary>
         /// Names Scriban keeps for itself, spelled exactly - <c>If</c> is a name like any other.
@@ -679,9 +680,9 @@ namespace BlockTemplate
 
         private static string Spelled(TemplateVariableType type) => type.ToString().ToLowerInvariant();
 
-        private static string Show(decimal value) => value.ToString(CultureInfo.InvariantCulture);
+        internal static string Show(decimal value) => value.ToString(CultureInfo.InvariantCulture);
 
-        private static string Range(decimal? min, decimal? max) =>
+        internal static string Range(decimal? min, decimal? max) =>
             min.HasValue && max.HasValue ? "range of " + Show(min.Value) + " to " + Show(max.Value)
             : min.HasValue ? "minimum of " + Show(min.Value)
             : "maximum of " + Show(max.Value);
