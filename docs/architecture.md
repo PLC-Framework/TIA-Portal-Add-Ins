@@ -14,6 +14,7 @@ TIA-Portal-Add-Ins.slnx
     ├── UI.Shared/            (net48, WPF) — brand resources, shared windows          ← EXISTS
     ├── S7PlcWebserverApi/    (net48, AnyCPU) — JSON-RPC client for a CPU's webserver ← EXISTS
     ├── GitHubApi/            (net48, AnyCPU) — REST client for a core kept in a repository ← EXISTS
+    ├── BlockTemplate/        (net48, AnyCPU) — the template engine: reads, and later renders, a block template ← EXISTS
     ├── AddIn.V20/            (net48, x64) — references PublicAPI\V20.addIn (V17–V20) ← EXISTS
     ├── AddIn.V21/            (net48, x64) — references PublicAPI\V21\net48           ← EXISTS
     ├── Satellite.About/      (net48, WPF) — the About window                         ← EXISTS
@@ -157,6 +158,19 @@ src/AddIn.Shared/
 ```
 
 ```
+src/BlockTemplate/
+├── BlockTemplate.csproj      SDK-style net48, AnyCPU, references Core; Newtonsoft.Json
+├── TemplateReader.cs         the entry point: a template, its CONFIG-JSON and its sub-templates, or every problem
+├── TemplateFileName.cs       <base>.v<major>.<extension>, and <base>.<id>.v<major>.<extension> for a sub-template
+├── ConfigComment.cs          where the CONFIG-JSON is: <!-- --> in an .xml, the first (* *) of a text format
+├── ConfigParser.cs           what it says - tolerant in how it is written, strict in what it says
+├── Template.cs · TemplateFile.cs · TemplatePart.cs · TemplateRead.cs · TemplateProblem.cs
+└── TemplateConfig.cs · TemplateVariable.cs · TemplateVariableType.cs · TiaVersion.cs · TiaVersionVariable.cs · GeneratedType.cs
+```
+
+> **A project of its own, like `GitHubApi`, and for the same reason**: every behaviour is exercised from PowerShell with no window and no TIA Portal. It references `Core` because what a file is as an import is `Core.Imports`' answer already; `Core` does not reference it, since Json.NET — and Scriban, from stage 1.2 — are packages, and `Core` is loaded inside TIA Portal's process.
+
+```
 src/Openness.Shared/
 ├── Openness.Shared.csproj    SDK-style net48, AnyCPU, references Core and System.Management
 ├── ITiaClient.cs             what every satellite's session starts from: attach, or attach to one
@@ -298,6 +312,7 @@ Core  ←  AddIn.Shared  ←  AddIn.V20 / AddIn.V21  ←  TIA Portal
 | `UI.Shared` | `Core` + WPF | `mscorlib`, `System` — see below |
 | `S7PlcWebserverApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |
 | `GitHubApi` | the network, and nothing of ours | `Newtonsoft.Json`, `System.Net.Http` |
+| `BlockTemplate` | `Core`, and packages — it never loads inside TIA | `+ PLC-Framework.Core`, `Newtonsoft.Json` |
 | `AddIn.VXX` | anything, Siemens included | `+ Siemens.Engineering.AddIn` |
 | `Satellite.<Name>` / `Tool.<Name>` | `Core`, plus `UI.Shared` when it has a window |  |
 | `Satellite.<Name>.VXX` | the above **plus Openness**, as a *client* | `+ Siemens.Engineering` (V20) / `.Base` (V21) |

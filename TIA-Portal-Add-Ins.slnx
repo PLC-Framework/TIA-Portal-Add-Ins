@@ -18,5 +18,6 @@
   <Project Path="src/Satellite.ImportObjects.V20/Satellite.ImportObjects.V20.csproj" Id="08fb96a0-f0ee-4c15-b2c9-d3a04ff40176" />
   <Project Path="src/Satellite.ImportObjects.V21/Satellite.ImportObjects.V21.csproj" Id="87e2890e-616b-4160-b5e0-ca3ec66e8ac4" />
   <Project Path="src/Satellite.ImportObjects/Satellite.ImportObjects.csproj" Id="dd6e12b8-66be-48de-be4f-983f68b8880b" />
+  <Project Path="src/BlockTemplate/BlockTemplate.csproj" />
   <Project Path="src/UI.Shared/UI.Shared.csproj" Id="7dc1d8ba-91fc-4080-834a-e54bfc1030df" />
 </Solution>

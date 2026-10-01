@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The template engine: what a template is, what its CONFIG-JSON says, and - from stage 1.2 -
+       what it renders into. No window and no TIA Portal, so every behaviour is exercised from
+       PowerShell, the way GitHubApi's are.
+
+       It references Core for one reason: what a file is as an import - its format, what it
+       declares - is Core.Imports' answer already, and a template is a file on its way to being
+       imported. Core does not reference this: Newtonsoft.Json (and Scriban, from 1.2) are
+       packages, and Core is loaded inside TIA Portal's process, where no package may go. -->
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>BlockTemplate</RootNamespace>
+    <AssemblyName>PLC-Framework.BlockTemplate</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Core.csproj" />
+  </ItemGroup>
+
+</Project>
