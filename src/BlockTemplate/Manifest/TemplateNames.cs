@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace BlockTemplate.Manifest
 {
@@ -35,6 +38,16 @@ namespace BlockTemplate.Manifest
 
         /// <summary>The names a variable or a TIA version's value may not take, since the template itself uses them.</summary>
         internal static readonly IReadOnlyList<string> Reserved = new[] { Header, Types, Uid };
+
+        /// <summary>A name a template can write bare - <c>{{ sensors }}</c>: a letter or _ first, then letters, digits and _.</summary>
+        internal static readonly Regex Word = new Regex("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.CultureInvariant);
+
+        /// <summary>
+        /// How a template writes a generated type's name: <c>types.settings</c>, or
+        /// <c>types["seq-link"]</c> for an id that is not a word or is one of Scriban's own.
+        /// </summary>
+        internal static string TypeReference(string id) =>
+            Word.IsMatch(id) && !ScribanWords.Contains(id, StringComparer.Ordinal) ? Types + "." + id : Types + "[\"" + id + "\"]";
 
         /// <summary>
         /// Names Scriban keeps for itself, spelled exactly - <c>If</c> is a name like any other.

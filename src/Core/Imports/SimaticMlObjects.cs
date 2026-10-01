@@ -37,7 +37,17 @@ namespace Core.Imports
         /// Every object at the top of the document, in its order. **Never throws**: a document
         /// that will not read comes back empty with the reason.
         /// </summary>
-        internal static IReadOnlyList<DeclaredObject> Read(Stream xml, out string problem)
+        internal static IReadOnlyList<DeclaredObject> Read(Stream xml, out string problem) =>
+            Read(settings => XmlReader.Create(xml, settings), out problem);
+
+        /// <summary>
+        /// The same, for a document that is text rather than a file - one a template has just
+        /// rendered, which nothing has written anywhere yet.
+        /// </summary>
+        internal static IReadOnlyList<DeclaredObject> Read(TextReader xml, out string problem) =>
+            Read(settings => XmlReader.Create(xml, settings), out problem);
+
+        private static IReadOnlyList<DeclaredObject> Read(Func<XmlReaderSettings, XmlReader> open, out string problem)
         {
             problem = null;
             List<DeclaredObject> found = new List<DeclaredObject>();
@@ -55,7 +65,7 @@ namespace Core.Imports
                     IgnoreProcessingInstructions = true
                 };
 
-                using (XmlReader reader = XmlReader.Create(xml, settings))
+                using (XmlReader reader = open(settings))
                 {
                     reader.MoveToContent();
 

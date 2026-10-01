@@ -14,7 +14,7 @@ TIA-Portal-Add-Ins.slnx
     ├── UI.Shared/            (net48, WPF) — brand resources, shared windows          ← EXISTS
     ├── S7PlcWebserverApi/    (net48, AnyCPU) — JSON-RPC client for a CPU's webserver ← EXISTS
     ├── GitHubApi/            (net48, AnyCPU) — REST client for a core kept in a repository ← EXISTS
-    ├── BlockTemplate/        (net48, AnyCPU) — the template engine: reads, and later renders, a block template ← EXISTS
+    ├── BlockTemplate/        (net48, AnyCPU) — the template engine: reads, renders and checks a block template ← EXISTS
     ├── AddIn.V20/            (net48, x64) — references PublicAPI\V20.addIn (V17–V20) ← EXISTS
     ├── AddIn.V21/            (net48, x64) — references PublicAPI\V21\net48           ← EXISTS
     ├── Satellite.About/      (net48, WPF) — the About window                         ← EXISTS
@@ -85,7 +85,7 @@ src/Core/
 ├── Exports/
 │   └── ExportTree.cs         where an exported object goes: exports\ shaped like the project
 ├── Imports/                  what a chosen file is, as an import — pure over the files
-│   ├── ImportFiles.cs        the entry point: a file's format, what it declares, the order files go in
+│   ├── ImportFiles.cs        the entry point: a file's format, what it declares - or a text not written yet - the order files go in
 │   ├── ImportFile.cs         one file, the unit an import works in · ImportSelection.cs what was chosen
 │   ├── DeclaredObject.cs     a name and a kind a file declares · ImportFormat.cs · ImportRank.cs
 │   ├── SimaticMlObjects.cs · SourceDeclarations.cs   the two readers, names only
@@ -181,16 +181,30 @@ src/BlockTemplate/                      BlockTemplate - what every stage shares
 │   ├── TemplateFolder.cs             the one type that touches the disk
 │   ├── SiblingFile.cs · FilePairing.cs   one format, a .s7res only beside a .s7dcl
 │   └── SubTemplateMatching.cs        sub-templates held against generatedTypes, both ways
-└── Rendering/                        BlockTemplate.Rendering - a form's values into texts
-    ├── TemplateRenderer.cs           the entry point: every file's text, or every problem
-    ├── TemplateValues.cs · TemplateRenderResult.cs · RenderedFile.cs
-    ├── ValuesCheck.cs                the values held against the manifest
-    ├── RenderModel.cs                what a file sees: empty is null, escaped for XML in SimaticML
-    ├── ReadOnlyList.cs · UidCounter.cs
-    └── ScribanText.cs                the one place Scriban runs
+├── Rendering/                        BlockTemplate.Rendering - a form's values into texts
+│   ├── TemplateRenderer.cs           the entry point: every file's text, or every problem
+│   ├── TemplateValues.cs · TemplateRenderResult.cs · RenderedFile.cs
+│   ├── ValuesCheck.cs                the values held against the manifest
+│   ├── RenderModel.cs                what a file sees: empty is null, escaped for XML in SimaticML
+│   ├── ReadOnlyList.cs · UidCounter.cs
+│   └── ScribanText.cs                the one place Scriban runs
+└── Checking/                         BlockTemplate.Checking - what was rendered, checked and in TIA's order
+    ├── TemplateChecker.cs            the entry point: every file checked, or every problem
+    ├── TemplateCheckResult.cs · CheckedFile.cs   what is imported, and nothing else
+    ├── MarkerCheck.cs                no {{ left in any format
+    ├── DeclarationCheck.cs           it declares what the template promised, read with Core.Imports
+    ├── SimaticMl/                    BlockTemplate.Checking.SimaticMl - a rendered SimaticML document
+    │   ├── SimaticMlCheck.cs         well-formed, every network sound, then renumbered
+    │   ├── SimaticMlScan.cs          one walk: every ID, every LAD/FBD network's UIds, where each value sits
+    │   ├── ScannedDocument.cs · FlgNetwork.cs · NumberedAttribute.cs · SimaticMlNames.cs
+    │   ├── NetworkCheck.cs           numbers, no UId twice, every connection to something of its kind
+    │   └── Renumbering.cs            UIds from 21 per network in TIA's order, IDs in hex from 0
+    └── Text/                         BlockTemplate.Checking.Text - knowing nothing of XML
+        ├── TextLines.cs              a line and column to a position, as XmlReader counts them
+        └── TextEdit.cs               spans replaced, every other character copied as it was
 ```
 
-> **Dependencies run one way**: the root ← `Manifest` and `Manifest.Json`, which never meet ← `Manifest.Parsing` ← `Reading` ← `Rendering`. **Public is only what the stages after this one use** — the reader, the renderer, the model, the values and the results — and every constructor but `TemplateValues`' is `internal`, so the renderer is never handed a template the reader did not make. The `.claude` battery's `block-template-shape` holds both, reading the sources with comments and strings taken out.
+> **Dependencies run one way**: the root ← `Manifest` and `Manifest.Json`, which never meet ← `Manifest.Parsing` ← `Reading` ← `Rendering` ← `Checking`, with `Checking.Text` beneath `Checking.SimaticMl` and both beneath `Checking`. **Public is only what the stages after this one use** — the reader, the renderer, the checker, the model, the values and the results — and every constructor but `TemplateValues`' is `internal`, so the renderer is never handed a template the reader did not make, and the import never a file the checker did not pass. The `.claude` battery's `block-template-shape` holds both, reading the sources with comments and strings taken out.
 
 > **A project of its own, like `GitHubApi`, and for the same reason**: every behaviour is exercised from PowerShell with no window and no TIA Portal. It references `Core` because what a file is as an import is `Core.Imports`' answer already; `Core` does not reference it, since Json.NET and Scriban are packages, and `Core` is loaded inside TIA Portal's process. **On `net48` Scriban needs binding redirects** — it is built against older `System.Threading.Tasks.Extensions` and `System.Text.Json` than its packages bring — which an SDK executable generates for itself and a PowerShell test has to supply through `AssemblyResolve`.
 

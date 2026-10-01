@@ -67,7 +67,7 @@ namespace Core.Imports
             if (format == null) return null;
 
             string problem;
-            IReadOnlyList<DeclaredObject> objects = Declared(path, format.Value, out problem);
+            IReadOnlyList<DeclaredObject> objects = DeclaredInFile(path, format.Value, out problem);
             string companion = format == ImportFormat.Document ? CompanionOf(path) : null;
 
             return new ImportFile(path, format.Value, companion, objects, problem);
@@ -131,7 +131,25 @@ namespace Core.Imports
             return new ImportSelection(ordered, refused);
         }
 
-        private static IReadOnlyList<DeclaredObject> Declared(string path, ImportFormat format, out string problem)
+        /// <summary>
+        /// What a text declares, read exactly as a file of that format would be - for a file that
+        /// is not on disk yet, such as one a template has just rendered and is about to be
+        /// checked against what the template promised. **Never throws**: what cannot be read, or
+        /// declares nothing, comes back empty with the reason, in the words <see cref="Read"/>
+        /// gives for a file.
+        /// </summary>
+        public static IReadOnlyList<DeclaredObject> Declared(string text, ImportFormat format, out string problem)
+        {
+            if (format == ImportFormat.SimaticMl)
+            {
+                using (StringReader reader = new StringReader(text ?? ""))
+                    return SimaticMlObjects.Read(reader, out problem);
+            }
+
+            return SourceDeclared(text, out problem);
+        }
+
+        private static IReadOnlyList<DeclaredObject> DeclaredInFile(string path, ImportFormat format, out string problem)
         {
             problem = null;
 
@@ -146,21 +164,25 @@ namespace Core.Imports
                 // Read the way StreamReader decides: a byte-order mark if there is one, UTF-8 if
                 // not. The names are what is wanted, and TIA writes them in ASCII; a comment in
                 // another code page costs nothing here.
-                IReadOnlyList<DeclaredObject> declared;
+                string text;
                 using (StreamReader reader = new StreamReader(
                            new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete), true))
-                    declared = SourceDeclarations.Read(reader.ReadToEnd());
+                    text = reader.ReadToEnd();
 
-                if (declared.Count == 0)
-                    problem = "It declares no block, data type or data block.";
-
-                return declared;
+                return SourceDeclared(text, out problem);
             }
             catch (Exception exception)
             {
                 problem = "It could not be read: " + exception.Message;
                 return new DeclaredObject[0];
             }
+        }
+
+        private static IReadOnlyList<DeclaredObject> SourceDeclared(string text, out string problem)
+        {
+            IReadOnlyList<DeclaredObject> declared = SourceDeclarations.Read(text);
+            problem = declared.Count == 0 ? "It declares no block, data type or data block." : null;
+            return declared;
         }
 
         /// <summary>

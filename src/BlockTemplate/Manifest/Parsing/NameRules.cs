@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text.RegularExpressions;
 
 using BlockTemplate.Manifest.Json;
 
@@ -14,9 +13,6 @@ namespace BlockTemplate.Manifest.Parsing
     /// </summary>
     internal static class NameRules
     {
-        /// <summary>A name the template writes bare - <c>{{ sensors }}</c> - so it has to be a word.</summary>
-        private static readonly Regex Identifier = new Regex("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.CultureInvariant);
-
         /// <summary>
         /// A required name the template writes bare: a variable's, or a TIA version's value's. A
         /// word, not one the template itself uses, and not one of Scriban's own.
@@ -26,7 +22,7 @@ namespace BlockTemplate.Manifest.Parsing
             string name = Required(problems, entry, key, at);
             if (name == null) return null;
 
-            if (!Identifier.IsMatch(name))
+            if (!TemplateNames.Word.IsMatch(name))
             {
                 problems.Add(entry[key], at + "." + key + " '" + name + "' is not a name a template can write: " +
                                          "a letter or _ first, then letters, digits and _.");
