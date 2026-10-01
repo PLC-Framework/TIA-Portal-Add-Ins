@@ -2,6 +2,8 @@
 
 Working instructions and the decision record: what was chosen, what was rejected, and why. The technical documentation — Siemens DLL paths, Publisher mechanics, API surface, gotchas — lives under `docs/`, imported at the bottom. **Do not duplicate any of it here**; this file holds reasons, `docs/` holds facts.
 
+**[AGENTS.md](AGENTS.md) is the short version for other coding agents** (2026-10-01, when Codex started reviewing each stage): the rules whose breaking fails silently, and an instruction to check this file before reporting a recorded decision as a bug. It restates a handful of rules from here on purpose — this file is too long to hand an agent whole — so **a change to one of those rules changes both files**.
+
 **"The VM" throughout means the test machine with TIA Portal V20 and V21 installed.** The development PC has neither, and does not need them: everything up to the `.addin` package builds without TIA, which is why "verified here" and "confirmed on the VM" are different claims and are kept apart.
 
 ## Language
